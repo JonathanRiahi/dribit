@@ -1,7 +1,7 @@
 // Service worker: makes Dribit installable and lets it open without internet.
 // build.py stamps VERSION and the file list. Each deploy changes VERSION, so phones fetch the new version
 // in the background and the app reloads itself on the next screen change.
-var VERSION = '0.5.0-b69c7175';
+var VERSION = '0.5.0-2883c3b6';
 var FILES = ["./", "index.html", "styles.css", "config.js", "app.js", "manifest.webmanifest", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon.svg", "icons/maskable-512.png", "assets/images/done-celebration.svg", "assets/images/empty-empty.svg", "assets/images/unit1-online-banking.svg", "assets/images/unit2-savings.svg", "assets/images/unit3-watering-plants.svg", "assets/images/unit4-bull-market.svg", "assets/images/unit5-investing.svg", "assets/images/unit6-warning.svg", "assets/images/unit7-career-progress.svg", "assets/images/unit8-five-year-plan.svg", "assets/images/welcome-growth-curve.svg", "data/lessons.json"];
 var CACHE = 'dribit-' + VERSION;
 var FONTS = 'dribit-fonts';

@@ -75,7 +75,7 @@ window.DRIBIT_CONFIG = {
   // מדידה (PostHog). בלי מפתח, האירועים נשמרים במכשיר ונשלחים כשהמפתח יתווסף.
   // המפתח שמתחיל ב-phc_ אינו סוד: הוא נועד להיות בקוד של האתר.
   analytics: {
-    posthogKey: '',
+    posthogKey: 'phc_tsse5UQex6pJhPK4yZkLjXLTXykftLFo8BXibrXa3Bqm',
     host: 'https://eu.i.posthog.com'
   },
 
