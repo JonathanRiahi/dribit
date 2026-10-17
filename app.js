@@ -40,6 +40,7 @@
     phone: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 1.5h8A2.5 2.5 0 0118.5 4v16a2.5 2.5 0 01-2.5 2.5H8A2.5 2.5 0 015.5 20V4A2.5 2.5 0 018 1.5zm0 3V18h8V4.5zm4 15a1.1 1.1 0 100 2.2 1.1 1.1 0 000-2.2z"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>',
     rescue: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6"/></svg>',
+    bell: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1.5 1.5 0 011.5 1.5v.9A6 6 0 0118 10v4.2l1.7 2.3a1 1 0 01-.8 1.6H5.1a1 1 0 01-.8-1.6L6 14.2V10a6 6 0 014.5-5.6v-.9A1.5 1.5 0 0112 2zm-2.5 17.5h5a2.5 2.5 0 01-5 0z"/></svg>',
     dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>'
   };
 
@@ -107,7 +108,9 @@
       mistakes: {},      // questionId -> times answered wrong (goes down when answered right)
       answered: 0, correct: 0,
       inProgress: null,  // the unfinished lesson, so the app reopens on the same screen
-      ratings: {}, intent: {}, installHidden: false
+      ratings: {}, intent: {}, installHidden: false,
+      reminder: null,    // { on, endpoint, hour, since } while the daily push reminder is on
+      reminderNo: null   // { count, day } after "not now" on the reminder card
     };
   }
   function migrate(s) {
@@ -383,7 +386,9 @@
 
   // ---------- Rendering ----------
   var root, view = 'home', session = null, sheetOpen = false, notesId = null, onboardStep = 0;
-  var deferredInstall = null, pendingReload = false;
+  var deferredInstall = null, pendingReload = false, pushBusy = false;
+  // how the app was opened: 'homescreen' (the installed icon), 'push' (a tap on the reminder) or 'link'
+  var OPEN_SOURCE = (function () { var m = /[?&]source=([\w-]+)/.exec(location.search); return m ? m[1] : 'link'; })();
 
   // ---------- Browser history ----------
   // Home is the root entry. Any other view, and any open sheet, is one entry above it, so the phone's
@@ -459,10 +464,17 @@
     root.innerHTML = renderTopbar() + '<main class="screen gutter">' + body + '</main>' + renderLegalBar() + renderNav();
     if (view === 'home') revealCurrent();
   }
-  // the next lesson is what people came for: bring it into view unless a resume or repair card leads the page
+  // the next lesson is what people came for: bring it into view, unless a resume, repair or reminder card leads
+  // the page; then the page starts at that card (the previous screen may have been scrolled down)
   function revealCurrent() {
+    var lead = root.querySelector('.resume-card, .repair-card, .reminder-card');
+    if (lead) {
+      var lr = lead.getBoundingClientRect();
+      if (lr.top < 0 || lr.bottom > window.innerHeight) window.scrollTo(0, 0);
+      return;
+    }
     var cur = root.querySelector('.node-wrap.current');
-    if (!cur || root.querySelector('.resume-card, .repair-card')) return;
+    if (!cur) return;
     var r = cur.getBoundingClientRect();
     if (r.top < 96 || r.bottom > window.innerHeight * 0.72) {
       try { cur.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { cur.scrollIntoView(); }
@@ -525,10 +537,20 @@
         '<span>אפשר להציל אותו ' + (rep.daysLeft > 0 ? 'עוד ' + plural(rep.daysLeft + 1, 'יום אחד', 'ימים') : 'רק היום') + ': ' + CFG.streakRepair.questions + ' שאלות, ' + CFG.streakRepair.toPass + ' נכונות לפחות.</span></div></div>' +
         '<button class="btn gold" data-act="repair">להציל את הרצף</button></div>';
     }
-    if (canInstall() && !S.installHidden) {
+    var rs = reminderCardState();
+    // one ask at a time: while the reminder card is due, the install card waits
+    if (canInstall() && !S.installHidden && !rs) {
       html += '<div class="card install-card"><div class="rc-head"><span class="rc-ic">' + ICON.phone + '</span><div>' +
         '<b>להתקין את ' + esc(CFG.appName) + ' בטלפון</b><span>אייקון במסך הבית, נפתח במסך מלא ועובד גם בלי אינטרנט.</span></div></div>' +
         '<div class="row"><button class="btn" data-act="install">להתקנה</button><button class="btn text" data-act="install-hide">לא עכשיו</button></div></div>';
+    }
+    if (rs) {
+      html += '<div class="card reminder-card"><div class="rc-head"><span class="rc-ic">' + ICON.bell + '</span><div>' +
+        '<b>תזכורת יומית ב-' + hourLabel() + '</b><span>' + (rs === 'install'
+          ? 'באייפון תזכורות עובדות רק מהאפליקציה המותקנת במסך הבית.'
+          : 'הודעה קצרה רק בימים שעוד לא עשית שיעור. אפשר לכבות בפרופיל.') + '</span></div></div>' +
+        '<div class="row"><button class="btn" data-act="' + (rs === 'install' ? 'install' : 'reminder-on') + '" data-from="home">' +
+          (rs === 'install' ? 'איך מתקינים' : 'להפעיל') + '</button><button class="btn text" data-act="reminder-later">לא עכשיו</button></div></div>';
     }
     if (CFG.pilot) {
       html += '<button class="pilot-bar" data-act="feedback" data-ctx="home">' + ICON.chat + '<span><b>גרסת ניסיון.</b> ספרו לנו מה לשפר</span>' + ICON.chevron + '</button>';
@@ -1432,6 +1454,7 @@
       '<div class="card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
+      reminderRow() +
       (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי אינטרנט.</p><button class="btn ghost" data-act="install">איך מתקינים</button></div>' : '') +
       '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>' +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
@@ -1526,6 +1549,134 @@
     })(t0);
   }
 
+  // ---------- Daily reminder (Web Push) ----------
+  // The phone subscribes with the public key from config, and the subscription is recorded as a PostHog event.
+  // tools/send-reminders.js (run every day by GitHub Actions) reads those events and pushes a short message to
+  // everyone who has not finished a lesson today. iPhones get notifications only from the installed app.
+  var RCFG = CFG.reminders || {};
+  function hourLabel() { return (RCFG.hour < 10 ? '0' : '') + RCFG.hour + ':00'; }
+  function pushSupported() {
+    return !!(RCFG.enabled && RCFG.vapidPublicKey && !IN_FRAME && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+  }
+  // 'on' | 'off' | 'install' (iPhone outside the installed app) | 'denied' (blocked in the browser) | 'unsupported'
+  function pushState() {
+    if (S.reminder && S.reminder.on) return 'on';
+    if (!RCFG.enabled || !RCFG.vapidPublicKey || IN_FRAME) return 'unsupported';
+    if (IS_IOS && !isStandalone()) return 'install';
+    if (!pushSupported()) return 'unsupported';
+    if (Notification.permission === 'denied') return 'denied';
+    return 'off';
+  }
+  function keyBytes(s) {
+    var b64 = (s + '===').slice(0, s.length + (4 - s.length % 4) % 4).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(b64), out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function askNotify() {
+    return new Promise(function (resolve) {
+      var done = false;
+      function fin(r) { if (!done) { done = true; resolve(r || 'default'); } }
+      try {
+        var p = Notification.requestPermission(fin);
+        if (p && p.then) p.then(fin);
+      } catch (e) { fin('denied'); }
+    });
+  }
+  function swReady() {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error('no service worker')); }, 8000);
+      navigator.serviceWorker.ready.then(function (reg) { clearTimeout(t); resolve(reg); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+  function subscribePush(reg) {
+    return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(RCFG.vapidPublicKey) });
+  }
+  // a tiny key-value store the service worker can read too (localStorage is out of its reach)
+  function metaPut(k, v) {
+    try {
+      if (window.caches) caches.open('dribit-meta').then(function (c) { return c.put('./meta/' + k, new Response(String(v))); }).catch(function () { /* ignore */ });
+    } catch (e) { /* ignore */ }
+  }
+  function saveSubscription(sub, from) {
+    var j = (sub.toJSON && sub.toJSON()) || { endpoint: sub.endpoint }, keys = j.keys || {};
+    S.reminder = { on: true, endpoint: j.endpoint, hour: RCFG.hour, since: dayKey() };
+    S.reminderNo = null;
+    save();
+    metaPut('uid', S.uid);
+    track('push_subscribed', { endpoint: j.endpoint, p256dh: keys.p256dh, auth: keys.auth, hour: RCFG.hour, from: from, $set: { reminders: true } });
+    flush();
+  }
+  function enableReminder(from) {
+    var st = pushState();
+    if (st === 'install') { installSheet(); return; }
+    if (st === 'denied') { toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות הדפדפן', '', 2600); return; }
+    if (st !== 'off' || pushBusy) return;
+    pushBusy = true;
+    track('push_asked', { from: from });
+    askNotify().then(function (perm) {
+      if (perm !== 'granted') { track('push_denied', { from: from, permission: perm }); throw { quiet: perm }; }
+      return swReady();
+    }).then(subscribePush).then(function (sub) {
+      pushBusy = false;
+      saveSubscription(sub, from);
+      render();
+      toast(ICON.bell + '<b>סגור.</b> תזכורת כל יום ב-' + hourLabel(), 'info', 2600);
+    }).catch(function (e) {
+      pushBusy = false;
+      if (e && e.quiet) {
+        render();
+        if (e.quiet === 'denied') toast(ICON.bell + '<b>ההתראות חסומות.</b> אפשר לאפשר אותן בהגדרות', '', 2600);
+        return;
+      }
+      track('push_failed', { from: from, error: String((e && e.name) || e).slice(0, 60) });
+      toast(ICON.bell + '<b>לא הצלחתי להפעיל תזכורת</b> בדפדפן הזה', '', 2600);
+    });
+  }
+  function disableReminder(reason) {
+    var endpoint = S.reminder && S.reminder.endpoint;
+    S.reminder = null;
+    save();
+    track('push_unsubscribed', { endpoint: endpoint, reason: reason, $set: { reminders: false } });
+    flush();
+    if (!pushSupported()) return;
+    swReady().then(function (reg) { return reg.pushManager.getSubscription(); })
+      .then(function (sub) { if (sub) return sub.unsubscribe(); })
+      .catch(function () { /* the sender drops the subscription on its first failed push */ });
+  }
+  // on open: keep the saved subscription in step with the browser (renewed endpoint, permission taken away)
+  function syncPush() {
+    if (!S.reminder || !S.reminder.on || !pushSupported()) return;
+    if (Notification.permission !== 'granted') { disableReminder('permission'); return; }
+    swReady().then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) { return sub || subscribePush(reg); });
+    }).then(function (sub) {
+      if (sub.endpoint !== S.reminder.endpoint) saveSubscription(sub, 'renew'); else metaPut('uid', S.uid);
+    }).catch(function () { /* keep the saved state */ });
+  }
+  // the home card: after the first finished lesson, until it is turned on or declined twice (a week apart)
+  function reminderCardState() {
+    if (!doneCount() || !S.share) return null;
+    var st = pushState();
+    if (st !== 'off' && !(st === 'install' && S.installHidden)) return null;
+    var no = S.reminderNo;
+    if (no && (no.count >= 2 || daysBetween(no.day, dayKey()) < 7)) return null;
+    return st;
+  }
+  function reminderRow() {
+    var st = pushState();
+    if (st === 'unsupported') return '';
+    var daily = 'הודעה אחת ביום ב-' + hourLabel() + ', רק אם עוד לא עשית שיעור.';
+    var note = st === 'install' ? 'באייפון זה עובד רק מהאפליקציה המותקנת במסך הבית.'
+      : st === 'denied' ? 'ההתראות חסומות. מאפשרים אותן בהגדרות הדפדפן או הטלפון ופותחים שוב.'
+      : (st === 'off' && !S.share) ? 'התזכורת נשלחת לפי נתוני השימוש. כדי להפעיל אותה מדליקים את השיתוף למטה.'
+      : daily;
+    var ctrl = (st === 'on' || (st === 'off' && S.share))
+      ? '<button class="switch" role="switch" aria-labelledby="rem-l" aria-checked="' + (st === 'on') + '" data-act="reminder-toggle"></button>' : '';
+    return '<div class="card"><div class="toggle-row"><h2 id="rem-l">תזכורת יומית</h2>' + ctrl + '</div><p class="fine">' + note + '</p>' +
+      (st === 'install' ? '<button class="btn ghost" data-act="install">איך מתקינים</button>' : '') + '</div>';
+  }
+
   // ---------- Install and updates ----------
   function installFlow() {
     track('install_clicked', { method: deferredInstall ? 'prompt' : IS_IOS ? 'ios_steps' : 'steps' });
@@ -1545,6 +1696,10 @@
     if (location.protocol !== 'https:' && !local) return;
     var had = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').catch(function () { /* offline mode unavailable */ });
+    // a tap on the reminder while the app is already open (the worker brings it to the front)
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'push-click') track('push_clicked', { app_open: true });
+    });
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (!had) return;
       // a new version is ready: reload now on the home screen, otherwise at the next screen change
@@ -1643,11 +1798,20 @@
         break;
       case 'sound': S.sound = !S.sound; save(); render(); if (S.sound) sfx.right(0); break;
       case 'share':
-        if (S.share) { track('analytics_off', {}); flush(); }
+        if (S.share) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); track('analytics_off', {}); flush(); }
         S.share = !S.share; save(); render();
         break;
       case 'install': installFlow(); break;
       case 'install-hide': S.installHidden = true; save(); render(); break;
+      case 'reminder-on': enableReminder(el.getAttribute('data-from') || 'home'); break;
+      case 'reminder-later':
+        S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() };
+        save(); track('push_declined', { count: S.reminderNo.count }); render();
+        break;
+      case 'reminder-toggle':
+        if (pushState() === 'on') { disableReminder('user'); render(); toast(ICON.bell + '<b>התזכורת כבויה</b>', '', 1800); }
+        else enableReminder('profile');
+        break;
       case 'feedback': feedbackSheet(el.getAttribute('data-ctx'), id); break;
       case 'fb-rate': {
         fbRating = +el.getAttribute('data-v');
@@ -1687,6 +1851,7 @@
         break;
       case 'reset-confirm': {
         var uid = S.uid;
+        if (S.reminder && S.reminder.on) disableReminder('reset');
         closeSheet(true); S = freshState(); S.uid = uid; onboardStep = 0; pickedStatus = null; session = null;
         track('progress_reset', {});
         save(); indexContent(); setView('home');
@@ -1756,9 +1921,10 @@
     document.addEventListener('touchstart', function unlock() { if (S.sound) audio(); document.removeEventListener('touchstart', unlock); }, { passive: true });
     checkStreakBreak();
     track('app_opened', {
-      returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(),
+      returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, reminders: !!(S.reminder && S.reminder.on),
       $set: { status: S.status, goal_xp: S.goalXp, standalone: isStandalone() }, $set_once: { first_day: S.firstDay }
     });
+    if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false });
     if (S.onboarded && S.status && S.inProgress) {
       var s = restoreSession(S.inProgress);
       if (s) {
@@ -1771,6 +1937,7 @@
     render();
     if (view === 'lesson') toast(ICON.play + '<b>ממשיכים מאיפה שהפסקת</b>', 'info', 2000);
     registerSW();
+    syncPush();
     flush();
   }
 

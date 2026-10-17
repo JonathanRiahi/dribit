@@ -2,7 +2,7 @@
 window.DRIBIT_CONFIG = {
   appName: 'דריבית',
   appNameEn: 'Dribit',
-  version: '0.6.0',
+  version: '0.7.0',
   tagline: 'כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.',
 
   // גרסת ניסיון: מציג באנר משוב במסך הבית
@@ -77,6 +77,15 @@ window.DRIBIT_CONFIG = {
   analytics: {
     posthogKey: 'phc_tsse5UQex6pJhPK4yZkLjXLTXykftLFo8BXibrXa3Bqm',
     host: 'https://eu.i.posthog.com'
+  },
+
+  // תזכורת יומית (Web Push). המפתח הציבורי כאן אינו סוד. המפתח הפרטי שלו נמצא רק ב-GitHub (Settings ← Secrets)
+  // ומשמש את השליחה היומית: tools/send-reminders.js רץ כל יום ב-GitHub Actions (.github/workflows/reminders.yml).
+  // המינויים נשמרים כאירועים ב-PostHog (push_subscribed), ולכן התזכורת עובדת רק למי ששיתוף הנתונים דלוק אצלו.
+  reminders: {
+    enabled: true,
+    hour: 18,  // שעון ישראל. אם משנים, משנים גם את ה-cron בקובץ ה-workflow
+    vapidPublicKey: 'BMwrT7BZQpvx3UGBsw5khdO5ZkwERNxRXz1slfXdwAWv0tMwhybKF6r25OJ3Ca_xqDKUoHllMRY82gacM79Nr6g'
   },
 
   // משוב: אם אין מפתח מדידה, המשוב נפתח בוואטסאפ. מספר בפורמט 9725XXXXXXXX, או ריק כדי לבחור איש קשר.

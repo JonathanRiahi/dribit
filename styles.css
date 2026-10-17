@@ -684,7 +684,7 @@ canvas.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 30; 
 a.btn { text-align: center; text-decoration: none; }
 
 /* ---------- v0.5: home cards ---------- */
-.screen > .resume-card, .screen > .repair-card, .screen > .install-card, .screen > .pilot-bar { margin-top: 16px; }
+.screen > .resume-card, .screen > .repair-card, .screen > .install-card, .screen > .reminder-card, .screen > .pilot-bar { margin-top: 16px; }
 .resume-card {
   width: 100%; border: 0; cursor: pointer; text-align: right;
   display: flex; align-items: center; gap: 14px;
@@ -710,8 +710,9 @@ a.btn { text-align: center; text-decoration: none; }
 .repair-card { border-color: var(--flame); background: linear-gradient(160deg, var(--gold-soft), var(--surface) 70%); }
 .repair-card .rc-ic { background: var(--flame); color: #fff; animation: pulse-ic 1.6s ease-in-out infinite; }
 @keyframes pulse-ic { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-.install-card .row { display: flex; gap: 10px; }
-.install-card .row > * { flex: 1; }
+.install-card .row, .reminder-card .row { display: flex; gap: 10px; }
+.install-card .row > *, .reminder-card .row > * { flex: 1; }
+.reminder-card .rc-ic { background: var(--gold-soft); color: var(--flame); }
 .pilot-bar {
   width: 100%; border: 0; cursor: pointer; text-align: right;
   display: flex; align-items: center; gap: 10px;

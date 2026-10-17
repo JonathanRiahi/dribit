@@ -1,0 +1,43 @@
+# Daily reminder for Dribit: one Web Push message at 18:00 Israel time to everyone who turned reminders on
+# and has not finished a lesson today. The sending logic is in tools/send-reminders.js.
+# Needs two repository secrets (Settings > Secrets and variables > Actions):
+#   POSTHOG_API_KEY    a PostHog personal API key with the query:read scope (reads the subscriptions and today's lessons)
+#   VAPID_PRIVATE_KEY  the private half of reminders.vapidPublicKey in config.js
+# Optional: POSTHOG_PROJECT_ID (the project number from PostHog > Settings > Project; found via the API otherwise).
+name: Daily reminders
+
+on:
+  schedule:
+    # GitHub cron is UTC. 18:00 in Israel is 15:00 UTC in summer and 16:00 UTC in winter;
+    # the script checks the Israel clock and sends only once a day.
+    - cron: '0 15,16 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Count only, send nothing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency: reminders
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save --no-package-lock --no-audit --no-fund web-push@3.6.7
+      - run: node tools/send-reminders.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+          # a manual run sends right away, whatever the hour (still at most once a day per person)
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
