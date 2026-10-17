@@ -225,6 +225,7 @@
       });
       S.inProgress = null;
     }
+    if ((S.contentV || 0) < 6 && v >= 6) S.inProgress = null;
     S.contentV = v;
     save();
   }
@@ -384,12 +385,68 @@
   var root, view = 'home', session = null, sheetOpen = false, notesId = null, onboardStep = 0;
   var deferredInstall = null, pendingReload = false;
 
-  function setView(v) {
+  // ---------- Browser history ----------
+  // Home is the root entry. Any other view, and any open sheet, is one entry above it, so the phone's
+  // back button (or the browser's) returns to home or closes the sheet, and forward re-enters the view.
+  var HIST = (function () { try { return !!(window.history && history.pushState); } catch (e) { return false; } })();
+  var histDepth = 0, topIsSheet = false, ignorePops = 0;
+  function histPush(state) {
+    if (!HIST) return;
+    state.depth = histDepth + 1;
+    try { history.pushState(state, ''); histDepth++; } catch (e) { /* ignore */ }
+  }
+  function histReplace(state) {
+    if (!HIST) return;
+    state.depth = histDepth;
+    try { history.replaceState(state, ''); } catch (e) { /* ignore */ }
+  }
+  function histBack(n) {
+    if (!HIST || n <= 0) return;
+    histDepth -= n;
+    ignorePops++;
+    try { history.go(-n); } catch (e) { ignorePops--; }
+  }
+  function histEnter(state) {
+    // a view sits one entry above home (a second view replaces the first, and a view opened from a sheet
+    // takes the sheet's entry); a sheet always gets an entry of its own, so back closes just the sheet
+    if (state.sheet || histDepth === 0) histPush(state); else histReplace(state);
+    topIsSheet = !!state.sheet;
+  }
+  function leaveSession(reason) {
+    if (!session) return;
+    if (session.mode === 'lesson') {
+      snapshot();
+      track('lesson_exited', { lesson_id: session.lesson.id, step_index: session.idx, step_count: stepCount(), step_kind: step().kind === 'screen' ? 'screen' : 'question', reason: reason });
+    } else track(session.mode + '_exited', { step_index: session.idx, step_count: stepCount(), reason: reason });
+    clockStop();
+    session = null;
+  }
+  function onPop(e) {
+    if (ignorePops > 0) { ignorePops--; return; }
+    var st = (e && e.state) || {};
+    histDepth = st.depth || 0;
+    topIsSheet = false; // a sheet entry reached by forward shows its view without the sheet
+    if (sheetOpen) closeSheet(true);
+    if (!S.onboarded || !S.status) { onboardStep = st.onboard || 0; render(); window.scrollTo(0, 0); return; }
+    var v = st.view || 'home';
+    if (v === 'notes' && !(notesId && BY_ID[notesId])) v = 'home';
+    if ((v === 'lesson' || v === 'done') && !session) v = 'home';
+    if (v === view) return; // only a sheet was closed
+    if (view === 'lesson' && session) leaveSession('back');
+    if (view === 'done') session = null;
     view = v;
-    closeSheet();
     if (pendingReload && v !== 'lesson' && v !== 'done') { location.reload(); return; }
     render();
-    window.scrollTo(0, 0);
+    if (v !== 'home') window.scrollTo(0, 0);
+  }
+
+  function setView(v) {
+    view = v;
+    closeSheet(true);
+    if (v === 'home') histBack(histDepth); else histEnter({ view: v });
+    if (pendingReload && v !== 'lesson' && v !== 'done') { location.reload(); return; }
+    render();
+    if (v !== 'home') window.scrollTo(0, 0);
   }
 
   function render() {
@@ -400,9 +457,15 @@
     var body = view === 'practice' ? renderPractice() : view === 'missions' ? renderMissions()
       : view === 'profile' ? renderProfile() : renderPath();
     root.innerHTML = renderTopbar() + '<main class="screen gutter">' + body + '</main>' + renderLegalBar() + renderNav();
-    if (view === 'home') {
-      var cur = root.querySelector('.node-wrap.current');
-      if (cur && cur.getBoundingClientRect().top > window.innerHeight * 0.65 && !root.querySelector('.resume-card, .repair-card')) cur.scrollIntoView({ block: 'center' });
+    if (view === 'home') revealCurrent();
+  }
+  // the next lesson is what people came for: bring it into view unless a resume or repair card leads the page
+  function revealCurrent() {
+    var cur = root.querySelector('.node-wrap.current');
+    if (!cur || root.querySelector('.resume-card, .repair-card')) return;
+    var r = cur.getBoundingClientRect();
+    if (r.top < 96 || r.bottom > window.innerHeight * 0.72) {
+      try { cur.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { cur.scrollIntoView(); }
     }
   }
 
@@ -516,19 +579,23 @@
 
   // ---------- Sheets ----------
   function openSheet(inner, cls) {
-    closeSheet();
+    closeSheet(true);
     var wrap = document.createElement('div');
     wrap.id = 'sheet';
     wrap.innerHTML = '<div class="scrim" data-act="close-sheet"></div><div class="sheet gutter' + (cls ? ' ' + cls : '') + '" role="dialog" aria-modal="true">' + inner + '</div>';
     document.body.appendChild(wrap);
     sheetOpen = true;
+    if (topIsSheet) histReplace({ view: view, sheet: true }); else histEnter({ view: view, sheet: true });
     var btn = wrap.querySelector('.btn');
     if (btn) { try { btn.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
   }
-  function closeSheet() {
+  // keepEntry: the caller is about to reuse the sheet's history entry (a view change or another sheet)
+  function closeSheet(keepEntry) {
     var s = document.getElementById('sheet');
     if (s) s.remove();
+    var was = sheetOpen;
     sheetOpen = false;
+    if (was && !keepEntry && topIsSheet) { topIsSheet = false; histBack(1); }
   }
 
   function pointsList(l) {
@@ -1497,13 +1564,13 @@
       case 'explain': explainSheet(el.getAttribute('data-what')); break;
       case 'legal': legalSheet(); break;
       case 'close-sheet': closeSheet(); break;
-      case 'start': closeSheet(); notesId = null; startLesson(id); break;
-      case 'restart': closeSheet(); notesId = null; startLesson(id, true); break;
+      case 'start': notesId = null; startLesson(id); break;
+      case 'restart': notesId = null; startLesson(id, true); break;
       case 'notes': notesId = id; setView('notes'); break;
       case 'notes-close': notesId = null; setView('home'); break;
       case 'practice': startPractice(false); break;
       case 'practice-mistakes': startPractice(true); break;
-      case 'repair': closeSheet(); session = null; startRepair(); break;
+      case 'repair': session = null; startRepair(); break;
       case 'pick':
         if (session && !step().checked) { step().sel = +el.getAttribute('data-i'); sfx.tap(); render(); }
         break;
@@ -1524,13 +1591,7 @@
       case 'peek': peekSheet(); break;
       case 'quit': quitSheet(); break;
       case 'quit-confirm':
-        closeSheet();
-        if (session && session.mode === 'lesson') {
-          snapshot();
-          track('lesson_exited', { lesson_id: session.lesson.id, step_index: session.idx, step_count: stepCount(), step_kind: step().kind === 'screen' ? 'screen' : 'question', reason: 'quit' });
-        } else if (session) track(session.mode + '_exited', { step_index: session.idx, step_count: stepCount() });
-        clockStop();
-        session = null;
+        leaveSession('quit');
         setView('home');
         break;
       case 'home': session = null; setView('home'); break;
@@ -1553,7 +1614,7 @@
         awardXp(P.mission);
         save();
         track('mission_completed', { lesson_id: id });
-        closeSheet();
+        closeSheet(true);
         render();
         if (levelIndex(S.xp) > before) { levelUpSheet(); break; }
         sfx.done();
@@ -1569,11 +1630,11 @@
         break;
       case 'status': setStatus(el.getAttribute('data-v')); render(); break;
       case 'pick-status': pickedStatus = el.getAttribute('data-v'); sfx.tap(); render(); break;
-      case 'onboard-status': if (pickedStatus) { onboardStep = 2; render(); window.scrollTo(0, 0); } break;
+      case 'onboard-status': if (pickedStatus) { onboardStep = 2; histPush({ onboard: 2 }); render(); window.scrollTo(0, 0); } break;
       case 'begin-status': if (pickedStatus) { setStatus(pickedStatus); setView('home'); } break;
       case 'pick-goal': pickedGoal = +el.getAttribute('data-xp'); sfx.tap(); render(); break;
-      case 'onboard-next': onboardStep = 1; render(); window.scrollTo(0, 0); break;
-      case 'onboard-back': onboardStep = Math.max(0, onboardStep - 1); render(); break;
+      case 'onboard-next': onboardStep = 1; histPush({ onboard: 1 }); render(); window.scrollTo(0, 0); break;
+      case 'onboard-back': if (HIST && histDepth > 0) history.back(); else { onboardStep = Math.max(0, onboardStep - 1); render(); } break;
       case 'begin':
         S.onboarded = true; S.goalXp = pickedGoal;
         setStatus(pickedStatus);
@@ -1626,7 +1687,7 @@
         break;
       case 'reset-confirm': {
         var uid = S.uid;
-        closeSheet(); S = freshState(); S.uid = uid; onboardStep = 0; pickedStatus = null; session = null;
+        closeSheet(true); S = freshState(); S.uid = uid; onboardStep = 0; pickedStatus = null; session = null;
         track('progress_reset', {});
         save(); indexContent(); setView('home');
         break;
@@ -1682,6 +1743,11 @@
     document.addEventListener('input', onInput);
     document.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVisibility);
+    if (HIST) {
+      try { history.scrollRestoration = 'manual'; } catch (e) { /* ignore */ }
+      histReplace({ view: 'home' });
+      window.addEventListener('popstate', onPop);
+    }
     window.addEventListener('pagehide', function () { if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
     window.addEventListener('online', flush);
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredInstall = e; });
@@ -1698,6 +1764,7 @@
       if (s) {
         session = s;
         view = 'lesson';
+        histEnter({ view: 'lesson' });
         track('lesson_resumed', { lesson_id: s.lesson.id, step_index: s.idx, step_count: s.steps.length, on_open: true });
       } else { S.inProgress = null; save(); }
     }
