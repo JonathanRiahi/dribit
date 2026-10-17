@@ -684,7 +684,7 @@ canvas.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 30; 
 a.btn { text-align: center; text-decoration: none; }
 
 /* ---------- v0.5: home cards ---------- */
-.screen > .resume-card, .screen > .repair-card, .screen > .install-card, .screen > .reminder-card, .screen > .pilot-bar { margin-top: 16px; }
+.screen > .resume-card, .screen > .repair-card, .screen > .install-card, .screen > .reminder-card, .screen > .discharge-card, .screen > .pilot-bar { margin-top: 16px; }
 .resume-card {
   width: 100%; border: 0; cursor: pointer; text-align: right;
   display: flex; align-items: center; gap: 14px;
@@ -710,8 +710,16 @@ a.btn { text-align: center; text-decoration: none; }
 .repair-card { border-color: var(--flame); background: linear-gradient(160deg, var(--gold-soft), var(--surface) 70%); }
 .repair-card .rc-ic { background: var(--flame); color: #fff; animation: pulse-ic 1.6s ease-in-out infinite; }
 @keyframes pulse-ic { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-.install-card .row, .reminder-card .row, .transfer-card .row, .transfer-box .row { display: flex; gap: 10px; }
-.install-card .row > *, .reminder-card .row > *, .transfer-card .row > *, .transfer-box .row > * { flex: 1; }
+.install-card .row, .reminder-card .row, .transfer-card .row, .transfer-box .row, .discharge-card .row, .discharge-row .row { display: flex; gap: 10px; }
+.install-card .row > *, .reminder-card .row > *, .transfer-card .row > *, .transfer-box .row > *, .discharge-card .row > *, .discharge-row .row > * { flex: 1; }
+.discharge-card .rc-ic { background: var(--q-blue-soft); color: var(--q-blue); }
+.discharge-row .ok-line { display: flex; align-items: center; gap: 6px; color: var(--ok-ink); font-weight: 700; }
+.discharge-row .ok-line svg { width: 18px; height: 18px; }
+.seg.years { grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); }
+.seg.months { grid-template-columns: repeat(4, 1fr); }
+.seg.months button { padding-inline: 2px; font-size: 14px; }
+.seg button:disabled { color: var(--ink-3); background: var(--surface-2); border-color: transparent; cursor: default; }
+.nudge .link { color: inherit; }
 .transfer-box { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--brand-soft); }
 .transfer-box p { font-size: 15px; line-height: 1.45; }
 .card.opener { background: var(--brand-soft); border-color: transparent; gap: 8px; }
@@ -731,6 +739,55 @@ a.btn { text-align: center; text-decoration: none; }
 .pilot-bar:active { transform: translateY(3px); box-shadow: none; }
 .pilot-bar svg { width: 22px; height: 22px; flex: none; }
 .pilot-bar span { flex: 1; }
+/* v0.8: invite friends */
+.invite-bar {
+  width: 100%; border: 0; cursor: pointer; text-align: right;
+  display: flex; align-items: center; gap: 10px;
+  border-radius: var(--r-md); padding: 11px 14px;
+  background: linear-gradient(90deg, var(--brand), var(--q-teal)); color: #fff;
+  font-size: 15px; box-shadow: 0 3px 0 var(--brand-deep);
+}
+.invite-bar:active { transform: translateY(3px); box-shadow: none; }
+.invite-bar svg { width: 22px; height: 22px; flex: none; }
+.invite-bar span { flex: 1; }
+.screen > .invite-bar { margin-top: 16px; }
+.btn svg { width: 20px; height: 20px; vertical-align: -4px; margin-inline-end: 6px; }
+/* v0.8: discharge calculator */
+.calc { display: flex; flex-direction: column; gap: 14px; }
+.calc-field { display: flex; flex-direction: column; gap: 8px; }
+.calc .seg button small { font-size: 11.5px; }
+.stepper { display: flex; align-items: center; justify-content: center; gap: 18px; }
+.stepper button {
+  width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); color: var(--brand);
+  font-size: 26px; font-weight: 700; line-height: 1; cursor: pointer; box-shadow: 0 3px 0 var(--line); transition: transform .06s, box-shadow .06s;
+}
+.stepper button:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
+.stepper button:disabled { color: var(--ink-3); cursor: default; box-shadow: none; }
+.stepper b { font-family: var(--font-display); font-weight: 600; font-size: 34px; min-width: 2.2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.stepper.small button { width: 40px; height: 40px; font-size: 22px; }
+.stepper.small b { font-size: 26px; }
+.calc .chips { justify-content: center; }
+.calc .chip-btn { font-size: 14px; padding: 7px 12px; }
+.calc .chip-btn[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+details.calc-more { border: 2px solid var(--line); border-radius: var(--r-md); padding: 10px 14px; }
+details.calc-more summary { cursor: pointer; font-weight: 700; color: var(--ink-2); }
+details.calc-more > :not(summary) { margin-top: 10px; }
+.calc-check { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.calc-check input { width: 22px; height: 22px; accent-color: var(--brand); }
+.calc-result { background: var(--example-bg); border-radius: var(--r-md); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; border-inline-start: 4px solid var(--brand); }
+.calc-result.empty p { color: var(--ink-3); font-size: 15px; }
+.calc-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline; }
+.calc-row span { font-weight: 700; font-size: 16px; }
+.calc-row b { font-family: var(--font-display); font-weight: 600; font-size: 20px; font-variant-numeric: tabular-nums; }
+.calc-row small { grid-column: 1 / -1; color: var(--ink-3); font-size: 13px; line-height: 1.4; }
+.calc-row.total { border-top: 1px solid var(--line); padding-top: 8px; }
+.calc-row.total b { font-size: 24px; color: var(--brand); }
+.calc-card .rc-ic { background: var(--gold-soft); color: var(--gold-ink); }
+.screen > .calc-card { margin-top: 16px; }
+.explain-card .calc { margin-top: 4px; }
+.explain-card .calc p, .explain-card .calc .fine { font-size: 13.5px; line-height: 1.5; color: var(--ink-3); }
+.explain-card .calc-result.empty p { font-size: 15px; }
+.explain-card .calc-row small { font-size: 13px; }
 
 /* ---------- v0.5: points box in the lesson preview ---------- */
 .pts-box { background: var(--gold-soft); border-radius: var(--r-md); padding: 12px 14px 6px; display: flex; flex-direction: column; gap: 4px; }
@@ -849,10 +906,19 @@ button.slot { cursor: pointer; }
 .rate.done, .intent.done { flex-direction: row; align-items: center; gap: 8px; color: var(--ok-ink); font-weight: 700; font-size: 15px; }
 .rate.done svg, .intent.done svg { width: 20px; height: 20px; flex: none; }
 .rate.done .link { margin-inline-start: auto; font-size: 14px; }
-.partner { display: flex; flex-direction: column; gap: 8px; border: 2px solid var(--gold); background: var(--surface); border-radius: var(--r-md); padding: 14px 16px; }
-.partner b { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
-.partner p { color: var(--ink-2); font-size: 15px; }
-.partner .fine { font-size: 12.5px; }
+.compare { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 2px solid var(--line); }
+.compare > b { font-family: var(--font-display); font-weight: 600; font-size: 19px; }
+.cmp-list { display: flex; flex-direction: column; gap: 10px; }
+.cmp-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border: 2px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; background: var(--surface); }
+.cmp-opt b { font-family: var(--font-display); font-weight: 600; font-size: 17px; }
+.cmp-opt p { color: var(--ink-2); font-size: 15px; line-height: 1.5; }
+.cmp-opt .chip { align-self: flex-start; }
+.chip.plain { background: var(--surface-2); color: var(--ink-3); }
+.cmp-partners { font-weight: 600; }
+.about-link { margin-top: 8px; }
+.rate-btns.bands { display: grid; grid-template-columns: 1fr 1fr; }
+.rate-btns.bands .chip-btn { text-align: center; padding-inline: 6px; font-size: 14.5px; }
+.intent .skip { align-self: flex-start; font-size: 14px; }
 
 /* ---------- v0.5: feedback, install, level up ---------- */
 .faces { display: flex; gap: 6px; }

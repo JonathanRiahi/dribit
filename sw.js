@@ -2,7 +2,7 @@
 // build.py stamps VERSION, the file list and PUSH (the public push key and the usage-data key from config.js).
 // Each deploy changes VERSION, so phones fetch the new version in the background and the app reloads itself
 // on the next screen change.
-var VERSION = '0.8.0-a29bd63d';
+var VERSION = '0.8.1-e95570ca';
 var FILES = ["./", "index.html", "styles.css", "config.js", "app.js", "manifest.webmanifest", "icons/apple-touch-icon.png", "icons/badge-96.png", "icons/favicon-32.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon.svg", "icons/maskable-512.png", "assets/images/done-celebration.svg", "assets/images/empty-empty.svg", "assets/images/unit1-online-banking.svg", "assets/images/unit2-savings.svg", "assets/images/unit3-watering-plants.svg", "assets/images/unit4-bull-market.svg", "assets/images/unit5-investing.svg", "assets/images/unit6-warning.svg", "assets/images/unit7-career-progress.svg", "assets/images/unit8-five-year-plan.svg", "assets/images/welcome-growth-curve.svg", "data/lessons.json"];
 var PUSH = {"key": "BMwrT7BZQpvx3UGBsw5khdO5ZkwERNxRXz1slfXdwAWv0tMwhybKF6r25OJ3Ca_xqDKUoHllMRY82gacM79Nr6g", "posthogKey": "phc_tsse5UQex6pJhPK4yZkLjXLTXykftLFo8BXibrXa3Bqm", "host": "https://eu.i.posthog.com"};
 var CACHE = 'dribit-' + VERSION;
@@ -69,7 +69,7 @@ self.addEventListener('notificationclick', function (e) {
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
     for (var i = 0; i < list.length; i++) {
       if (list[i].url.indexOf(self.registration.scope) === 0 && 'focus' in list[i]) {
-        list[i].postMessage({ type: 'push-click' });
+        list[i].postMessage({ type: 'push-click', url: url });
         return list[i].focus();
       }
     }

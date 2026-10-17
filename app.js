@@ -109,9 +109,14 @@
       mistakes: {},      // questionId -> times answered wrong (goes down when answered right)
       answered: 0, correct: 0,
       inProgress: null,  // the unfinished lesson, so the app reopens on the same screen
-      ratings: {}, intent: {}, installHidden: false,
+      ratings: {}, intent: {}, amount: {}, installHidden: false,
       installSeen: false, // the installed app was opened at least once (counted as app_installed)
       importedAt: null,   // the day a transfer code was pasted here
+      ref: null,          // the ref= of the link this person first opened the app from (an invite link carries ref=share)
+      calc: null,         // the discharge calculator's last input: { type, months, training, lone, at }
+      dischargeMonth: null, // 'YYYY-MM' the person expects to be released
+      dischargeIcs: null,   // { month, day } once the calendar file for that month was created
+      dischargeNo: null,    // { count, day } after "not now" on the discharge card
       reminder: null,    // { on, endpoint, hour, since } while the daily push reminder is on
       reminderNo: null   // { count, day } after "not now" on the reminder card
     };
@@ -119,7 +124,7 @@
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
   // the open lesson or the event queue.
   var TRANSFER_KEYS = ['v', 'uid', 'status', 'startUnit', 'goalXp', 'sound', 'share', 'firstDay', 'contentV', 'xp', 'streak',
-    'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent'];
+    'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent', 'amount', 'ref', 'calc', 'dischargeMonth', 'dischargeIcs', 'dischargeNo'];
   function migrate(s) {
     var base = freshState();
     for (var k in base) if (!(k in s)) s[k] = base[k];
@@ -201,6 +206,8 @@
   var DATA = null, UNITS = [], LESSONS = [], BY_ID = {}, QUESTIONS = {};
   // audience: which statuses see a lesson, screen or question (missing = everyone)
   function visible(x) { return !x.audience || !S.status || x.audience.indexOf(S.status) >= 0; }
+  // the calculator screen exists only while the calculator is switched on in config
+  function screenShown(s) { return visible(s) && (s.type !== 'calculator' || calcEnabled()); }
   // the units in path order: the start unit (by status) first, then the file order; an unknown id changes nothing
   function orderedUnits(startId) {
     var units = DATA.units.slice();
@@ -216,7 +223,8 @@
       var ls = units[i].lessons.filter(aud);
       if (!ls.length) continue;
       var l = ls[0];
-      return { lesson: l, minutes: Math.max(3, Math.round((l.screens.filter(aud).length * 45 + l.questions.filter(aud).length * 30) / 60)) };
+      var scr = l.screens.filter(function (s) { return aud(s) && (s.type !== 'calculator' || calcEnabled()); });
+      return { lesson: l, minutes: Math.max(3, Math.round((scr.length * 45 + l.questions.filter(aud).length * 30) / 60)) };
     }
     return null;
   }
@@ -237,7 +245,7 @@
       vis.forEach(function (l, i) {
         l.n = i + 1;
         l.order = LESSONS.length;
-        l.vScreens = l.screens.filter(visible);
+        l.vScreens = l.screens.filter(screenShown);
         l.vQuestions = l.questions.filter(visible);
         LESSONS.push(l);
       });
@@ -413,8 +421,14 @@
   // ---------- Rendering ----------
   var root, view = 'home', session = null, sheetOpen = false, notesId = null, onboardStep = 0;
   var deferredInstall = null, pendingReload = false, pushBusy = false;
-  // how the app was opened: 'homescreen' (the installed icon), 'push' (a tap on the reminder) or 'link'
-  var OPEN_SOURCE = (function () { var m = /[?&]source=([\w-]+)/.exec(location.search); return m ? m[1] : 'link'; })();
+  // how the app was opened: source 'homescreen' (the installed icon), 'push' (a tap on the reminder), 'ics' (a calendar
+  // reminder) or 'link'; ref (an invite link carries ref=share); kind (which reminder, e.g. discharge-pre)
+  function openParams() {
+    var q = location.search || '';
+    var get = function (k) { var m = new RegExp('[?&]' + k + '=([\\w-]+)').exec(q); return m ? m[1] : null; };
+    return { source: get('source') || 'link', ref: get('ref'), kind: get('kind') };
+  }
+  var OPEN = openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
 
   // ---------- Browser history ----------
   // Home is the root entry. Any other view, and any open sheet, is one entry above it, so the phone's
@@ -493,7 +507,7 @@
   // the next lesson is what people came for: bring it into view, unless a resume, repair or reminder card leads
   // the page; then the page starts at that card (the previous screen may have been scrolled down)
   function revealCurrent() {
-    var lead = root.querySelector('.resume-card, .repair-card, .reminder-card');
+    var lead = root.querySelector('.resume-card, .repair-card, .reminder-card, .discharge-card');
     if (lead) {
       var lr = lead.getBoundingClientRect();
       if (lr.top < 0 || lr.bottom > window.innerHeight) window.scrollTo(0, 0);
@@ -586,7 +600,12 @@
             : 'הודעה קצרה רק בימים שעוד לא עשית שיעור. אפשר לכבות בפרופיל.') + '</span></div></div>' +
           '<div class="row"><button class="btn" data-act="' + (rs === 'install' ? 'install' : 'reminder-on') + '" data-from="home" data-placement="home">' +
             (rs === 'install' ? 'איך מתקינים' : 'להפעיל') + '</button><button class="btn text" data-act="reminder-later">לא עכשיו</button></div></div>';
-      } else html += installCard('home');
+      } else html += installCard('home') || dischargeCard();
+    }
+    html += calcCard();
+    if (INVITE.enabled && doneCount() >= INVITE.afterLessons) {
+      html += '<button class="invite-bar" data-act="invite" data-from="home">' + ICON.share + '<span><b>ללמוד ביחד מחזיק יותר.</b> ' +
+        (S.status === 'civ' ? 'לשלוח לחברים בוואטסאפ' : 'לשלוח לחבר׳ה מהיחידה') + '</span>' + ICON.chevron + '</button>';
     }
     if (CFG.pilot) {
       html += '<button class="pilot-bar" data-act="feedback" data-ctx="home">' + ICON.chat + '<span><b>גרסת ניסיון.</b> ספרו לנו מה לשפר</span>' + ICON.chevron + '</button>';
@@ -608,6 +627,7 @@
     } else if (cur && today > 0 && today < S.goalXp) {
       html += '<p class="nudge">' + ICON.target + '<span>עוד ' + fmt(S.goalXp - today) + ' נקודות ליעד היומי.</span></p>';
     }
+    html += dischargeNudge();
     UNITS.forEach(function (u) {
       var done = u.vis.filter(function (l) { return isDone(l.id); }).length;
       var img = unitImg(u);
@@ -632,6 +652,7 @@
       html += '</div></section>';
     });
     html += '<p class="course-end">' + (cur ? 'עוד ' + (LESSONS.length - doneCount()) + ' שיעורים עד סוף הקורס' : 'סיימת את כל הקורס. כל הכבוד!') + '</p>';
+    if (CFG.about) html += '<p class="fine center about-link"><button class="legal-line" data-act="about" data-from="home_bottom">' + ICON.user + esc(CFG.about.link) + '</button></p>';
     return html;
   }
 
@@ -702,7 +723,7 @@
         '<span class="dot">' + (st === 'done' ? ICON.check : st === 'current' ? ICON.star : ICON.lock) + '</span>' +
         '<span class="t"><b>' + esc(l.title) + '</b><span>' + esc(l.what) + '</span></span>' + ICON.chevron + '</button></li>';
     }).join('');
-    openSheet('<div class="eyebrow">יחידה ' + u.n + '</div><h3>' + esc(u.title) + '</h3><ul class="lesson-list">' + rows + '</ul>', 'tall');
+    openSheet('<div class="eyebrow">יחידה ' + u.n + '</div><h3>' + esc(u.title) + '</h3><ul class="lesson-list">' + rows + '</ul>' + compareCard(u), 'tall');
   }
 
   function explainSheet(what) {
@@ -742,14 +763,84 @@
     }
   }
 
+  // ---------- Partners (config.partner) ----------
+  // a partner is "live" only with the master switch on, a signed contract, approved wording, a name and an https link
+  var partnerWarned = {};
+  function partnerLive(p) { return !!(p && p.enabled && p.contractSigned && p.textApproved && p.name && /^https:\/\//.test(p.url || '')); }
+  function livePartners(optionId) {
+    var P = CFG.partner;
+    if (!P || !P.enabled) return [];
+    return (P.partners || []).filter(function (p) {
+      if (!p || !p.enabled) return false;
+      if (!partnerLive(p)) {
+        if (!partnerWarned[p.id]) { partnerWarned[p.id] = true; console.warn('dribit: partner "' + p.id + '" is enabled but not live (needs contractSigned, textApproved, name and an https url)'); }
+        return false;
+      }
+      return !optionId || p.optionId === optionId;
+    });
+  }
+  function partnerById(id) { return ((CFG.partner && CFG.partner.partners) || []).filter(function (p) { return p && p.id === id; })[0] || null; }
+  function partnerDisclosures() {
+    var out = [];
+    livePartners().forEach(function (p) { var d = p.disclosure || CFG.partner.disclosure; if (d && out.indexOf(d) < 0) out.push(d); });
+    return out;
+  }
+  // the neutral three-options comparison on the unit page (never on the done screen, in lessons or in the home cards)
+  var partnerCardSeen = false;
+  function compareCard(u) {
+    var P = CFG.partner;
+    if (!P || !(P.showComparison || P.enabled) || String(u.id) !== String(P.unitId) || !(P.options || []).length) return '';
+    var all = livePartners();
+    var items = P.options.map(function (o) {
+      var ps = all.filter(function (p) { return p.optionId === o.id; }), l = BY_ID[o.lessonId];
+      return '<li class="cmp-opt"><b>' + esc(o.title) + '</b><p>' + esc(o.text) + '</p>' +
+        (ps.length ? '<p class="cmp-partners">אפשר לפתוח אצל: ' + ps.map(function (p) {
+          return '<a class="link" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" data-id="' + esc(p.id) + '" data-option="' + esc(o.id) + '">' + esc(p.name) + '</a>';
+        }).join(', ') + '</p><p class="fine">זה לא דירוג. כדאי להשוות תעריפונים לפני שבוחרים.</p>' : '') +
+        '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
+        (shown(l) ? '<button class="link" data-act="preview" data-id="' + esc(l.id) + '">לשיעור "' + esc(l.title) + '"</button>' : '') + '</li>';
+    }).join('');
+    if (!partnerCardSeen) { partnerCardSeen = true; track('partner_card_viewed', { unit_id: u.id, partners: all.length, comparison_only: !all.length }); }
+    var disc = partnerDisclosures();
+    return '<section class="compare"><div class="eyebrow">השוואה · לא המלצה</div><b>' + esc(P.title) + '</b><p class="lead">' + esc(P.intro) + '</p>' +
+      '<ul class="cmp-list">' + items + '</ul>' +
+      (disc.length ? '<p class="fine">' + disc.map(esc).join(' ') + '</p>' : '') +
+      '<p class="fine">קודם קרן חירום, ורק אז כסף שלא יידרש בשנים הקרובות.</p></section>';
+  }
+
   function legalSheet() {
-    var p = CFG.partner;
     openSheet('<h3>חשוב לדעת</h3>' +
       '<p class="lead">' + esc(CFG.appName) + ' מלמדת חינוך פיננסי כללי. זה לא ייעוץ השקעות ולא המלצה לפעולה מסוימת. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך.</p>' +
       '<p class="lead">' + esc(CFG.examplesNote) + ' סכומים רשמיים, כמו הפיקדון והמענק, מופיעים עם התאריך שבו נבדקו.</p>' +
-      (p && p.enabled ? '<p class="lead">' + esc(p.disclosure) + '</p>' : '') +
+      partnerDisclosures().map(function (d) { return '<p class="lead">' + esc(d) + '</p>'; }).join('') +
+      (CFG.about ? '<button class="link" data-act="about" data-from="legal">מי עומד מאחורי האפליקציה?</button>' : '') +
       '<p class="fine">כדי לשפר את האפליקציה נשלחים נתוני שימוש בלי שם, טלפון או מייל. אפשר לכבות את זה בפרופיל.</p>' +
       '<button class="btn" data-act="close-sheet">הבנתי</button>');
+  }
+
+  // "who we are and how we earn" (config.about): from the bottom of the path, the profile and "important to know"
+  function fillIn(tpl, vars) { return esc(tpl || '').replace(/\{(\w+)\}/g, function (m, k) { return k in vars ? esc(vars[k]) : m; }); }
+  function aboutSheet(from) {
+    var a = CFG.about;
+    if (!a) return;
+    var rv = a.reviewer || {}, live = livePartners(), name = esc(CFG.appName);
+    from = from || 'home_bottom';
+    track('about_opened', { from: from, lessons_done: doneCount(), reviewer_named: !!rv.name, partner_enabled: !!(CFG.partner && CFG.partner.enabled), $set: { about_seen: true } });
+    var paras = function (list) { return (list || []).map(function (t) { return '<p class="lead">' + esc(t) + '</p>'; }).join(''); };
+    var reviewed = rv.name ? fillIn(a.reviewedBy, { name: rv.name, role: rv.role || '' }) : esc(a.notReviewed);
+    var names = live.map(function (p) { return p.name; });
+    var earn = !live.length ? esc(a.earnNow)
+      : live.length === 1 ? fillIn(a.earnPartner, { partner: names[0] })
+      : fillIn(a.earnPartners || a.earnPartner, { partners: names.join(', '), partner: names.join(', ') });
+    var wa = waNumber();
+    openSheet('<h3>' + esc(a.title) + '</h3>' +
+      '<div class="eyebrow">מי עומד מאחורי ' + name + '</div>' + paras(a.who) +
+      '<div class="eyebrow">מי בדק את התוכן</div><p class="lead">' + reviewed + '</p>' +
+      '<div class="eyebrow">איך ' + name + ' מרוויחה</div><p class="lead">' + earn + '</p>' + paras(a.earnLater) +
+      '<p class="fine">' + esc(a.privacy) + ' גרסה ' + esc(CFG.version) + '.</p>' +
+      '<button class="btn ghost" data-act="feedback" data-ctx="about">לכתוב לנו</button>' +
+      (wa ? '<p class="fine center"><a class="link" href="https://wa.me/' + esc(wa) + '" target="_blank" rel="noopener">או בוואטסאפ' + (contactName() ? ', ל' + esc(contactName()) : '') + '</a></p>' : '') +
+      '<button class="btn" data-act="close-sheet">הבנתי</button>', 'tall');
   }
 
   function hasProgress() { return S.xp > 0 || !!S.inProgress || doneCount() > 0; }
@@ -807,6 +898,11 @@
     var maps = ['days', 'lessons', 'missions', 'mistakes', 'ratings', 'intent'];
     for (i = 0; i < maps.length; i++) if (maps[i] in obj && !isObj(obj[maps[i]])) return { ok: false, reason: 'bad_fields' };
     if (obj.lostStreak != null && !isObj(obj.lostStreak)) return { ok: false, reason: 'bad_fields' };
+    if (obj.calc != null && !isObj(obj.calc)) return { ok: false, reason: 'bad_fields' };
+    if (obj.dischargeMonth != null && !validMonth(obj.dischargeMonth)) return { ok: false, reason: 'bad_fields' };
+    if (obj.dischargeIcs != null && !isObj(obj.dischargeIcs)) return { ok: false, reason: 'bad_fields' };
+    if (obj.dischargeNo != null && !isObj(obj.dischargeNo)) return { ok: false, reason: 'bad_fields' };
+    if (obj.ref != null && (typeof obj.ref !== 'string' || !/^[\w-]{1,40}$/.test(obj.ref))) return { ok: false, reason: 'bad_fields' };
     var state = {};
     TRANSFER_KEYS.forEach(function (k) { if (k in obj) state[k] = obj[k]; });
     return { ok: true, reason: null, state: state };
@@ -1017,6 +1113,7 @@
   function restoreSession(ip) {
     var l = BY_ID[ip.lessonId];
     if (!shown(l) || !ip.steps || Date.now() - ip.savedAt > RESUME_DAYS * 864e5) return null;
+    if (ip.steps.filter(function (x) { return x.k === 's'; }).length !== l.vScreens.length) return null;
     var steps = [], ok = true;
     ip.steps.forEach(function (x) {
       if (x.k === 's') {
@@ -1072,8 +1169,8 @@
       return '<div class="' + cls + '">' + playerTop() +
         '<div class="stage gutter">' +
           '<div class="kicker">' + esc(session.lesson.title) + ' · הסבר ' + (st.n + 1) + ' מתוך ' + st.of + '</div>' +
-          '<article class="explain-card"><h2>' + esc(st.s.title) + '</h2><p>' + esc(st.s.body) + '</p>' +
-            (st.s.example ? '<div class="example"><span class="eyebrow">דוגמה</span><p>' + esc(st.s.example) + '</p></div>' : '') +
+          '<article class="explain-card' + (st.s.type === 'calculator' ? ' calc-screen' : '') + '"><h2>' + esc(st.s.title) + '</h2><p>' + esc(st.s.body) + '</p>' +
+            (st.s.type === 'calculator' ? calcWidget('lesson') : st.s.example ? '<div class="example"><span class="eyebrow">דוגמה</span><p>' + esc(st.s.example) + '</p></div>' : '') +
           '</article>' +
           '<div class="dots" aria-hidden="true">' + dots + '</div>' +
           legalLine(false) +
@@ -1094,6 +1191,7 @@
         step_index: session.idx, step_count: stepCount(), step_kind: st.kind === 'screen' ? 'screen' : 'question',
         question_id: st.q ? st.q.id : null
       });
+      if (st.kind === 'screen' && st.s.type === 'calculator') track('calculator_opened', { from: 'lesson', lesson_id: session.lesson ? session.lesson.id : null, has_estimate: !!(S.calc && S.calc.type) });
     }
     clockStart();
     focusPlayer();
@@ -1413,13 +1511,14 @@
       }).join('') + '</div></div>';
   }
 
-  function partnerCard(l) {
-    var p = CFG.partner;
-    if (!p || !p.enabled || !p.url || !p.name || (p.lessons || []).indexOf(l.id) < 0) return '';
-    if (!session.partnerSeen) { session.partnerSeen = true; track('partner_viewed', { partner: p.name, lesson_id: l.id }); }
-    return '<div class="partner"><div class="eyebrow">שותף · תוכן ממומן</div><b>' + esc(p.name) + '</b><p>' + esc(p.text) + '</p>' +
-      '<a class="btn ghost" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner" data-id="' + esc(l.id) + '">לאתר של ' + esc(p.name) + '</a>' +
-      '<p class="fine">' + esc(p.disclosure) + '</p></div>';
+  // the anonymous follow-up after invest_intent: how much could you deposit this year (ranges only)
+  function amountCard(l) {
+    var bands = CFG.investAmountBands || [];
+    if (!bands.length || (CFG.investIntentLessons || []).indexOf(l.id) < 0 || !S.intent[l.id] || livePartners().length) return '';
+    if (S.amount[l.id]) return '<div class="intent done">' + ICON.check + '<span>תודה! זה נשאר אנונימי.</span></div>';
+    return '<div class="intent"><b>כמה תוכלו להפקיד בשנה הקרובה?</b><span>אנונימי לגמרי, ולא קשור לשום הצעה. רק כדי שהשיעורים יתאימו לסכומים אמיתיים.</span><div class="rate-btns bands">' +
+      bands.map(function (b) { return '<button class="chip-btn" data-act="amount" data-v="' + esc(b.id) + '" data-id="' + esc(l.id) + '">' + esc(b.label) + '</button>'; }).join('') +
+      '</div><button class="link skip" data-act="amount" data-v="skip" data-id="' + esc(l.id) + '">מעדיפים לא לענות</button></div>';
   }
 
   function renderDone() {
@@ -1455,7 +1554,7 @@
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-        ratingRow(l) + intentCard(l) + partnerCard(l) + missionCard(l, true);
+        ratingRow(l) + intentCard(l) + amountCard(l) + missionCard(l, true);
     }
     // iPhone: the install ask comes right after the first lesson, while the win is fresh (Android keeps the home card)
     if (s.mode === 'lesson' && s.firstTime && INSTALL.showOnDone && IS_IOS && doneCount() === INSTALL.afterLessons) {
@@ -1463,7 +1562,12 @@
       if (ic && !s.installShown) { s.installShown = true; track('install_card_shown', { placement: 'done', lessons_done: doneCount() }); }
       html += ic;
     }
-    html += legalLine(false) + '<div class="spacer"></div><button class="btn" data-act="home">המשך</button></div>';
+    html += legalLine(false) + '<div class="spacer"></div>';
+    // after a lesson (or a rescued streak), not after practice: the win is worth sending to friends
+    if (INVITE.enabled && doneCount() >= INVITE.afterLessons && (s.mode === 'lesson' || (s.mode === 'repair' && s.passed))) {
+      html += '<button class="btn ghost" data-act="invite" data-from="done" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + 'לשתף בוואטסאפ</button>';
+    }
+    html += '<button class="btn" data-act="home">המשך</button></div>';
     return html;
   }
 
@@ -1517,7 +1621,8 @@
   function renderNotes(l) {
     var screens = l.vScreens.map(function (s) {
       return '<article class="explain-card flat"><h2>' + esc(s.title) + '</h2><p>' + esc(s.body) + '</p>' +
-        (s.example ? '<div class="example"><span class="eyebrow">דוגמה</span><p>' + esc(s.example) + '</p></div>' : '') + '</article>';
+        (s.type === 'calculator' ? '<button class="btn ghost" data-act="calc-open" data-from="notes">לפתוח את המחשבון</button>'
+          : s.example ? '<div class="example"><span class="eyebrow">דוגמה</span><p>' + esc(s.example) + '</p></div>' : '') + '</article>';
     }).join('');
     return '<div class="notes u' + l.unit.id + '"><div class="player-top gutter"><button class="icon-btn" data-act="notes-close" aria-label="חזרה">' + ICON.back + '</button>' +
       '<div class="notes-title"><span class="eyebrow">יחידה ' + l.unit.n + ' · שיעור ' + l.n + '</span><b>' + esc(l.title) + '</b></div></div>' +
@@ -1625,6 +1730,7 @@
       '</div>' +
       '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">הקו המקווקו הוא היעד היומי.</p></div>' +
       '<div class="card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
+      dischargeRow() +
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
@@ -1633,6 +1739,7 @@
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="profile">להעתיק קוד</button><button class="btn ghost" data-act="import" data-source="profile">יש לי קוד</button></div></div>' +
       '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>' +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
+        (CFG.about ? '<button class="btn ghost" data-act="about" data-from="profile">' + esc(CFG.about.title) + '</button>' : '') +
         '<div class="toggle-row"><span id="share-l">שליחת נתוני שימוש אנונימיים</span><button class="switch" role="switch" aria-labelledby="share-l" aria-checked="' + S.share + '" data-act="share"></button></div>' +
         '<p class="fine">ההתקדמות נשמרת רק במכשיר הזה. גרסה ' + esc(CFG.version) + '.</p>' +
         '<button class="btn text" data-act="reset">איפוס ההתקדמות</button></div>' +
@@ -1689,6 +1796,7 @@
     if (S.inProgress && !shown(BY_ID[S.inProgress.lessonId])) S.inProgress = null;
     save();
     if (changed) track('status_set', { status: v, start_unit_id: S.startUnit, source: source || 'profile', $set: { status: v, start_unit_id: S.startUnit } });
+    if (v === 'civ' && S.dischargeMonth) setDischargeMonth(null, 'status_civ');
   }
 
   // ---------- Confetti ----------
@@ -1772,7 +1880,7 @@
     S.reminderNo = null;
     save();
     metaPut('uid', S.uid);
-    track('push_subscribed', { endpoint: j.endpoint, p256dh: keys.p256dh, auth: keys.auth, hour: RCFG.hour, from: from, $set: { reminders: true } });
+    track('push_subscribed', { endpoint: j.endpoint, p256dh: keys.p256dh, auth: keys.auth, hour: RCFG.hour, from: from, discharge_month: S.dischargeMonth, $set: { reminders: true } });
     flush();
   }
   function enableReminder(from) {
@@ -1858,6 +1966,393 @@
     installSheet();
   }
 
+  // ---------- Invite friends (config.invite) ----------
+  var INVITE = CFG.invite || { enabled: false };
+  if (INVITE.afterLessons == null) INVITE.afterLessons = 2;
+  function inviteUrl() {
+    var base = String(INVITE.url || '').trim() || (location.origin + location.pathname);
+    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'ref=share';
+  }
+  // the message, without the link (the link is added by the share sheet, or after the text in WhatsApp)
+  function inviteText(from, lesson) {
+    var st = currentStreak(), done = doneCount(), name = CFG.appName;
+    var lines = [];
+    if (from === 'done' && lesson) {
+      lines.push('סיימתי עכשיו את השיעור "' + lesson.title + '" ב' + name + '.' + (st > 1 ? ' רצף של ' + st + ' ימים.' : ''));
+      lines.push('כמה דקות ביום על כסף, בעברית, בלי חישובים.');
+    } else {
+      lines.push('סיימתי ' + plural(done, 'שיעור אחד', 'שיעורים') + ' ב' + name + (st > 1 ? ' ואני ברצף של ' + st + ' ימים' : '') + '.');
+      lines.push(S.status === 'civ'
+        ? 'שיעור קצר ביום על כסף: איך כסף גדל, להבין את השוק, משכורת ראשונה. בלי חישובים.'
+        : 'שיעור קצר ביום על כסף: איך כסף גדל, מה עושים עם הכסף מהצבא, משכורת ראשונה. בלי חישובים.');
+    }
+    lines.push('באייפון: פותחים את הקישור בספארי ומוסיפים למסך הבית.');
+    lines.push('בואו ללמוד ביחד:');
+    return lines.join('\n');
+  }
+  function roundBox(x, l, t, w, h, r) {
+    x.beginPath(); x.moveTo(l + r, t); x.arcTo(l + w, t, l + w, t + h, r); x.arcTo(l + w, t + h, l, t + h, r);
+    x.arcTo(l, t + h, l, t, r); x.arcTo(l, t, l + w, t, r); x.closePath();
+  }
+  // a square picture for the share sheet, drawn at once (the share must start inside the tap): streak or lessons,
+  // the app name and the address. Fixed light colors (the share sheet has no theme), rtl text, no emoji. null = no picture.
+  function inviteImage() {
+    if (!INVITE.image || typeof File !== 'function') return null;
+    try {
+      var W = 1080, c = document.createElement('canvas'); c.width = W; c.height = W;
+      var x = c.getContext('2d');
+      if (!x) return null;
+      var display = (document.fonts && document.fonts.check && document.fonts.check('600 40px Fredoka')) ? 'Fredoka, Assistant, system-ui, sans-serif' : 'Assistant, system-ui, sans-serif';
+      var body = 'Assistant, system-ui, sans-serif';
+      var st = currentStreak(), done = doneCount(), total = LESSONS.length;
+      var big = st > 0 ? st : done, label = st > 0 ? 'ימים ברצף' : (done === 1 ? 'שיעור ראשון' : 'שיעורים');
+      var sub = st > 0 ? done + ' מתוך ' + total + ' שיעורים' : 'מתוך ' + total + ' שיעורים בקורס';
+      x.fillStyle = '#0E6E58'; x.fillRect(0, 0, W, W);
+      x.fillStyle = '#F2F6F1'; roundBox(x, 64, 64, W - 128, W - 128, 56); x.fill();
+      x.direction = 'rtl'; x.textAlign = 'right'; x.textBaseline = 'alphabetic';
+      x.fillStyle = '#0E6E58'; x.font = '600 84px ' + display; x.fillText(CFG.appName, W - 140, 220);
+      x.fillStyle = '#12302A'; x.font = '600 38px ' + body; x.fillText(CFG.tagline, W - 140, 290);
+      x.direction = 'ltr'; x.textAlign = 'center';
+      x.fillStyle = '#F2B630'; x.font = '600 300px ' + display; x.fillText(String(big), W / 2, 640);
+      x.direction = 'rtl';
+      x.fillStyle = '#12302A'; x.font = '700 64px ' + body; x.fillText(label, W / 2, 730);
+      x.fillStyle = '#4E655E'; x.font = '600 42px ' + body; x.fillText(sub, W / 2, 800);
+      x.direction = 'ltr'; x.fillStyle = '#0E6E58'; x.font = '700 40px ' + body;
+      x.fillText(String(INVITE.url || location.host + location.pathname).replace(/^https?:\/\//, '').replace(/\/$/, ''), W / 2, 905);
+      x.direction = 'rtl'; x.fillStyle = '#7A8E87'; x.font = '400 30px ' + body; x.fillText(CFG.disclaimer, W / 2, 965);
+      var data = c.toDataURL('image/png').split(',')[1];
+      if (!data) return null;
+      var raw = atob(data), u8 = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
+      return new File([u8], 'dribit.png', { type: 'image/png' });
+    } catch (e) { return null; }
+  }
+  function waInvite(text, url) {
+    var full = text + '\n' + url, w = null;
+    try { w = window.open('https://wa.me/?text=' + encodeURIComponent(full), '_blank', 'noopener'); } catch (e) { w = null; }
+    // with noopener some browsers return null even when the window opened, so only a thrown error counts as blocked
+    return w !== false;
+  }
+  function invite(from, lessonId) {
+    var l = lessonId && BY_ID[lessonId], url = inviteUrl(), text = inviteText(from, l);
+    var file = null, data = { title: CFG.appName, text: text, url: url };
+    try {
+      if (navigator.share && navigator.canShare) {
+        file = inviteImage();
+        // with a picture, the link travels inside the text (some apps drop the url field when files are attached)
+        if (file && navigator.canShare({ files: [file] })) data = { title: CFG.appName, text: text + '\n' + url, files: [file] }; else file = null;
+      }
+    } catch (e) { file = null; }
+    var method = navigator.share ? 'native' : 'wa_link';
+    var props = { from: from, method: method, with_image: !!file, lesson_id: l ? l.id : null, streak: currentStreak(), lessons_done: doneCount(), level: levelInfo(S.xp).n };
+    track('share_clicked', props);
+    if (method === 'native') {
+      var p;
+      try { p = navigator.share(data); } catch (e) { p = Promise.reject(e); }
+      p.then(function () {
+        track('share_completed', props); flush();
+        toast(ICON.check + '<b>תודה!</b><span>ללמוד ביחד מחזיק יותר</span>', 'info', 2600);
+      }, function (e) {
+        if (e && e.name === 'AbortError') return;
+        track('share_failed', { from: from, error: String((e && e.name) || e).slice(0, 60), with_image: !!file });
+        waInvite(text, url);
+      });
+      return;
+    }
+    waInvite(text, url);
+  }
+
+  // ---------- Discharge calculator (config.calculator) ----------
+  // An estimate of the personal deposit (pikadon) and the release grant from the service type and the months served.
+  // The amounts per month live in config; the app never sends an amount to analytics, only bands.
+  var CALC = CFG.calculator || { enabled: false };
+  function calcEnabled() { return !!(CALC.enabled && CALC.tiers && CALC.tiers.length); }
+  function calcTier(id) { return (CALC.tiers || []).filter(function (t) { return t.id === id; })[0] || null; }
+  function calcMonths() { return CALC.months || { presets: [24, 32, 36], min: 1, max: 48, default: 32 }; }
+  function calcState() { var M = calcMonths(); return S.calc || { type: null, months: M.default, training: 0, lone: false }; }
+  // training months count at the lower tier (trainingTier); both sums are rounded to roundTo
+  function calcEstimate(c) {
+    var tier = c && calcTier(c.type);
+    if (!tier) return null;
+    var M = calcMonths(), m = Math.min(M.max, Math.max(M.min, Math.round(+c.months || M.default)));
+    var tr = Math.min(m, Math.max(0, Math.round(+c.training || 0)));
+    var low = calcTier((CALC.trainingTier || {})[tier.id]) || tier;
+    var pk = (m - tr) * tier.pikadon + tr * low.pikadon, gr = (m - tr) * tier.grant + tr * low.grant;
+    if (c.lone && CALC.loneSoldier) { pk += m * (+CALC.loneSoldier.pikadon || 0); gr += m * (+CALC.loneSoldier.grant || 0); }
+    var r = CALC.roundTo || 1;
+    pk = Math.round(pk / r) * r; gr = Math.round(gr / r) * r;
+    return { pikadon: pk, grant: gr, total: pk + gr, months: m, training: tr };
+  }
+  function calcBand(v) {
+    var B = CALC.bands || [];
+    for (var i = 0; i < B.length; i++) if (v < B[i]) return (i ? Math.round(B[i - 1] / 1000) : 0) + '-' + Math.round(B[i] / 1000) + 'k';
+    return B.length ? Math.round(B[B.length - 1] / 1000) + 'k+' : 'all';
+  }
+  function monthsBand(m) { return m < 12 ? '<12' : m < 24 ? '12-23' : m < 32 ? '24-31' : m < 36 ? '32-35' : '36+'; }
+  function money(v) { return 'כ-' + ltr(fmt(v) + ' ₪'); }
+  function calcWidget(ctx, moreOpen) {
+    var c = calcState(), M = calcMonths(), est = calcEstimate(c);
+    var tiers = (CALC.tiers || []).map(function (t) {
+      return '<button data-act="calc-type" data-v="' + esc(t.id) + '" aria-pressed="' + (c.type === t.id) + '">' + esc(t.label) + (t.note ? '<small>' + esc(t.note) + '</small>' : '') + '</button>';
+    }).join('');
+    var presets = (M.presets || []).map(function (p) {
+      return '<button class="chip-btn" data-act="calc-months-set" data-v="' + p + '" aria-pressed="' + (c.months === p) + '">' + p + ' חודשים</button>';
+    }).join('');
+    var stepper = function (act, val, min, max, small) {
+      return '<div class="stepper' + (small ? ' small' : '') + '"><button data-act="' + act + '" data-d="-1" aria-label="פחות"' + (val <= min ? ' disabled' : '') + '>&minus;</button>' +
+        '<b>' + val + '</b><button data-act="' + act + '" data-d="1" aria-label="עוד"' + (val >= max ? ' disabled' : '') + '>+</button></div>';
+    };
+    var result = est
+      ? '<div class="calc-result">' +
+          '<div class="calc-row"><span>פיקדון אישי</span><b>' + money(est.pikadon) + '</b><small>נעול לשש מטרות בחמש השנים הראשונות, מהיום ה-14 אחרי השחרור</small></div>' +
+          '<div class="calc-row"><span>מענק שחרור</span><b>' + money(est.grant) + '</b><small>נכנס לחשבון הבנק עד 60 יום מהשחרור, לכל מטרה</small></div>' +
+          '<div class="calc-row total"><span>ביחד</span><b>' + money(est.total) + '</b></div></div>'
+      : '<div class="calc-result empty"><p>בוחרים סוג שירות, והסכומים יופיעו כאן.</p></div>';
+    return '<div class="calc" data-ctx="' + esc(ctx) + '">' +
+      '<div class="calc-field"><span class="eyebrow">סוג השירות</span><div class="seg">' + tiers + '</div></div>' +
+      '<div class="calc-field"><span class="eyebrow">חודשי שירות</span>' + stepper('calc-months', c.months, M.min, M.max) + '<div class="chips">' + presets + '</div></div>' +
+      '<details class="calc-more"' + (moreOpen || c.training ? ' open' : '') + '><summary>חודשי טירונות והכשרה</summary>' +
+        '<p class="fine">חודשי הטירונות וההכשרה נספרים לפי הדרגה הנמוכה יותר. לא בטוחים? משאירים 0.</p>' + stepper('calc-training', c.training || 0, 0, c.months, true) +
+        (CALC.loneSoldier ? '<label class="calc-check"><input type="checkbox" data-act="calc-lone"' + (c.lone ? ' checked' : '') + '><span>' + esc(CALC.loneSoldier.label || 'חייל/ת בודד/ה') + '</span></label>' : '') +
+      '</details>' + result +
+      '<p class="fine">הערכה לפי הסכומים לחודש שירות נכון ל' + esc(CALC.asOf || '') + ', שנבדקו ב-' + esc(CALC.checked || '') + '. הסכומים צמודים למדד ומתעדכנים. הסכום המדויק שלך מופיע במחשבון הרשמי של האגף לחיילים משוחררים ומילואים במשרד הביטחון.</p>' +
+      (CALC.officialUrl ? '<a class="btn ghost" href="' + esc(CALC.officialUrl) + '" target="_blank" rel="noopener" data-act="calc-official">למחשבון הרשמי</a>' : '') +
+      (ctx === 'sheet' ? '<button class="btn" data-act="close-sheet">סגירה</button>' : '') + '</div>';
+  }
+  // the home card: for soldiers, after the pikadon lesson; shows the last estimate
+  function calcCard() {
+    if (!calcEnabled() || (S.status !== 'sadir' && S.status !== 'pre') || !isDone('2.1')) return '';
+    var est = calcEstimate(S.calc);
+    return '<div class="card calc-card"><div class="rc-head"><span class="rc-ic">' + ICON.coins + '</span><div><b>כמה יהיה לך בשחרור?</b><span>' +
+      (est ? 'ההערכה שלך: ' + money(est.pikadon) + ' פיקדון + ' + money(est.grant) + ' מענק' : 'פיקדון ומענק לפי סוג השירות והחודשים. האפליקציה מחשבת, לא אתם.') + '</span></div></div>' +
+      (est ? '<p class="fine">לפי הסכומים ל' + esc(CALC.asOf || '') + '. הערכה בלבד.</p>' : '') +
+      '<button class="btn' + (est ? ' ghost' : '') + '" data-act="calc-open" data-from="home">' + (est ? 'לעדכן' : 'לחשב') + '</button></div>';
+  }
+  function calcSheetInner() {
+    return '<h3>כמה יהיה לך בשחרור?</h3><p class="lead">פיקדון ומענק משוערים לפי סוג השירות והחודשים. האפליקציה מחשבת, לא אתם.</p>' + calcWidget('sheet');
+  }
+  function calcSheet(from) {
+    if (!calcEnabled()) return;
+    track('calculator_opened', { from: from || 'home', has_estimate: !!(S.calc && S.calc.type) });
+    openSheet(calcSheetInner(), 'tall');
+  }
+  // an input change redraws the widget in place (sheet or lesson screen) and, 2.5 seconds after the last change, records one calculator_used
+  var calcTimer = null, calcCtx = 'sheet';
+  function calcRefresh() {
+    var el = document.querySelector('#sheet .calc') || (root && root.querySelector('.calc'));
+    if (!el) return;
+    var more = el.querySelector('details');
+    el.outerHTML = calcWidget(el.getAttribute('data-ctx') || 'sheet', !!(more && more.open));
+  }
+  function calcSet(fn) {
+    var c = calcState(), M = calcMonths();
+    fn(c);
+    c.months = Math.min(M.max, Math.max(M.min, Math.round(+c.months || M.default)));
+    c.training = Math.min(c.months, Math.max(0, Math.round(+c.training || 0)));
+    c.at = Date.now();
+    S.calc = c; save();
+    calcCtx = document.querySelector('#sheet .calc') ? 'sheet' : 'lesson';
+    sfx.tap();
+    calcRefresh();
+    clearTimeout(calcTimer);
+    calcTimer = setTimeout(function () {
+      var est = calcEstimate(S.calc);
+      if (!est) return;
+      track('calculator_used', { from: calcCtx, service_type: S.calc.type, months_band: monthsBand(est.months), training_set: est.training > 0, lone: !!S.calc.lone,
+        pikadon_band: calcBand(est.pikadon), grant_band: calcBand(est.grant), total_band: calcBand(est.total), $set: { calc_total_band: calcBand(est.total) } });
+    }, 2500);
+  }
+
+  // ---------- Discharge timeline (config.dischargeTimeline) ----------
+  // The month of release (no exact date), three reminders as a calendar file, and the same three as push messages
+  // from the daily sender (tools/send-reminders.js reads discharge_month_set).
+  var DT = CFG.dischargeTimeline || { enabled: false, monthsAhead: 36 };
+  var DISCHARGE_UNIT = 2;  // the unit "הכסף של השחרור" in lessons.json
+  function parseMonth(ym) { var m = /^(\d{4})-(\d{2})$/.exec(String(ym || '')); return m ? { y: +m[1], m: +m[2] } : null; }
+  function validMonth(ym) { var p = parseMonth(ym); return !!(p && p.m >= 1 && p.m <= 12 && p.y >= 2000 && p.y <= 2100); }
+  function monthKey(y, m) { return y + '-' + (m < 10 ? '0' : '') + m; }
+  // whole months from this month to the discharge month (negative = already released)
+  function monthsUntil(ym) { var p = parseMonth(ym), n = new Date(); return p ? (p.y - n.getFullYear()) * 12 + (p.m - 1 - n.getMonth()) : 0; }
+  var MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+  function monthLabel(ym) { var p = parseMonth(ym); return p ? MONTHS_HE[p.m - 1] + ' ' + p.y : ''; }
+  // the three reminders: two months before (the 1st), the release month (the 1st), after the money came in (the 15th of the next month)
+  function dischargeMilestones(ym) {
+    var p = parseMonth(ym);
+    if (!p) return [];
+    return [{ id: 'pre', date: new Date(p.y, p.m - 3, 1) }, { id: 'month', date: new Date(p.y, p.m - 1, 1) }, { id: 'post', date: new Date(p.y, p.m, 15) }];
+  }
+  function siteUrl() { return String(CFG.siteUrl || '').trim() || (location.origin + location.pathname); }
+  function dischargeLink(kind) { var b = siteUrl(); return b + (b.indexOf('?') >= 0 ? '&' : '?') + 'source=ics&kind=discharge-' + kind; }
+  function setDischargeMonth(ym, from) {
+    var prev = S.dischargeMonth || null;
+    S.dischargeMonth = ym || null;
+    if (ym) S.dischargeNo = null;
+    save();
+    track('discharge_month_set', { month: ym || null, months_ahead: ym ? monthsUntil(ym) : null, previous: prev, from: from, $set: { discharge_month: ym || null } });
+  }
+  function dischargeAsks() { return DT.enabled && (S.status === 'sadir' || S.status === 'pre'); }
+  // the home card: 'ask' (no month yet) or 'ics' (a month without a calendar file); after "not now" it waits a week, twice
+  function dischargeCardState() {
+    if (!dischargeAsks() || !doneCount()) return null;
+    var no = S.dischargeNo;
+    if (no && (no.count >= 2 || daysBetween(no.day, dayKey()) < 7)) return null;
+    if (!S.dischargeMonth) return 'ask';
+    if ((!S.dischargeIcs || S.dischargeIcs.month !== S.dischargeMonth) && monthsUntil(S.dischargeMonth) >= 0) return 'ics';
+    return null;
+  }
+  function dischargeCard() {
+    var st = dischargeCardState();
+    if (!st) return '';
+    var ask = st === 'ask';
+    return '<div class="card discharge-card"><div class="rc-head"><span class="rc-ic">' + ICON.clock + '</span><div>' +
+      '<b>' + (ask ? 'מתי משתחררים?' : 'ציר השחרור ביומן') + '</b><span>' + (ask
+        ? 'נזכיר לך בזמן מה עושים עם הפיקדון והמענק, לפני שהכסף נעלם. רק חודש, בלי תאריך.'
+        : 'שלוש תזכורות: חודשיים לפני, בחודש השחרור, ואחרי שהכסף נכנס. אפשר לשלוח גם לחבר׳ה מהפלוגה.') + '</span></div></div>' +
+      '<div class="row"><button class="btn" data-act="' + (ask ? 'discharge-set' : 'discharge-ics') + '" data-from="home">' + (ask ? 'לבחור חודש' : 'להוסיף ליומן') + '</button>' +
+      '<button class="btn text" data-act="discharge-later" data-state="' + st + '">לא עכשיו</button></div></div>';
+  }
+  // a status that no longer fits the month: less than half a year to go while "in service", or a month that passed
+  function dischargeNudge() {
+    if (!DT.enabled || !S.dischargeMonth || (S.status !== 'sadir' && S.status !== 'pre')) return '';
+    var n = monthsUntil(S.dischargeMonth);
+    if (n < 0) return '<p class="nudge">' + ICON.clock + '<span>השתחררת? <button class="link" data-act="status" data-v="post" data-source="nudge">לעדכן ל״אחרי שחרור״</button></span></p>';
+    if (S.status === 'sadir' && n <= 6) return '<p class="nudge">' + ICON.clock + '<span>פחות מחצי שנה לשחרור? <button class="link" data-act="status" data-v="pre" data-source="nudge">לעדכן ל״לפני שחרור״</button></span></p>';
+    return '';
+  }
+  function dischargeRow() {
+    if (!DT.enabled || S.status === 'civ') return '';
+    var ym = S.dischargeMonth;
+    var fine = '<p class="fine">הכסף של השחרור: הפיקדון האישי, מענק השחרור ו-60 הימים הראשונים. מידע כללי, לא ייעוץ.</p>';
+    if (!ym) {
+      if (S.status === 'post') return '';
+      return '<div class="card discharge-row"><h2>ציר השחרור</h2><p>בוחרים חודש שחרור, ונזכיר בזמן מה עושים עם הפיקדון והמענק. רק חודש, בלי תאריך.</p>' +
+        '<button class="btn ghost" data-act="discharge-set" data-from="profile">לבחור חודש</button>' + fine + '</div>';
+    }
+    var n = monthsUntil(ym), when = n > 0 ? 'עוד ' + plural(n, 'חודש אחד', 'חודשים') : n === 0 ? 'החודש' : 'השתחררת לפני ' + plural(-n, 'חודש אחד', 'חודשים');
+    var inCal = !!(S.dischargeIcs && S.dischargeIcs.month === ym);
+    return '<div class="card discharge-row"><h2>ציר השחרור</h2><p><b>' + esc(monthLabel(ym)) + '</b> · ' + when + '</p>' +
+      (inCal ? '<p class="fine ok-line">' + ICON.check + '<span>שלוש התזכורות ביומן שלך</span></p>' : '') +
+      '<div class="row"><button class="btn' + (inCal ? ' ghost' : '') + '" data-act="discharge-ics" data-from="profile">' + (inCal ? 'ליצור שוב' : 'להוסיף ליומן') + '</button>' +
+      (S.status === 'post' ? '' : '<button class="btn ghost" data-act="discharge-set" data-from="profile">לשנות</button>') + '</div>' +
+      '<p class="fine center"><button class="link" data-act="discharge-gcal" data-from="profile">ליומן גוגל בלי קובץ</button> · <button class="link" data-act="discharge-clear">למחוק</button></p>' + fine + '</div>';
+  }
+  // the month picker: a year row and a 4x3 month grid; months that passed, or beyond monthsAhead, are disabled
+  var dischargePick = null, dischargeFrom = 'home';  // the pick { y, m } and where the sheet was opened from, while it is open
+  function dischargeSheetInner(from) {
+    var now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth() + 1, ahead = +DT.monthsAhead || 36;
+    var cur = parseMonth(S.dischargeMonth);
+    var pick = dischargePick || cur || { y: y0, m: null };
+    var years = [];
+    for (var y = y0; y <= y0 + Math.ceil(ahead / 12); y++) years.push(y);
+    var yearBtns = years.map(function (y) { return '<button data-act="discharge-pick" data-y="' + y + '" aria-pressed="' + (pick.y === y) + '">' + y + '</button>'; }).join('');
+    var monthBtns = MONTHS_HE.map(function (name, i) {
+      var m = i + 1, off = (pick.y - y0) * 12 + (m - m0), dis = off < 0 || off > ahead;
+      return '<button data-act="discharge-pick" data-m="' + m + '" aria-pressed="' + (pick.m === m) + '"' + (dis ? ' disabled' : '') + '>' + name + '</button>';
+    }).join('');
+    var chosen = pick.m ? monthKey(pick.y, pick.m) : null;
+    return '<h3>מתי משתחררים?</h3><p class="lead">רק החודש, בלי תאריך מדויק. ככה נזכיר בזמן: חודשיים לפני, בחודש השחרור, ואחרי שהכסף נכנס.</p>' +
+      '<div class="seg years">' + yearBtns + '</div><div class="seg months">' + monthBtns + '</div>' +
+      '<p class="fine">אפשר לשנות או למחוק בפרופיל בכל רגע.</p>' +
+      '<button class="btn" data-act="discharge-save" data-from="' + esc(from) + '"' + (chosen ? ' data-v="' + chosen + '"' : ' disabled') + '>שומרים</button>' +
+      '<button class="btn text" data-act="discharge-skip" data-from="' + esc(from) + '">עוד לא יודע/ת</button>';
+  }
+  function dischargeSheet(from) {
+    dischargePick = null; dischargeFrom = from || 'home';
+    openSheet(dischargeSheetInner(dischargeFrom), 'tall');
+  }
+  function dischargeSheetRefresh() {
+    var sh = document.querySelector('#sheet .sheet');
+    if (sh) sh.innerHTML = dischargeSheetInner(dischargeFrom);
+  }
+  // ----- the calendar file (RFC 5545): three all-day events with a morning alarm -----
+  function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+  // lines longer than 75 octets continue on the next line after a space; counted in UTF-8 bytes, never inside a character
+  function icsFold(line) {
+    var out = '', cur = '', bytes = 0, limit = 75;
+    for (var i = 0; i < line.length; i++) {
+      var ch = line.charAt(i), code = line.charCodeAt(i);
+      if (code >= 0xD800 && code <= 0xDBFF && i + 1 < line.length) ch += line.charAt(++i);
+      var b = ch.length === 2 ? 4 : code < 0x80 ? 1 : code < 0x800 ? 2 : 3;
+      if (bytes + b > limit) { out += cur + '\r\n '; cur = ''; bytes = 0; limit = 74; }
+      cur += ch; bytes += b;
+    }
+    return out + cur;
+  }
+  function icsDate(d) { return d.getFullYear() + (d.getMonth() < 9 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate(); }
+  function icsStamp() { return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+  var DISCHARGE_EVENTS = {
+    pre: { title: 'דריבית: הפיקדון מתקרב', body: 'עוד חודשיים בערך משתחררים. לפני ההחלטה על הכסף כדאי לעבור על השיעורים על הפיקדון האישי, מענק השחרור ו-60 הימים הראשונים. כמה דקות כל אחד. באייפון פותחים את דריבית מהאייקון.' },
+    month: { title: 'דריבית: חודש השחרור', body: 'החודש משתחררים. המענק נכנס לחשבון הבנק עד 60 יום אחרי השחרור, והפיקדון נפתח מהיום ה-14. כדאי לבדוק שפרטי הבנק באזור האישי מעודכנים, ולכתוב מראש מה קורה לכל שקל. באייפון פותחים את דריבית מהאייקון.' },
+    post: { title: 'דריבית: הכסף הגיע?', body: 'הכסף הגיע? הנה מה עושים ב-60 הימים הראשונים: קודם בודקים מה נכנס ומתי, אחר כך קרן חירום של כמה חודשי הוצאות, ורק אז השאר. השיעור מחכה בדריבית. באייפון פותחים את דריבית מהאייקון.' }
+  };
+  var ICS_NOTE = 'מידע כללי לחינוך פיננסי, לא ייעוץ השקעות. התאריך משוער לפי חודש השחרור.';
+  function dischargeIcsText(ym) {
+    var host = 'dribit';
+    try { host = new URL(siteUrl()).hostname || host; } catch (e) { /* keep */ }
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Dribit//ציר השחרור//HE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+    var stamp = icsStamp();
+    dischargeMilestones(ym).forEach(function (ms) {
+      var ev = DISCHARGE_EVENTS[ms.id], url = dischargeLink(ms.id);
+      lines.push('BEGIN:VEVENT', 'UID:dribit-discharge-' + ms.id + '-' + ym + '@' + host, 'DTSTAMP:' + stamp,
+        'DTSTART;VALUE=DATE:' + icsDate(ms.date), 'DTEND;VALUE=DATE:' + icsDate(addDays(ms.date, 1)),
+        'SUMMARY:' + icsEscape(ev.title), 'DESCRIPTION:' + icsEscape(ev.body + '\n' + url + '\n\n' + ICS_NOTE), 'URL:' + icsEscape(url),
+        'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscape(ev.title), 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT');
+    });
+    lines.push('END:VCALENDAR');
+    return lines.map(icsFold).join('\r\n') + '\r\n';
+  }
+  function gcalDate(d) { return icsDate(d); }
+  // Google Calendar links for one event each, when no file can be handed over
+  function gcalLinks(ym) {
+    return dischargeMilestones(ym).map(function (ms) {
+      var ev = DISCHARGE_EVENTS[ms.id];
+      return { id: ms.id, title: ev.title, href: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(ev.title) +
+        '&dates=' + gcalDate(ms.date) + '/' + gcalDate(addDays(ms.date, 1)) + '&details=' + encodeURIComponent(ev.body + '\n' + dischargeLink(ms.id) + '\n\n' + ICS_NOTE) };
+    });
+  }
+  function gcalSheet(ym, from, why) {
+    var items = gcalLinks(ym).map(function (g, i) {
+      return '<a class="btn ghost" href="' + esc(g.href) + '" target="_blank" rel="noopener" data-act="discharge-gcal-link" data-v="' + esc(ym) + '" data-from="' + esc(from) + '">' + (i + 1) + '. ' + esc(g.title) + '</a>';
+    }).join('');
+    openSheet('<h3>ליומן גוגל</h3><p class="lead">' + (why || 'שלוש תזכורות, אחת בכל קישור.') + ' כל קישור פותח אירוע מוכן ביומן גוגל, ונשאר רק ללחוץ "שמירה".</p>' + items +
+      '<button class="btn text" data-act="close-sheet">סגירה</button>', 'tall');
+  }
+  function icsDone(ym, method, from) {
+    S.dischargeIcs = { month: ym, day: dayKey() }; save();
+    track('discharge_ics_created', { month: ym, method: method, from: from });
+    flush();
+    if (method !== 'gcal') toast(ICON.check + '<b>קובץ היומן מוכן.</b><span>פותחים אותו ולוחצים ״הוספה״</span>', 'info', 3200);
+    if (view === 'home' || view === 'profile') render();
+  }
+  function icsFailed(ym, e) { track('discharge_ics_failed', { month: ym, error: String((e && e.name) || e).slice(0, 60) }); }
+  // the share sheet with the file (phones put it straight into the calendar app), else a download, else the Google links
+  function shareIcs(ym, from) {
+    var text = dischargeIcsText(ym), name = 'dribit-discharge.ics';
+    var download = function () {
+      try {
+        var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' }), url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = name; a.rel = 'noopener'; a.style.display = 'none';
+        document.body.appendChild(a); a.click();
+        setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 10000);
+        icsDone(ym, 'download', from);
+      } catch (e) { icsFailed(ym, e); gcalSheet(ym, from, 'לא הצלחנו ליצור את הקובץ בדפדפן הזה.'); }
+    };
+    try {
+      if (navigator.share && navigator.canShare && typeof File === 'function') {
+        var file = new File([text], name, { type: 'text/calendar' });
+        if (navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: 'ציר השחרור' }).then(function () { icsDone(ym, 'share', from); }, function (e) {
+            if (e && e.name === 'AbortError') return;
+            icsFailed(ym, e); download();
+          });
+          return;
+        }
+      }
+    } catch (e) { /* fall through to the download */ }
+    download();
+  }
+
   function registerSW() {
     if (IN_FRAME || !('serviceWorker' in navigator)) return;
     var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -1866,7 +2361,11 @@
     navigator.serviceWorker.register('sw.js').catch(function () { /* offline mode unavailable */ });
     // a tap on the reminder while the app is already open (the worker brings it to the front)
     navigator.serviceWorker.addEventListener('message', function (e) {
-      if (e.data && e.data.type === 'push-click') track('push_clicked', { app_open: true });
+      if (e.data && e.data.type === 'push-click') {
+        var km = /[?&]kind=([\w-]+)/.exec(e.data.url || ''), kind = km ? km[1] : null;
+        track('push_clicked', { app_open: true, kind: kind });
+        if (kind && /^discharge-/.test(kind) && view === 'home' && !sheetOpen && S.onboarded && S.status) unitSheet(DISCHARGE_UNIT);
+      }
     });
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (!had) return;
@@ -1886,6 +2385,65 @@
       case 'unit': unitSheet(id); break;
       case 'explain': explainSheet(el.getAttribute('data-what')); break;
       case 'legal': legalSheet(); break;
+      case 'about': aboutSheet(el.getAttribute('data-from')); break;
+      case 'invite': invite(el.getAttribute('data-from') || 'home', id); break;
+      case 'discharge-set': dischargeSheet(el.getAttribute('data-from') || 'home'); break;
+      case 'discharge-pick': {
+        var now = new Date(), curP = parseMonth(S.dischargeMonth);
+        dischargePick = dischargePick || (curP ? { y: curP.y, m: curP.m } : { y: now.getFullYear(), m: null });
+        if (el.getAttribute('data-y')) dischargePick.y = +el.getAttribute('data-y');
+        if (el.getAttribute('data-m')) dischargePick.m = +el.getAttribute('data-m');
+        sfx.tap();
+        dischargeSheetRefresh();
+        break;
+      }
+      case 'discharge-save': {
+        var ym = el.getAttribute('data-v');
+        if (!validMonth(ym)) break;
+        setDischargeMonth(ym, el.getAttribute('data-from') || 'home');
+        closeSheet(); sfx.pair(); render();
+        toast(ICON.check + '<b>נשמר.</b><span>השחרור ב' + esc(monthLabel(ym)) + '. נזכיר לך בזמן</span>', 'info', 3000);
+        break;
+      }
+      case 'discharge-skip':
+      case 'discharge-later': {
+        var fromCard = act === 'discharge-later';
+        S.dischargeNo = { count: ((S.dischargeNo && S.dischargeNo.count) || 0) + 1, day: dayKey() }; save();
+        track('discharge_card_declined', { count: S.dischargeNo.count, state: fromCard ? el.getAttribute('data-state') : 'sheet', from: el.getAttribute('data-from') || 'home' });
+        if (!fromCard) closeSheet();
+        render();
+        break;
+      }
+      case 'discharge-ics': if (S.dischargeMonth) shareIcs(S.dischargeMonth, el.getAttribute('data-from') || 'home'); break;
+      case 'discharge-gcal': if (S.dischargeMonth) gcalSheet(S.dischargeMonth, el.getAttribute('data-from') || 'profile'); break;
+      case 'discharge-gcal-link': {
+        var gym = el.getAttribute('data-v');
+        if (gym && !(S.dischargeIcs && S.dischargeIcs.month === gym && S.dischargeIcs.gcal)) {
+          icsDone(gym, 'gcal', el.getAttribute('data-from') || 'profile');
+          S.dischargeIcs.gcal = true; save();
+        }
+        break; // no preventDefault: the link opens
+      }
+      case 'discharge-clear':
+        openSheet('<h3>למחוק את חודש השחרור?</h3><p class="lead">התזכורות שכבר נכנסו ליומן נשארות. מוחקים אותן מהיומן.</p>' +
+          '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn bad" data-act="discharge-clear-confirm">למחוק</button></div>');
+        break;
+      case 'discharge-clear-confirm':
+        setDischargeMonth(null, 'profile'); S.dischargeIcs = null; save();
+        closeSheet(); render();
+        break;
+      case 'calc-open': calcSheet(el.getAttribute('data-from') || 'home'); break;
+      case 'calc-type': calcSet(function (c) { c.type = el.getAttribute('data-v'); }); break;
+      case 'calc-months': calcSet(function (c) { c.months = c.months + (+el.getAttribute('data-d') || 0); }); break;
+      case 'calc-months-set': calcSet(function (c) { c.months = +el.getAttribute('data-v'); }); break;
+      case 'calc-training': calcSet(function (c) { c.training = (c.training || 0) + (+el.getAttribute('data-d') || 0); }); break;
+      case 'calc-lone': calcSet(function (c) { c.lone = !!el.checked; }); break;
+      case 'calc-official': {
+        var cw = el.closest('.calc');
+        track('calculator_official_clicked', { from: cw ? cw.getAttribute('data-ctx') : null, has_estimate: !!calcEstimate(S.calc) });
+        flush();
+        break; // no preventDefault: the link opens
+      }
       case 'close-sheet': closeSheet(); break;
       case 'start': notesId = null; startLesson(id); break;
       case 'restart': notesId = null; startLesson(id, true); break;
@@ -1951,7 +2509,7 @@
         track('goal_set', { goal_xp: S.goalXp, $set: { goal_xp: S.goalXp } });
         render(); if (sheetOpen) explainSheet('goal');
         break;
-      case 'status': setStatus(el.getAttribute('data-v')); render(); break;
+      case 'status': setStatus(el.getAttribute('data-v'), el.getAttribute('data-source') || 'profile'); render(); break;
       case 'pick-status': {
         pickedStatus = el.getAttribute('data-v'); sfx.tap(); render();
         var fl = firstLessonFor(pickedStatus);
@@ -2072,7 +2630,21 @@
         track('invest_intent', { lesson_id: id, answer: S.intent[id], $set: { invest_intent: S.intent[id] } });
         sfx.pair(); render();
         break;
-      case 'partner': track('partner_clicked', { partner: CFG.partner.name, lesson_id: id }); flush(); break;
+      case 'amount': {
+        var band = el.getAttribute('data-v');
+        S.amount[id] = band; save();
+        var ap = { lesson_id: id, band: band, skipped: band === 'skip', intent: S.intent[id] || null };
+        if (band !== 'skip') ap.$set = { invest_amount: band };
+        track('invest_amount', ap);
+        sfx.pair(); render();
+        break;
+      }
+      case 'partner-link': {
+        var pp = partnerById(id);
+        track('partner_link_clicked', { option_id: el.getAttribute('data-option'), partner_id: id, partner: pp ? pp.name : null, unit_id: CFG.partner && CFG.partner.unitId, $set: { partner_link_clicked: true } });
+        flush();
+        break; // no preventDefault: the link opens
+      }
       case 'reset':
         openSheet('<h3>לאפס את כל ההתקדמות?</h3><p class="lead">הנקודות, הרצף, השיעורים והמשימות יימחקו מהמכשיר הזה.</p>' +
           '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn bad" data-act="reset-confirm">לאפס</button></div>');
@@ -2153,11 +2725,13 @@
       S.installSeen = true; S.installHidden = true; save();
       track('app_installed', { method: IS_IOS ? 'ios_first_standalone_open' : 'first_standalone_open', imported: !!S.importedAt });
     }
+    if (OPEN_REF && !S.ref) { S.ref = OPEN_REF; save(); }
     track('app_opened', {
-      returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, reminders: !!(S.reminder && S.reminder.on),
-      $set: { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit }, $set_once: { first_day: S.firstDay }
+      returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND,
+      reminders: !!(S.reminder && S.reminder.on),
+      $set: { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit }, $set_once: { first_day: S.firstDay, first_ref: S.ref || 'none' }
     });
-    if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false });
+    if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false, kind: OPEN_KIND });
     if (S.onboarded && S.status && S.inProgress) {
       var s = restoreSession(S.inProgress);
       if (s) {
@@ -2169,6 +2743,8 @@
     }
     render();
     if (view === 'lesson') toast(ICON.play + '<b>ממשיכים מאיפה שהפסקת</b>', 'info', 2000);
+    // a calendar reminder or a discharge push opens straight on the unit it talks about
+    if ((OPEN_SOURCE === 'ics' || OPEN_SOURCE === 'push') && /^discharge-/.test(OPEN_KIND || '') && view === 'home' && S.onboarded && S.status) unitSheet(DISCHARGE_UNIT);
     // a transfer code can also arrive in the link (#p=D1....), for example pasted into the address bar
     var hashCode = /^#p=(.+)$/.exec(location.hash || '');
     if (hashCode) {
