@@ -99,6 +99,7 @@
   function freshState() {
     return {
       v: 3, onboarded: false, status: null, goalXp: CFG.defaultGoal, sound: true, share: true,
+      startUnit: null,   // the unit the path opens with (config.startUnit by status); null = the file order
       uid: hex(12), firstDay: dayKey(), contentV: 0,
       xp: 0, streak: 0, bestStreak: 0, lastDay: null,
       lostStreak: null,  // { value, lastDay } when a long streak broke and can still be rescued
@@ -109,10 +110,16 @@
       answered: 0, correct: 0,
       inProgress: null,  // the unfinished lesson, so the app reopens on the same screen
       ratings: {}, intent: {}, installHidden: false,
+      installSeen: false, // the installed app was opened at least once (counted as app_installed)
+      importedAt: null,   // the day a transfer code was pasted here
       reminder: null,    // { on, endpoint, hour, since } while the daily push reminder is on
       reminderNo: null   // { count, day } after "not now" on the reminder card
     };
   }
+  // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
+  // the open lesson or the event queue.
+  var TRANSFER_KEYS = ['v', 'uid', 'status', 'startUnit', 'goalXp', 'sound', 'share', 'firstDay', 'contentV', 'xp', 'streak',
+    'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent'];
   function migrate(s) {
     var base = freshState();
     for (var k in base) if (!(k in s)) s[k] = base[k];
@@ -194,9 +201,28 @@
   var DATA = null, UNITS = [], LESSONS = [], BY_ID = {}, QUESTIONS = {};
   // audience: which statuses see a lesson, screen or question (missing = everyone)
   function visible(x) { return !x.audience || !S.status || x.audience.indexOf(S.status) >= 0; }
+  // the units in path order: the start unit (by status) first, then the file order; an unknown id changes nothing
+  function orderedUnits(startId) {
+    var units = DATA.units.slice();
+    if (startId == null) return units;
+    for (var i = 1; i < units.length; i++) if (String(units[i].id) === String(startId)) { units.unshift(units.splice(i, 1)[0]); break; }
+    return units;
+  }
+  // the first lesson a status would get, with its length, without touching the live index (the welcome screen)
+  function firstLessonFor(status) {
+    var aud = function (x) { return !x.audience || x.audience.indexOf(status) >= 0; };
+    var units = orderedUnits(CFG.startUnit && CFG.startUnit[status] != null ? CFG.startUnit[status] : null);
+    for (var i = 0; i < units.length; i++) {
+      var ls = units[i].lessons.filter(aud);
+      if (!ls.length) continue;
+      var l = ls[0];
+      return { lesson: l, minutes: Math.max(3, Math.round((l.screens.filter(aud).length * 45 + l.questions.filter(aud).length * 30) / 60)) };
+    }
+    return null;
+  }
   function indexContent() {
     UNITS = []; LESSONS = []; BY_ID = {}; QUESTIONS = {};
-    DATA.units.forEach(function (u) {
+    orderedUnits(S.startUnit).forEach(function (u) {
       u.lessons.forEach(function (l) {
         l.unit = u;
         if (!l.mission) l.mission = { title: l.action, why: '', minutes: 10, steps: [], done: '' };
@@ -519,6 +545,19 @@
   function unitImg(u) { return CFG.images && CFG.images.units && CFG.images.units[u.id]; }
 
   function canInstall() { return !isStandalone() && !IN_FRAME; }
+  var INSTALL = CFG.install || { afterLessons: 1, showOnDone: true };
+  // the install card: outside the installed app, after the first finished lesson, until "not now"
+  function installCard(placement) {
+    if (!canInstall() || S.installHidden || doneCount() < INSTALL.afterLessons) return '';
+    var text = placement === 'done'
+      ? 'סיימת שיעור ראשון. עכשיו הזמן: אייקון במסך הבית, מסך מלא, ועובד גם בלי אינטרנט.'
+      : 'אייקון במסך הבית, נפתח במסך מלא ועובד גם בלי אינטרנט.';
+    if (IS_IOS) text += ' באייפון, מה שעשית בספארי לא עובר לבד לאפליקציה. בהוראות יש קוד העברה.';
+    return '<div class="card install-card"><div class="rc-head"><span class="rc-ic">' + ICON.phone + '</span><div>' +
+      '<b>להתקין את ' + esc(CFG.appName) + ' בטלפון</b><span>' + text + '</span></div></div>' +
+      '<div class="row"><button class="btn" data-act="install" data-placement="' + placement + '">להתקנה</button>' +
+      '<button class="btn text" data-act="install-hide" data-placement="' + placement + '">לא עכשיו</button></div></div>';
+  }
 
   function homeCards() {
     var html = '';
@@ -537,20 +576,17 @@
         '<span>אפשר להציל אותו ' + (rep.daysLeft > 0 ? 'עוד ' + plural(rep.daysLeft + 1, 'יום אחד', 'ימים') : 'רק היום') + ': ' + CFG.streakRepair.questions + ' שאלות, ' + CFG.streakRepair.toPass + ' נכונות לפחות.</span></div></div>' +
         '<button class="btn gold" data-act="repair">להציל את הרצף</button></div>';
     }
-    var rs = reminderCardState();
-    // one ask at a time: while the reminder card is due, the install card waits
-    if (canInstall() && !S.installHidden && !rs) {
-      html += '<div class="card install-card"><div class="rc-head"><span class="rc-ic">' + ICON.phone + '</span><div>' +
-        '<b>להתקין את ' + esc(CFG.appName) + ' בטלפון</b><span>אייקון במסך הבית, נפתח במסך מלא ועובד גם בלי אינטרנט.</span></div></div>' +
-        '<div class="row"><button class="btn" data-act="install">להתקנה</button><button class="btn text" data-act="install-hide">לא עכשיו</button></div></div>';
-    }
-    if (rs) {
-      html += '<div class="card reminder-card"><div class="rc-head"><span class="rc-ic">' + ICON.bell + '</span><div>' +
-        '<b>תזכורת יומית ב-' + hourLabel() + '</b><span>' + (rs === 'install'
-          ? 'באייפון תזכורות עובדות רק מהאפליקציה המותקנת במסך הבית.'
-          : 'הודעה קצרה רק בימים שעוד לא עשית שיעור. אפשר לכבות בפרופיל.') + '</span></div></div>' +
-        '<div class="row"><button class="btn" data-act="' + (rs === 'install' ? 'install' : 'reminder-on') + '" data-from="home">' +
-          (rs === 'install' ? 'איך מתקינים' : 'להפעיל') + '</button><button class="btn text" data-act="reminder-later">לא עכשיו</button></div></div>';
+    // one ask at a time: resume, then the streak rescue, then the reminder, then the install card
+    if (!html) {
+      var rs = reminderCardState();
+      if (rs) {
+        html += '<div class="card reminder-card"><div class="rc-head"><span class="rc-ic">' + ICON.bell + '</span><div>' +
+          '<b>תזכורת יומית ב-' + hourLabel() + '</b><span>' + (rs === 'install'
+            ? 'באייפון תזכורות עובדות רק מהאפליקציה המותקנת במסך הבית.'
+            : 'הודעה קצרה רק בימים שעוד לא עשית שיעור. אפשר לכבות בפרופיל.') + '</span></div></div>' +
+          '<div class="row"><button class="btn" data-act="' + (rs === 'install' ? 'install' : 'reminder-on') + '" data-from="home" data-placement="home">' +
+            (rs === 'install' ? 'איך מתקינים' : 'להפעיל') + '</button><button class="btn text" data-act="reminder-later">לא עכשיו</button></div></div>';
+      } else html += installCard('home');
     }
     if (CFG.pilot) {
       html += '<button class="pilot-bar" data-act="feedback" data-ctx="home">' + ICON.chat + '<span><b>גרסת ניסיון.</b> ספרו לנו מה לשפר</span>' + ICON.chevron + '</button>';
@@ -716,32 +752,150 @@
       '<button class="btn" data-act="close-sheet">הבנתי</button>');
   }
 
+  function hasProgress() { return S.xp > 0 || !!S.inProgress || doneCount() > 0; }
   function installSheet() {
+    var name = esc(CFG.appName);
     var steps = IS_IOS
-      ? ['פותחים את הקישור בספארי (לא מתוך אינסטגרם או טיקטוק).',
+      ? ['פותחים את הקישור בספארי, לא בתוך וואטסאפ, אינסטגרם או טיקטוק. אם הקישור נפתח בתוך וואטסאפ, לוחצים על סמל ספארי בפינה למטה.',
          'לוחצים על כפתור השיתוף ' + ICON.share + ' בתחתית המסך.',
          'גוללים ובוחרים "הוספה למסך הבית" ' + ICON.addHome + '.',
-         'לוחצים "הוספה". האייקון של ' + esc(CFG.appName) + ' יופיע במסך הבית.']
+         'לוחצים "הוספה". האייקון של ' + name + ' יופיע במסך הבית.',
+         'פותחים את ' + name + ' רק מהאייקון. אם יש קוד העברה, מדביקים אותו במסך הפתיחה ("יש לי קוד העברה").']
       : ['פותחים את הקישור בכרום.',
          'לוחצים על ' + ICON.dots + ' בפינה של המסך.',
          'בוחרים "התקנת אפליקציה" או "הוספה למסך הבית".',
-         'מאשרים. האייקון של ' + esc(CFG.appName) + ' יופיע במסך הבית.'];
-    openSheet('<h3>התקנה ב' + (IS_IOS ? 'אייפון' : 'אנדרואיד') + '</h3>' +
-      '<ol class="install-steps">' + steps.map(function (s, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + s + '</span></li>'; }).join('') + '</ol>' +
-      '<p class="fine">ההתקדמות נשמרת בטלפון. אחרי ההתקנה פותחים את ' + esc(CFG.appName) + ' רק מהאייקון.</p>' +
+         'מאשרים. האייקון של ' + name + ' יופיע במסך הבית.'];
+    // iPhone: the installed app starts with its own empty storage, so progress made in Safari travels by code
+    var warn = IS_IOS ? '<p class="nudge warn">' + ICON.info + '<span>חשוב: באייפון האפליקציה המותקנת מתחילה מאפס. מה שעשית בספארי לא עובר לבד. מתקינים קודם, ואז משחקים. כבר התחלת? מעתיקים את קוד ההעברה שלמטה ומדביקים אותו באפליקציה המותקנת.</span></p>' : '';
+    var code = IS_IOS && hasProgress()
+      ? '<div class="transfer-box"><p><b>קוד העברה:</b> לוחצים "להעתיק קוד", ואחרי ההתקנה מדביקים אותו במסך הפתיחה של האפליקציה.</p>' +
+        '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="sheet">להעתיק קוד</button>' +
+        (navigator.share ? '<button class="btn ghost" data-act="export" data-method="share" data-placement="sheet">לשלוח לעצמי</button>' : '') + '</div></div>'
+      : '';
+    openSheet('<h3>התקנה ב' + (IS_IOS ? 'אייפון' : 'אנדרואיד') + '</h3>' + warn +
+      '<ol class="install-steps">' + steps.map(function (s, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + s + '</span></li>'; }).join('') + '</ol>' + code +
+      '<p class="fine">' + (IS_IOS ? 'אחרי ההתקנה פותחים את ' + name + ' רק מהאייקון. ההתקדמות נשמרת בטלפון, לא בענן.'
+        : 'מתקינים מכרום, וההתקדמות מכרום נשארת. אחרי ההתקנה פותחים את ' + name + ' מהאייקון.') + '</p>' +
       '<button class="btn" data-act="close-sheet">הבנתי</button>', 'tall');
   }
 
-  var fbRating = 0;
+  // ---------- Transfer code (progress moves to the installed app or another phone) ----------
+  function b64url(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function unb64url(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; return decodeURIComponent(escape(atob(str))); }
+  function checksum(str) { var n = 0; for (var i = 0; i < str.length; i++) n = (n + str.charCodeAt(i)) % 65536; return ('000' + n.toString(16)).slice(-4); }
+  function exportCode() {
+    var sub = {};
+    TRANSFER_KEYS.forEach(function (k) { if (k in S) sub[k] = S[k]; });
+    var body = b64url(JSON.stringify(sub));
+    return 'D1.' + body + '.' + checksum(body);
+  }
+  function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+  // a pasted code is untrusted input: prefix, checksum, JSON, then only known fields with sane values
+  function parseCode(code) {
+    code = String(code || '').trim();
+    if (code.length > 20000) return { ok: false, reason: 'bad_fields' };
+    var m = /^D1\.([A-Za-z0-9_-]+)\.([0-9a-f]{4})$/.exec(code);
+    if (!m) return { ok: false, reason: 'bad_prefix' };
+    if (checksum(m[1]) !== m[2]) return { ok: false, reason: 'bad_checksum' };
+    var obj;
+    try { obj = JSON.parse(unb64url(m[1])); } catch (e) { return { ok: false, reason: 'bad_json' }; }
+    if (!isObj(obj) || obj.v !== 3) return { ok: false, reason: 'bad_fields' };
+    if (!CFG.statuses.some(function (st) { return st.id === obj.status; })) return { ok: false, reason: 'bad_fields' };
+    if (typeof obj.uid !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(obj.uid)) return { ok: false, reason: 'bad_fields' };
+    var nums = ['goalXp', 'xp', 'streak', 'bestStreak', 'answered', 'correct'], i;
+    for (i = 0; i < nums.length; i++) { var x = obj[nums[i]]; if (typeof x !== 'number' || !isFinite(x) || x < 0) return { ok: false, reason: 'bad_fields' }; }
+    var maps = ['days', 'lessons', 'missions', 'mistakes', 'ratings', 'intent'];
+    for (i = 0; i < maps.length; i++) if (maps[i] in obj && !isObj(obj[maps[i]])) return { ok: false, reason: 'bad_fields' };
+    if (obj.lostStreak != null && !isObj(obj.lostStreak)) return { ok: false, reason: 'bad_fields' };
+    var state = {};
+    TRANSFER_KEYS.forEach(function (k) { if (k in obj) state[k] = obj[k]; });
+    return { ok: true, reason: null, state: state };
+  }
+  function importProgress(code, source) {
+    var r = parseCode(code);
+    if (!r.ok) { track('progress_imported', { ok: false, reason: r.reason, source: source }); return r; }
+    if (S.reminder && S.reminder.on) disableReminder('import');
+    var seen = S.installSeen;
+    S = migrate(r.state);
+    S.onboarded = true; S.reminder = null; S.reminderNo = null; S.inProgress = null;
+    S.installHidden = isStandalone(); S.installSeen = seen || isStandalone(); S.importedAt = dayKey();
+    save(); indexContent(); migrateContent();
+    track('progress_imported', { ok: true, reason: null, lessons_done: doneCount(), xp: S.xp, source: source, $set: { transferred: true } });
+    pickedStatus = null; onboardStep = 0; session = null;
+    setView('home');
+    toast(ICON.check + '<b>ההתקדמות עברה</b><span>' + plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '</span>', 'info', 3200);
+    return r;
+  }
+  function importSheet(source) {
+    openSheet('<h3>ייבוא התקדמות</h3><p class="lead">מדביקים כאן את קוד ההעברה שהעתקת מהדפדפן או מהטלפון הקודם.</p>' +
+      '<textarea id="imp-code" class="code-box" rows="4" placeholder="D1...." dir="ltr" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>' +
+      '<p class="fine bad" id="imp-err" hidden>הקוד לא תקין. מעתיקים אותו שוב, מההתחלה ועד הסוף.</p>' +
+      '<button class="btn" data-act="import-go" data-source="' + esc(source) + '">לייבא</button>' +
+      '<button class="btn text" data-act="close-sheet">ביטול</button>', 'tall');
+    var ta = document.getElementById('imp-code');
+    if (ta) { try { ta.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+  }
+
+  var fbRating = 0, fbMessage = '', waWarned = false;
+  // the WhatsApp number for feedback: international digits only (050-1234567 -> 972501234567); '' = show the text for copying
+  function waNumber() {
+    var n = String((CFG.feedback && CFG.feedback.whatsapp) || '').replace(/\D/g, '').replace(/^00/, '');
+    if (!n) return '';
+    if (n.charAt(0) === '0' || n.length < 8 || n.length > 15) {
+      if (!waWarned) { waWarned = true; console.warn('feedback.whatsapp must be international digits without + or a leading 0, e.g. 972501234567'); }
+      return '';
+    }
+    return n;
+  }
+  // without an analytics key, or when usage-data sharing is off, feedback goes out by WhatsApp instead of PostHog
+  function feedbackViaWhatsApp() { return !(CFG.analytics && CFG.analytics.posthogKey) || !S.share; }
+  function contactName() { return (CFG.feedback && CFG.feedback.contactName) || ''; }
+  // copies text from a click handler; done(ok) says whether the clipboard took it
+  function copyText(text, done) {
+    var fallback = function () {
+      var ok = false;
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;font-size:16px;';
+        document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+        ok = !!document.execCommand('copy');
+        ta.remove();
+      } catch (e) { ok = false; }
+      done(ok);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+      else fallback();
+    } catch (e) { fallback(); }
+  }
+  // when copying fails, the text is shown in the open sheet so it can be selected by hand
+  function manualCopy(text, note, isCode) {
+    var sh = document.querySelector('#sheet .sheet');
+    if (!sh) { openSheet('<h3>' + (isCode ? 'קוד העברה' : 'ההודעה') + '</h3><button class="btn" data-act="close-sheet">סגירה</button>'); sh = document.querySelector('#sheet .sheet'); }
+    if (!sh || sh.querySelector('.copy-box')) return;
+    var p = document.createElement('p'); p.className = 'fine'; p.textContent = note;
+    var ta = document.createElement('textarea'); ta.className = 'copy-box' + (isCode ? ' code-box' : ''); ta.setAttribute('readonly', ''); ta.rows = 4; ta.value = text;
+    if (isCode) ta.setAttribute('dir', 'ltr');
+    var btn = sh.querySelector('.btn');
+    sh.insertBefore(p, btn); sh.insertBefore(ta, btn);
+    try { ta.focus(); ta.select(); } catch (e) { /* ignore */ }
+  }
   function feedbackSheet(ctx, lessonId) {
     fbRating = 0;
     var faces = ['😣', '🙁', '😐', '🙂', '🤩'];
+    var note = '';
+    if (feedbackViaWhatsApp()) {
+      note = waNumber()
+        ? 'המשוב נשלח בוואטסאפ' + (contactName() ? ' ל' + esc(contactName()) : '') + '. ההודעה תיפתח מוכנה, ונשאר רק ללחוץ שליחה.'
+        : 'המשוב לא נשלח אוטומטית מהגרסה הזו. אחרי "שליחה" תוכלו להעתיק אותו ולשלוח לנו.';
+      note = '<p class="fine">' + note + '</p>';
+    }
     openSheet('<h3>מה דעתך?</h3>' +
       '<p class="lead">כל מילה עוזרת: מה לא היה ברור, מה חסר, מה אהבת.</p>' +
       '<div class="faces" role="group" aria-label="דירוג מ-1 עד 5">' + faces.map(function (f, i) {
         return '<button class="face" data-act="fb-rate" data-v="' + (i + 1) + '" aria-pressed="false" aria-label="' + (i + 1) + ' מתוך 5">' + f + '</button>';
       }).join('') + '</div>' +
-      '<textarea id="fb-text" rows="4" maxlength="1500" placeholder="למשל: השאלה על דמי ניהול לא הייתה ברורה"></textarea>' +
+      '<textarea id="fb-text" rows="4" maxlength="1500" placeholder="למשל: השאלה על דמי ניהול לא הייתה ברורה"></textarea>' + note +
       '<button class="btn" data-act="feedback-send" data-ctx="' + esc(ctx || '') + '" data-id="' + esc(lessonId || '') + '">שליחה</button>' +
       '<button class="btn text" data-act="close-sheet">ביטול</button>', 'tall');
   }
@@ -854,7 +1008,7 @@
         return {
           k: 'q', id: st.q.id, review: st.review, retry: st.retry, checked: st.checked, sel: st.sel, right: st.right,
           order: st.order || null, o: st.o || null, gain: st.gain || 0, praise: st.praise || '',
-          m: st.m ? { a: st.m.a, b: st.m.b, matched: st.m.matched, mistakes: st.m.mistakes } : null
+          m: st.m ? { a: st.m.a, b: st.m.b, matched: st.m.matched, mistakes: st.m.mistakes, wrong: st.m.wrong || [] } : null
         };
       })
     };
@@ -877,7 +1031,7 @@
       st.checked = x.checked; st.sel = x.sel; st.right = x.right; st.gain = x.gain; st.praise = x.praise;
       if (x.order) st.order = x.order;
       if (x.o) st.o = x.o;
-      if (x.m && st.m) { st.m.a = x.m.a; st.m.b = x.m.b; st.m.matched = x.m.matched; st.m.mistakes = x.m.mistakes; }
+      if (x.m && st.m) { st.m.a = x.m.a; st.m.b = x.m.b; st.m.matched = x.m.matched; st.m.mistakes = x.m.mistakes; st.m.wrong = x.m.wrong || []; }
       steps.push(st);
     });
     if (!ok || !steps.length) return null;
@@ -1086,10 +1240,22 @@
       if (!st.retry && st.q.type !== 'match' && session.mode !== 'repair') session.steps.push(buildQuestionStep(st.q, { retry: true }));
       sfx.wrong();
     }
-    track('question_answered', {
+    // what was picked, so a popular wrong answer shows up in the data (positions and indexes only, no texts)
+    var props = {
       mode: session.mode, lesson_id: session.lesson ? session.lesson.id : st.q.lessonId, question_id: st.q.id,
-      question_type: st.q.type, correct: right, retry: st.retry, review: st.review
-    });
+      question_type: st.q.type, correct: right, retry: st.retry, review: st.review,
+      is_first_try: !st.retry && !st.review && !(session.lesson && isDone(session.lesson.id))
+    };
+    if (st.q.type === 'order') {
+      var fw = -1;
+      st.o.picked.forEach(function (x, i) { if (fw < 0 && x !== i) fw = i; });
+      props.picked = st.o.picked.join(','); props.first_wrong_pos = fw;
+    } else if (st.q.type === 'match') {
+      props.mistakes = st.m.mistakes; props.wrong_pairs = (st.m.wrong || []).slice(0, 8).join(','); props.pair_count = st.q.pairs.length;
+    } else if (st.q.options) {
+      props.option_index = st.sel; props.option_pos = st.order ? st.order.indexOf(st.sel) : st.sel; props.option_count = st.q.options.length;
+    }
+    track('question_answered', props);
     save();
   }
 
@@ -1136,6 +1302,7 @@
         if (m.matched.length === st.q.pairs.length) { resolve(st, m.mistakes === 0); render(); celebrate(st); return; }
       } else {
         m.mistakes++;
+        (m.wrong = m.wrong || []).push(m.selA + '-' + m.selB);
         m.flash = { a: m.selA, b: m.selB };
         sfx.wrong();
         setTimeout(function () { m.flash = null; m.selA = m.selB = null; if (view === 'lesson') render(); }, 550);
@@ -1289,6 +1456,12 @@
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
         ratingRow(l) + intentCard(l) + partnerCard(l) + missionCard(l, true);
+    }
+    // iPhone: the install ask comes right after the first lesson, while the win is fresh (Android keeps the home card)
+    if (s.mode === 'lesson' && s.firstTime && INSTALL.showOnDone && IS_IOS && doneCount() === INSTALL.afterLessons) {
+      var ic = installCard('done');
+      if (ic && !s.installShown) { s.installShown = true; track('install_card_shown', { placement: 'done', lessons_done: doneCount() }); }
+      html += ic;
     }
     html += legalLine(false) + '<div class="spacer"></div><button class="btn" data-act="home">המשך</button></div>';
     return html;
@@ -1452,10 +1625,12 @@
       '</div>' +
       '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">הקו המקווקו הוא היעד היומי.</p></div>' +
       '<div class="card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
-      '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div></div>' +
+      '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
-      (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי אינטרנט.</p><button class="btn ghost" data-act="install">איך מתקינים</button></div>' : '') +
+      (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי אינטרנט.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
+      '<div class="card transfer-card"><h2>להעביר התקדמות</h2><p>עוברים לאפליקציה המותקנת או לטלפון אחר? מעתיקים קוד, ומדביקים אותו שם במסך הפתיחה.</p>' +
+        '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="profile">להעתיק קוד</button><button class="btn ghost" data-act="import" data-source="profile">יש לי קוד</button></div></div>' +
       '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>' +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
         '<div class="toggle-row"><span id="share-l">שליחת נתוני שימוש אנונימיים</span><button class="switch" role="switch" aria-labelledby="share-l" aria-checked="' + S.share + '" data-act="share"></button></div>' +
@@ -1468,59 +1643,52 @@
   }
 
   // ---------- Welcome ----------
-  var pickedGoal = CFG.defaultGoal, pickedStatus = null;
+  // two screens: what the app is, then the status (which also picks the opening unit). The daily goal starts at the
+  // default and lives in the profile.
+  var pickedStatus = null;
   function renderWelcome() {
     var art = CFG.images && CFG.images.welcome ? '<div class="welcome-art"><img src="' + esc(CFG.images.welcome) + '" alt=""></div>' : '';
     var onlyStatus = S.onboarded && !S.status;
     if (onlyStatus) onboardStep = 1;
     if (onboardStep === 0) {
-      var questions = LESSONS.reduce(function (n, l) { return n + l.vQuestions.length; }, 0);
       return '<div class="welcome gutter">' +
         '<div class="logo">' + esc(CFG.appName) + '</div>' +
         '<p class="tag">' + esc(CFG.tagline) + '</p>' + art +
         '<ul class="promises">' +
-          '<li><b>' + UNITS.length + ' יחידות, ' + LESSONS.length + ' שיעורים</b><span>תקציב, כסף מהשחרור, משכורת ראשונה, השקעות ומלכודות.</span></li>' +
-          '<li><b>' + fmt(questions) + ' שאלות עם סיפורים</b><span>מצבים אמיתיים של אנשים בגילך. בלי חישובים.</span></li>' +
+          '<li><b>מה עושים עם הכסף לפני שהוא נעלם</b><span>פיקדון, מענק שחרור, משכורת ראשונה: תוכנית לפני שהכסף מגיע לחשבון.</span></li>' +
+          '<li><b>שיעורים של כמה דקות, בלי חישובים</b><span>סיפורים של אנשים בגילך, ושאלה קצרה אחרי כל הסבר.</span></li>' +
           '<li><b>משימה אמיתית בסוף כל שיעור</b><span>10 דקות בחוץ, וכסף שנשאר אצלך.</span></li>' +
         '</ul>' +
         '<div class="spacer"></div>' +
         '<button class="btn gold" data-act="onboard-next">יאללה, מתחילים</button>' +
+        '<p class="fine center"><button class="link" data-act="import">יש לי קוד העברה</button></p>' +
         '<p class="fine center">' + esc(CFG.disclaimer) + '.</p></div>';
     }
-    if (onboardStep === 1) {
-      var cur = pickedStatus || S.status;
-      return '<div class="welcome gutter">' +
-        (onlyStatus ? '' : '<button class="icon-btn back-top" data-act="onboard-back" aria-label="אחורה">' + ICON.back + '</button>') +
-        '<h1 class="q-prompt">מה המצב שלך?</h1>' +
-        '<p class="lead">ככה נדע אילו שיעורים להראות. למשל, שיעורים על פיקדון ומענק שחרור מופיעים רק למי ששירת. אפשר לשנות בפרופיל.</p>' +
-        '<div class="goal-pick">' + CFG.statuses.map(function (s) {
-          return '<button class="btn ' + (cur === s.id ? '' : 'ghost') + ' goal-opt" data-act="pick-status" data-v="' + s.id + '" aria-pressed="' + (cur === s.id) + '">' +
-            '<span><b>' + esc(s.label) + '</b><small>' + esc(s.note) + '</small></span></button>';
-        }).join('') + '</div>' +
-        '<div class="spacer"></div>' +
-        '<button class="btn gold" data-act="' + (onlyStatus ? 'begin-status' : 'onboard-status') + '"' + (cur ? '' : ' disabled') + '>' + (onlyStatus ? 'שומרים' : 'המשך') + '</button></div>';
-    }
-    var goals = CFG.goals.map(function (g) {
-      return '<button class="btn ' + (pickedGoal === g.xp ? '' : 'ghost') + ' goal-opt" data-act="pick-goal" data-xp="' + g.xp + '" aria-pressed="' + (pickedGoal === g.xp) + '">' +
-        '<span><b>' + g.label + '</b><small>' + g.xp + ' נקודות ביום</small></span><span class="note">' + g.note + '</span></button>';
-    }).join('');
-    var avg = LESSONS.length ? Math.round(LESSONS.reduce(function (n, l) { return n + maxLessonPoints(l); }, 0) / LESSONS.length) : 0;
+    var cur = pickedStatus || S.status;
+    var op = cur && CFG.openers && CFG.openers[cur], fl = cur ? firstLessonFor(cur) : null;
+    var opener = op ? '<div class="card opener"><h2>' + esc(op.headline) + '</h2><p class="lead">' + esc(op.promise) + '</p>' +
+      (fl ? '<p class="fine">השיעור הראשון: ' + esc(fl.lesson.title) + ' · כ-' + fl.minutes + ' דקות</p>' : '') + '</div>' : '';
     return '<div class="welcome gutter">' +
-      '<button class="icon-btn back-top" data-act="onboard-back" aria-label="אחורה">' + ICON.back + '</button>' +
-      '<h1 class="q-prompt">מה היעד היומי?</h1>' +
-      '<p class="lead">שיעור אחד שווה עד ' + avg + ' נקודות בערך. אפשר לשנות את זה מתי שרוצים.</p>' +
-      '<div class="goal-pick">' + goals + '</div>' +
+      (onlyStatus ? '' : '<button class="icon-btn back-top" data-act="onboard-back" aria-label="אחורה">' + ICON.back + '</button>') +
+      '<h1 class="q-prompt">מה המצב שלך?</h1>' +
+      '<p class="lead">ככה נדע מאיפה להתחיל ואילו שיעורים להראות. אפשר לשנות בפרופיל.</p>' +
+      '<div class="goal-pick">' + CFG.statuses.map(function (s) {
+        return '<button class="btn ' + (cur === s.id ? '' : 'ghost') + ' goal-opt" data-act="pick-status" data-v="' + s.id + '" aria-pressed="' + (cur === s.id) + '">' +
+          '<span><b>' + esc(s.label) + '</b><small>' + esc(s.note) + '</small></span></button>';
+      }).join('') + '</div>' + opener +
       '<div class="spacer"></div>' +
-      '<button class="btn gold" data-act="begin">קבענו</button></div>';
+      '<button class="btn gold" data-act="' + (onlyStatus ? 'begin-status' : 'onboard-status') + '"' + (cur ? '' : ' disabled') + '>' +
+        (onlyStatus ? 'שומרים' : esc((op && op.cta) || 'יאללה, מתחילים')) + '</button></div>';
   }
 
-  function setStatus(v) {
+  function setStatus(v, source) {
     var changed = S.status !== v;
     S.status = v;
+    S.startUnit = (CFG.startUnit && CFG.startUnit[v] != null) ? CFG.startUnit[v] : null;
     indexContent();
     if (S.inProgress && !shown(BY_ID[S.inProgress.lessonId])) S.inProgress = null;
     save();
-    if (changed) track('status_set', { status: v, $set: { status: v } });
+    if (changed) track('status_set', { status: v, start_unit_id: S.startUnit, source: source || 'profile', $set: { status: v, start_unit_id: S.startUnit } });
   }
 
   // ---------- Confetti ----------
@@ -1674,12 +1842,12 @@
     var ctrl = (st === 'on' || (st === 'off' && S.share))
       ? '<button class="switch" role="switch" aria-labelledby="rem-l" aria-checked="' + (st === 'on') + '" data-act="reminder-toggle"></button>' : '';
     return '<div class="card"><div class="toggle-row"><h2 id="rem-l">תזכורת יומית</h2>' + ctrl + '</div><p class="fine">' + note + '</p>' +
-      (st === 'install' ? '<button class="btn ghost" data-act="install">איך מתקינים</button>' : '') + '</div>';
+      (st === 'install' ? '<button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button>' : '') + '</div>';
   }
 
   // ---------- Install and updates ----------
-  function installFlow() {
-    track('install_clicked', { method: deferredInstall ? 'prompt' : IS_IOS ? 'ios_steps' : 'steps' });
+  function installFlow(placement) {
+    track('install_clicked', { method: deferredInstall ? 'prompt' : IS_IOS ? 'ios_steps' : 'steps', placement: placement, lessons_done: doneCount() });
     if (deferredInstall) {
       var p = deferredInstall;
       deferredInstall = null;
@@ -1784,25 +1952,71 @@
         render(); if (sheetOpen) explainSheet('goal');
         break;
       case 'status': setStatus(el.getAttribute('data-v')); render(); break;
-      case 'pick-status': pickedStatus = el.getAttribute('data-v'); sfx.tap(); render(); break;
-      case 'onboard-status': if (pickedStatus) { onboardStep = 2; histPush({ onboard: 2 }); render(); window.scrollTo(0, 0); } break;
-      case 'begin-status': if (pickedStatus) { setStatus(pickedStatus); setView('home'); } break;
-      case 'pick-goal': pickedGoal = +el.getAttribute('data-xp'); sfx.tap(); render(); break;
-      case 'onboard-next': onboardStep = 1; histPush({ onboard: 1 }); render(); window.scrollTo(0, 0); break;
-      case 'onboard-back': if (HIST && histDepth > 0) history.back(); else { onboardStep = Math.max(0, onboardStep - 1); render(); } break;
-      case 'begin':
-        S.onboarded = true; S.goalXp = pickedGoal;
-        setStatus(pickedStatus);
-        track('onboarding_done', { goal_xp: pickedGoal, $set: { status: S.status, goal_xp: pickedGoal } });
+      case 'pick-status': {
+        pickedStatus = el.getAttribute('data-v'); sfx.tap(); render();
+        var fl = firstLessonFor(pickedStatus);
+        track('opener_viewed', { status: pickedStatus, start_unit_id: CFG.startUnit && CFG.startUnit[pickedStatus] != null ? CFG.startUnit[pickedStatus] : null, first_lesson_id: fl ? fl.lesson.id : null });
+        break;
+      }
+      case 'onboard-status': {
+        if (!pickedStatus) break;
+        S.onboarded = true;
+        setStatus(pickedStatus, 'onboarding');
+        var first = currentLesson();
+        track('onboarding_done', {
+          goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: first ? first.id : null,
+          $set: { status: S.status, goal_xp: S.goalXp, start_unit_id: S.startUnit }
+        });
         setView('home');
         break;
+      }
+      case 'begin-status': if (pickedStatus) { setStatus(pickedStatus); setView('home'); } break;
+      case 'onboard-next': onboardStep = 1; histPush({ onboard: 1 }); render(); window.scrollTo(0, 0); break;
+      case 'onboard-back': if (HIST && histDepth > 0) history.back(); else { onboardStep = Math.max(0, onboardStep - 1); render(); } break;
       case 'sound': S.sound = !S.sound; save(); render(); if (S.sound) sfx.right(0); break;
       case 'share':
         if (S.share) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); track('analytics_off', {}); flush(); }
         S.share = !S.share; save(); render();
         break;
-      case 'install': installFlow(); break;
-      case 'install-hide': S.installHidden = true; save(); render(); break;
+      case 'install': installFlow(el.getAttribute('data-placement') || (view === 'profile' ? 'profile' : 'home')); break;
+      case 'install-hide':
+        S.installHidden = true; save();
+        track('install_declined', { placement: el.getAttribute('data-placement') || 'home', lessons_done: doneCount() });
+        render();
+        break;
+      case 'export': {
+        var code = exportCode(), method = el.getAttribute('data-method') || 'copy';
+        var exported = function (m) { track('progress_exported', { method: m, lessons_done: doneCount(), xp: S.xp, code_len: code.length }); flush(); };
+        if (method === 'share' && navigator.share) {
+          navigator.share({ title: 'קוד העברה של ' + CFG.appName, text: code }).then(function () { exported('share'); }, function () { /* cancelled */ });
+          break;
+        }
+        copyText(code, function (ok) {
+          if (ok) { toast(ICON.check + '<b>הקוד הועתק.</b><span>מדביקים אותו באפליקציה המותקנת</span>', 'info', 2800); exported('copy'); }
+          else { manualCopy(code, 'לא הצלחנו להעתיק אוטומטית. מסמנים את הקוד ומעתיקים ידנית:', true); exported('manual'); }
+        });
+        break;
+      }
+      case 'import': {
+        var src = el.getAttribute('data-source') || 'welcome';
+        if (src === 'profile' && hasProgress()) {
+          openSheet('<h3>לייבא קוד?</h3><p class="lead">ההתקדמות במכשיר הזה תוחלף במה שבקוד.</p>' +
+            '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn" data-act="import-confirm">לייבא</button></div>');
+          break;
+        }
+        importSheet(src);
+        break;
+      }
+      case 'import-confirm': importSheet('profile'); break;
+      case 'import-go': {
+        var box = document.getElementById('imp-code'), err = document.getElementById('imp-err');
+        var res = importProgress(box ? box.value : '', el.getAttribute('data-source') || 'welcome');
+        if (!res.ok) {
+          if (err) err.hidden = false;
+          if (box) { box.classList.add('shake'); setTimeout(function () { box.classList.remove('shake'); }, 400); }
+        }
+        break;
+      }
       case 'reminder-on': enableReminder(el.getAttribute('data-from') || 'home'); break;
       case 'reminder-later':
         S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() };
@@ -1822,17 +2036,31 @@
       case 'feedback-send': {
         var ta = document.getElementById('fb-text'), text = ta ? ta.value.trim() : '';
         if (!fbRating && !text) { if (ta) { ta.classList.add('shake'); setTimeout(function () { ta.classList.remove('shake'); }, 400); } break; }
-        var ctx = el.getAttribute('data-ctx'), lid = el.getAttribute('data-id');
-        track('feedback_sent', { rating: fbRating || null, text: text, context: ctx, lesson_id: lid || null });
+        var ctx = el.getAttribute('data-ctx'), lid = el.getAttribute('data-id'), via = feedbackViaWhatsApp();
+        track('feedback_sent', { rating: fbRating || null, text: text, context: ctx, lesson_id: lid || null, channel: via ? 'whatsapp' : 'posthog' });
         flush();
-        if (!(CFG.analytics && CFG.analytics.posthogKey)) {
-          var msg = 'משוב על ' + CFG.appName + (fbRating ? ' (' + fbRating + '/5)' : '') + (lid && BY_ID[lid] ? ' · שיעור "' + BY_ID[lid].title + '"' : '') + ':\n' + text;
-          window.open('https://wa.me/' + ((CFG.feedback && CFG.feedback.whatsapp) || '') + '?text=' + encodeURIComponent(msg), '_blank');
+        if (!via) {
+          openSheet('<h3>תודה!</h3><p class="lead">המשוב הגיע. ככה ' + esc(CFG.appName) + ' משתפרת.</p><button class="btn" data-act="close-sheet">סגירה</button>');
+          sfx.pair();
+          break;
         }
-        openSheet('<h3>תודה!</h3><p class="lead">המשוב הגיע. ככה ' + esc(CFG.appName) + ' משתפרת.</p><button class="btn" data-act="close-sheet">סגירה</button>');
+        // WhatsApp: the message opens ready to send; without a number (or when the browser blocks the popup) it is copied by hand
+        fbMessage = 'משוב על ' + CFG.appName + ' ' + CFG.version + (fbRating ? ' (' + fbRating + '/5)' : '') + (lid && BY_ID[lid] ? ' · שיעור "' + BY_ID[lid].title + '"' : '') + ':\n' + text;
+        var wa = waNumber(), opened = null;
+        if (wa) { try { opened = window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(fbMessage), '_blank'); } catch (e) { opened = null; } }
+        var copyBtn = '<button class="btn" data-act="fb-copy">להעתיק את ההודעה</button><button class="btn text" data-act="close-sheet">סגירה</button>';
+        if (wa && opened) openSheet('<h3>עוד לחיצה אחת</h3><p class="lead">וואטסאפ נפתח עם ההודעה מוכנה' + (contactName() ? ' ל' + esc(contactName()) : '') + '. לוחצים שם שליחה, וזהו.</p>' + copyBtn);
+        else if (!wa) openSheet('<h3>תודה!</h3><p class="lead">עדיין אין מספר וואטסאפ בגרסה הזו. העתיקו את ההודעה ושלחו אותה למי שהעביר לכם את ' + esc(CFG.appName) + '.</p>' + copyBtn);
+        else openSheet('<h3>הדפדפן חסם את וואטסאפ</h3><p class="lead">העתיקו את ההודעה ושלחו אותה בוואטסאפ למספר ' + ltr(esc(wa)) + '.</p>' + copyBtn);
         sfx.pair();
         break;
       }
+      case 'fb-copy':
+        copyText(fbMessage, function (ok) {
+          if (ok) toast(ICON.check + '<b>הועתק</b>', 'info', 1600);
+          else manualCopy(fbMessage, 'לא הצלחנו להעתיק אוטומטית. מסמנים את ההודעה ומעתיקים ידנית:');
+        });
+        break;
       case 'rate':
         S.ratings[id] = el.getAttribute('data-v'); save();
         track('lesson_rated', { lesson_id: id, rating: S.ratings[id] });
@@ -1916,13 +2144,18 @@
     window.addEventListener('pagehide', function () { if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
     window.addEventListener('online', flush);
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredInstall = e; });
-    window.addEventListener('appinstalled', function () { track('app_installed', {}); S.installHidden = true; save(); if (view === 'home') render(); });
+    window.addEventListener('appinstalled', function () { track('app_installed', { method: 'appinstalled' }); S.installHidden = true; S.installSeen = true; save(); if (view === 'home') render(); });
     // iOS starts audio only from a touch
     document.addEventListener('touchstart', function unlock() { if (S.sound) audio(); document.removeEventListener('touchstart', unlock); }, { passive: true });
     checkStreakBreak();
+    // iPhone has no appinstalled event: the first open from the home-screen icon is the install
+    if (isStandalone() && !S.installSeen) {
+      S.installSeen = true; S.installHidden = true; save();
+      track('app_installed', { method: IS_IOS ? 'ios_first_standalone_open' : 'first_standalone_open', imported: !!S.importedAt });
+    }
     track('app_opened', {
       returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, reminders: !!(S.reminder && S.reminder.on),
-      $set: { status: S.status, goal_xp: S.goalXp, standalone: isStandalone() }, $set_once: { first_day: S.firstDay }
+      $set: { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit }, $set_once: { first_day: S.firstDay }
     });
     if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false });
     if (S.onboarded && S.status && S.inProgress) {
@@ -1936,6 +2169,13 @@
     }
     render();
     if (view === 'lesson') toast(ICON.play + '<b>ממשיכים מאיפה שהפסקת</b>', 'info', 2000);
+    // a transfer code can also arrive in the link (#p=D1....), for example pasted into the address bar
+    var hashCode = /^#p=(.+)$/.exec(location.hash || '');
+    if (hashCode) {
+      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) { /* ignore */ }
+      var imp = importProgress(decodeURIComponent(hashCode[1]), 'hash');
+      if (!imp.ok) toast(ICON.x + '<b>הקוד לא תקין</b>', '', 2600);
+    }
     registerSW();
     syncPush();
     flush();

@@ -710,8 +710,16 @@ a.btn { text-align: center; text-decoration: none; }
 .repair-card { border-color: var(--flame); background: linear-gradient(160deg, var(--gold-soft), var(--surface) 70%); }
 .repair-card .rc-ic { background: var(--flame); color: #fff; animation: pulse-ic 1.6s ease-in-out infinite; }
 @keyframes pulse-ic { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-.install-card .row, .reminder-card .row { display: flex; gap: 10px; }
-.install-card .row > *, .reminder-card .row > * { flex: 1; }
+.install-card .row, .reminder-card .row, .transfer-card .row, .transfer-box .row { display: flex; gap: 10px; }
+.install-card .row > *, .reminder-card .row > *, .transfer-card .row > *, .transfer-box .row > * { flex: 1; }
+.transfer-box { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--brand-soft); }
+.transfer-box p { font-size: 15px; line-height: 1.45; }
+.card.opener { background: var(--brand-soft); border-color: transparent; gap: 8px; }
+.card.opener h2 { font-size: 19px; color: var(--brand); }
+.card.opener .lead { font-size: 15.5px; }
+.sheet .code-box, .sheet .copy-box { font-size: 14px; word-break: break-all; }
+.sheet .code-box { font-family: ui-monospace, Menlo, Consolas, monospace; direction: ltr; text-align: left; }
+.fine.bad { color: var(--bad); font-weight: 700; }
 .reminder-card .rc-ic { background: var(--gold-soft); color: var(--flame); }
 .pilot-bar {
   width: 100%; border: 0; cursor: pointer; text-align: right;
