@@ -22,6 +22,15 @@ on:
         description: 'Test: send only to whoever used the app last (even if already reminded today)'
         type: boolean
         default: false
+      everyone:
+        description: 'Send now to everyone with reminders on (even if already reminded or active today)'
+        type: boolean
+        default: false
+      message:
+        description: 'Text for a test or everyone send (empty: the default reminder text)'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -47,3 +56,5 @@ jobs:
           # a manual run sends right away, whatever the hour (still at most once a day per person)
           FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
           ONLY_LATEST: ${{ inputs.only_latest == true && '1' || '' }}
+          EVERYONE: ${{ inputs.everyone == true && '1' || '' }}
+          MESSAGE: ${{ inputs.message }}
