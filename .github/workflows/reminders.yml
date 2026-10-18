@@ -18,6 +18,10 @@ on:
         description: 'Count only, send nothing'
         type: boolean
         default: false
+      only_latest:
+        description: 'Test: send only to whoever used the app last (even if already reminded today)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -42,3 +46,4 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
           # a manual run sends right away, whatever the hour (still at most once a day per person)
           FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          ONLY_LATEST: ${{ inputs.only_latest == true && '1' || '' }}

@@ -11,7 +11,10 @@
    reminders.vapidPublicKey in config.js). Without them the run fails once a day (the first run in the window) with the
    reason, so the red mark in Actions shows reminders are not going out. Optional: POSTHOG_PROJECT_ID, DRY_RUN=1 (count only),
    FORCE=1 (ignore the hour), SEND_HOUR, WINDOW_HOURS, NOW=ISO time (tests), POSTHOG_API_HOST, POSTHOG_INGEST_HOST.
-   The log never contains endpoints or keys. */
+   ONLY_LATEST=1 is a test send (the only_latest box of a manual run): one message only to the person who used the app last,
+   even if they already got today's reminder or finished a lesson today. If that person has no reminder turned on, nothing is
+   sent to anyone and the run fails with the reason.
+   The log never contains endpoints, ids or keys. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -32,6 +35,8 @@ const WINDOW_HOURS = +(process.env.WINDOW_HOURS || 4);
 const SITE = 'https://jonathanriahi.github.io/dribit/';
 const DRY = flag('DRY_RUN');
 const FORCE = flag('FORCE');
+const ONLY_LATEST = flag('ONLY_LATEST');
+const TEST_MESSAGE = 'השיעור של היום מחכה לך. כמה דקות וזה מאחוריך.';
 const API_KEY = (process.env.POSTHOG_API_KEY || '').trim();
 const VAPID_PRIVATE = (process.env.VAPID_PRIVATE_KEY || '').trim();
 
@@ -93,9 +98,9 @@ async function capture(list) {
 
 async function main() {
   const t = israelNow();
-  console.log(`Israel time ${t.date} ${two(t.hour)}:${two(t.minute)}${DRY ? ' (dry run)' : ''}`);
+  console.log(`Israel time ${t.date} ${two(t.hour)}:${two(t.minute)}${DRY ? ' (dry run)' : ''}${ONLY_LATEST ? ' (test: only the person who used the app last)' : ''}`);
   const inWindow = t.hour >= SEND_HOUR && t.hour < SEND_HOUR + WINDOW_HOURS;
-  if (!FORCE && !inWindow) {
+  if (!FORCE && !ONLY_LATEST && !inWindow) {
     console.log(`Reminders go out between ${two(SEND_HOUR)}:00 and ${two(SEND_HOUR + WINDOW_HOURS - 1)}:59. Nothing to do now.`);
     return;
   }
@@ -103,7 +108,7 @@ async function main() {
   if (missing.length) {
     const msg = `No reminders were sent: missing the repository secret${missing.length > 1 ? 's' : ''} ${missing.join(' and ')}. Settings > Secrets and variables > Actions.`;
     // fail once a day (the first hour of the window, or a manual run) so Actions shows a red mark; later runs only warn
-    if (FORCE || t.hour === SEND_HOUR) throw new Error(msg);
+    if (FORCE || ONLY_LATEST || t.hour === SEND_HOUR) throw new Error(msg);
     console.log(`::warning::${msg}`);
     return;
   }
@@ -122,6 +127,7 @@ async function main() {
     subs.set(endpoint, event === 'push_subscribed' && p256dh && auth ? { endpoint, p256dh, auth, uid } : null);
   }
   const all = [...subs.values()].filter(Boolean);
+  if (ONLY_LATEST) return onlyLatest(all, t);
 
   // 2. who already did something today (Israel time), and who already got a reminder today
   const minutes = t.hour * 60 + t.minute;
@@ -163,6 +169,53 @@ async function main() {
   events.push({ event: 'reminder_run', distinct_id: 'dribit-reminders', properties: Object.assign({ dry_run: DRY, weekday: t.weekday, $process_person_profile: false }, counts) });
   if (!DRY) await capture(events);
   console.log(JSON.stringify(counts));
+}
+
+// the test send: one message to whoever used the app last (their newest event in the last 7 days, not counting this script's own)
+async function onlyLatest(all, t) {
+  const rows = await hogql(
+    "SELECT distinct_id, argMax(event, timestamp), dateDiff('minute', max(timestamp), now()) FROM events " +
+    "WHERE timestamp > now() - INTERVAL 7 DAY AND event NOT IN ('reminder_sent', 'reminder_run') " +
+    "AND coalesce(properties.platform, '') != 'sender' AND distinct_id != 'dribit-reminders' " +
+    'GROUP BY distinct_id ORDER BY max(timestamp) DESC LIMIT 1000');
+  if (!rows.length) throw new Error('Nobody used the app in the last 7 days, so there is no one to send the test to.');
+  const subscribed = new Set(all.map((s) => s.uid));
+  const ago = (m) => (m < 1 ? 'less than a minute' : m === 1 ? '1 minute' : `${m} minutes`) + ' ago';
+  const [uid, lastEvent, minutes] = rows[0];
+  const mine = all.filter((s) => s.uid === uid);
+  console.log(`The person who used the app last: "${lastEvent}" ${ago(+minutes)}, ${mine.length} reminder subscription${mine.length === 1 ? '' : 's'}.`);
+  if (!mine.length) {
+    const next = rows.find((r) => subscribed.has(r[0]));
+    throw new Error('Nothing was sent: the person who used the app last has no reminder turned on (Profile > reminder switch, on that phone).' +
+      (next ? ` The most recent person with reminders on was last active ${ago(+next[2])}.` : ' Nobody has reminders on.'));
+  }
+  const counts = { only_latest: true, subscriptions: mine.length, sent: 0, gone: 0, failed: 0 };
+  const events = [];
+  if (DRY) {
+    console.log(`Would send "${TEST_MESSAGE}" to ${mine.length} subscription${mine.length === 1 ? '' : 's'}.`);
+  } else {
+    const payload = JSON.stringify({ title: 'דריבית', body: TEST_MESSAGE, url: './?source=push', tag: 'test' });
+    for (const s of mine) {
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 3600, urgency: 'high' });
+        counts.sent++;
+        events.push({ event: 'reminder_sent', distinct_id: s.uid, properties: { test: true, weekday: t.weekday, push_service: host(s.endpoint) } });
+      } catch (e) {
+        const code = e && e.statusCode;
+        if (code === 404 || code === 410) {
+          counts.gone++;
+          events.push({ event: 'push_unsubscribed', distinct_id: s.uid, properties: { endpoint: s.endpoint, reason: 'gone', status: code, $set: { reminders: false } } });
+        } else {
+          counts.failed++;
+          console.log(`push failed: HTTP ${code || '?'} via ${host(s.endpoint)}: ${String((e && e.message) || e).split('\n')[0].slice(0, 100)}`);
+        }
+      }
+    }
+    events.push({ event: 'reminder_run', distinct_id: 'dribit-reminders', properties: Object.assign({ dry_run: false, weekday: t.weekday, $process_person_profile: false }, counts) });
+    await capture(events);
+  }
+  console.log(JSON.stringify(counts));
+  if (!DRY && !counts.sent) throw new Error('The test message did not go out (see above).');
 }
 
 main().catch((e) => { console.error(String((e && e.message) || e) + (e && e.cause ? ' (' + String(e.cause.message || e.cause) + ')' : '')); process.exit(1); });
