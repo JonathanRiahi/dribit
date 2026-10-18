@@ -12,7 +12,8 @@
   var QUEUE_KEY = 'dribit.events.v1';
   var HEB_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
   var RESUME_DAYS = 14;
-  var AWAY_HOME_MS = 2 * 60 * 1000;  // longer than this in the background mid-lesson, and the app returns to home
+  var AWAY_HOME_MS = 15 * 1000;  // back after longer than this in the background, and the app starts on home again (Jonathan, 18.10)
+  var AWAY_KEEP_MS = 10 * 60 * 1000;  // ...but a trip out and back (a sheet, a practice run, a link or share the app opened) keeps its screen this long
   // content v5 reordered unit 5: old lesson id -> new lesson id
   var LESSON_MOVES_V5 = { '5.1': '5.3', '5.2': '5.4', '5.3': '5.1', '5.4': '5.5' };
 
@@ -550,7 +551,23 @@
     var ref = get('ref');
     return { source: get('source') || 'link', ref: ref && ref.length <= 40 ? ref : null, kind: get('kind') };
   }
-  var OPEN = openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
+  // the same address loaded again in the same tab is not a new open: source 'update' (a reload the app made for a new
+  // version) or 'reload' (pull to refresh, the phone reloading the app), with no ref or kind. The address itself keeps
+  // its parameters: a friend who moves from WhatsApp's browser to Safari still brings ?ref=share.
+  var RELOAD_KIND = (function () {
+    try {
+      var here = String(location.href).split('#')[0];
+      var upd = sessionStorage.getItem('dribit.reload'), seen = sessionStorage.getItem('dribit.opened');
+      sessionStorage.removeItem('dribit.reload');
+      sessionStorage.setItem('dribit.opened', here);
+      return upd === '1' ? 'update' : seen === here ? 'reload' : null;
+    } catch (e) { return null; }
+  })();
+  var OPEN = RELOAD_KIND ? { source: RELOAD_KIND, ref: null, kind: null } : openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
+  function reloadForUpdate() {
+    try { sessionStorage.setItem('dribit.reload', '1'); } catch (e) { /* ignore */ }
+    location.reload();
+  }
 
   // ---------- Browser history ----------
   // Home is the root entry. Any other view, and any open sheet, is one entry above it, so the phone's
@@ -589,7 +606,12 @@
     session = null;
   }
   function onPop(e) {
-    if (ignorePops > 0) { ignorePops--; return; }
+    if (ignorePops > 0) {
+      ignorePops--;
+      // a sheet closed on home: a new version that waited for it loads now (the history step is done)
+      if (!ignorePops && pendingReload && view === 'home' && !sheetOpen) reloadForUpdate();
+      return;
+    }
     var st = (e && e.state) || {};
     histDepth = st.depth || 0;
     topIsSheet = false; // a sheet entry reached by forward shows its view without the sheet
@@ -602,7 +624,7 @@
     if (view === 'lesson' && session) leaveSession('back');
     if (view === 'done') session = null;
     view = v;
-    if (pendingReload && v !== 'lesson' && v !== 'done') { location.reload(); return; }
+    if (pendingReload && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
     render();
     if (v !== 'home') window.scrollTo(0, 0);
   }
@@ -610,8 +632,8 @@
   function setView(v) {
     view = v;
     closeSheet(true);
-    if (v === 'home') histBack(histDepth); else histEnter({ view: v });
-    if (pendingReload && v !== 'lesson' && v !== 'done') { location.reload(); return; }
+    if (v === 'home') { topIsSheet = false; histBack(histDepth); } else histEnter({ view: v });
+    if (pendingReload && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
     render();
     if (v !== 'home') window.scrollTo(0, 0);
   }
@@ -734,18 +756,20 @@
       } else html += installCard('home');
     }
     html += calcCard();
-    if (INVITE.enabled && doneCount() >= INVITE.afterLessons) {
-      var o = inviteOffState(), tail = S.status === 'civ' ? 'לשלוח לחברים בוואטסאפ' : 'לשלוח לחבר׳ה מהיחידה';
-      html += '<button class="invite-bar" data-act="invite" data-from="home">' + ICON.share + '<span>' + (!o.on
-        ? '<b>ללמוד ביחד מחזיק יותר.</b> ' + tail
-        : (DO.friendGift ? '<b>חבר חדש מהקישור מקבל ' + daysOffText(DO.friendGift).replace(' אחד', '') + '.</b> ' : '<b>ללמוד ביחד מחזיק יותר.</b> ') +
-          (o.ready ? 'ויום אחד גם לך, על השיתוף' : o.full ? tail : 'יום החופש הבא שלך על שיתוף: ' + (o.wait === 1 ? 'מחר' : 'בעוד ' + o.wait + ' ימים'))) +
-        '</span>' + ICON.chevron + '</button>';
-    }
-    if (CFG.pilot) {
-      html += '<button class="pilot-bar" data-act="feedback" data-ctx="home">' + ICON.chat + '<span><b>גרסת ניסיון.</b> ספרו לנו מה לשפר</span>' + ICON.chevron + '</button>';
-    }
     return html;
+  }
+  // the invite and feedback bars live on the profile, not on home (Jonathan, 18.10)
+  function inviteBar(from) {
+    if (!INVITE.enabled || doneCount() < INVITE.afterLessons) return '';
+    var o = inviteOffState(), tail = S.status === 'civ' ? 'לשלוח לחברים בוואטסאפ' : 'לשלוח לחבר׳ה מהיחידה';
+    return '<button class="invite-bar" data-act="invite" data-from="' + from + '">' + ICON.share + '<span>' + (!o.on
+      ? '<b>ללמוד ביחד מחזיק יותר.</b> ' + tail
+      : (DO.friendGift ? '<b>חבר חדש מהקישור מקבל ' + daysOffText(DO.friendGift).replace(' אחד', '') + '.</b> ' : '<b>ללמוד ביחד מחזיק יותר.</b> ') +
+        (o.ready ? 'ויום אחד גם לך, על השיתוף' : o.full ? tail : 'יום החופש הבא שלך על שיתוף: ' + (o.wait === 1 ? 'מחר' : 'בעוד ' + o.wait + ' ימים'))) +
+      '</span>' + ICON.chevron + '</button>';
+  }
+  function pilotBar(ctx) {
+    return CFG.pilot ? '<button class="pilot-bar" data-act="feedback" data-ctx="' + ctx + '">' + ICON.chat + '<span><b>גרסת ניסיון.</b> ספרו לנו מה לשפר</span>' + ICON.chevron + '</button>' : '';
   }
 
   function renderPath() {
@@ -1327,6 +1351,7 @@
     s.combo = ip.combo || 0; s.maxCombo = ip.maxCombo || 0;
     s.firstTry = ip.firstTry || 0; s.firstTryRight = ip.firstTryRight || 0; s.reviewRight = ip.reviewRight || 0;
     s.xp = ip.xp || 0; s.activeMs = ip.activeMs || 0;
+    s.trackedIdx = s.idx; // step_viewed was sent when this screen was first shown
     return s;
   }
 
@@ -1954,6 +1979,7 @@
       '</div>' +
       '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">ימי למידה ב-7 הימים האחרונים: ' + learned7() + ' מתוך 7. הקו המקווקו הוא היעד היומי.' +
         (weekHasOff() ? ' עמודה כחולה עם מטרייה: יום חופש לרצף, לא יום למידה.' : '') + '</p></div>' +
+      inviteBar('profile') + pilotBar('profile') +
       '<div class="card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
@@ -1961,7 +1987,7 @@
       (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי אינטרנט.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
       '<div class="card transfer-card"><h2>להעביר התקדמות</h2><p>עוברים לאפליקציה המותקנת או לטלפון אחר? מעתיקים קוד, ומדביקים אותו שם במסך הפתיחה.</p>' +
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="profile">להעתיק קוד</button><button class="btn ghost" data-act="import" data-source="profile">יש לי קוד</button></div></div>' +
-      '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>' +
+      (CFG.pilot ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
         (CFG.about ? '<button class="btn ghost" data-act="about" data-from="profile">' + esc(CFG.about.title) + '</button>' : '') +
         '<div class="toggle-row"><span id="share-l">שליחת נתוני שימוש אנונימיים</span><button class="switch" role="switch" aria-labelledby="share-l" aria-checked="' + S.share + '" data-act="share"></button></div>' +
@@ -2237,7 +2263,7 @@
         ? '<b>תודה ששיתפת!</b><span>יום חופש לרצף על שיתוף מקבלים פעם בשבוע. הבא ' + (o.wait === 1 ? 'מחר' : 'בעוד ' + o.wait + ' ימים') + '.</span>'
         : '<b>תודה ששיתפת!</b><span>יש לך כבר ' + DO.maxHeld + ' ימי חופש לרצף, המקסימום.</span>'), 'info', 4000);
     // the done screen is not redrawn (its count-up would start again): only its invite note changes
-    if (view === 'home' && !sheetOpen) render();
+    if ((view === 'profile' || view === 'home') && !sheetOpen) render();
     else if (view === 'done' && root) { var note = root.querySelector('.invite-note'); if (note) note.outerHTML = inviteNote(); }
   }
   function inviteNote() {
@@ -2316,6 +2342,7 @@
   }
   function waInvite(text, url) {
     var full = text + '\n' + url, w = null;
+    markStepOut();
     try { w = window.open('https://wa.me/?text=' + encodeURIComponent(full), '_blank', 'noopener'); } catch (e) { w = null; }
     // with noopener some browsers return null even when the window opened, so only a thrown error counts as blocked
     return w !== false;
@@ -2347,6 +2374,7 @@
     if (method === 'native') {
       var p;
       sharing = true; sharingAt = Date.now();
+      markStepOut();
       try { p = navigator.share(data); } catch (e) { p = Promise.reject(e); }
       p.then(function () {
         sharing = false;
@@ -2356,7 +2384,7 @@
       }, function (e) {
         sharing = false;
         // cancelled, or a share sheet already open: no WhatsApp fallback and no reward
-        if (e && (e.name === 'AbortError' || e.name === 'InvalidStateError')) return;
+        if (e && (e.name === 'AbortError' || e.name === 'InvalidStateError')) { stepOutAt = 0; return; }
         track('share_failed', { from: from, error: String((e && e.name) || e).slice(0, 60), with_image: !!file });
         waInvite(text, url);
         grantInviteOff('wa_link');
@@ -2497,8 +2525,12 @@
     if (IN_FRAME || !('serviceWorker' in navigator)) return;
     var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (location.protocol !== 'https:' && !local) return;
+    // a page opened without a worker gets one claim from the first install: only that change is not an update.
+    // With a worker already active (a hard reload), every change is a new version.
     var had = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register('sw.js').catch(function () { /* offline mode unavailable */ });
+    var reg = function () { navigator.serviceWorker.register('sw.js').catch(function () { /* offline mode unavailable */ }); };
+    if (had) reg();
+    else navigator.serviceWorker.getRegistration().then(function (r) { if (r && r.active) had = true; }, function () { /* ignore */ }).then(reg);
     // a tap on the reminder while the app is already open (the worker brings it to the front)
     navigator.serviceWorker.addEventListener('message', function (e) {
       if (e.data && e.data.type === 'push-click') {
@@ -2507,14 +2539,15 @@
       }
     });
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (!had) return;
+      if (!had) { had = true; return; }
       // a new version is ready: reload now on the home screen, otherwise at the next screen change
-      if (view === 'home' && !sheetOpen) location.reload(); else pendingReload = true;
+      if (view === 'home' && !sheetOpen) reloadForUpdate(); else pendingReload = true;
     });
   }
 
   // ---------- Events ----------
   function onClick(e) {
+    if (e.target.closest('a[target="_blank"]')) markStepOut(); // a link out (the official calculator, WhatsApp)
     var el = e.target.closest('[data-act]');
     if (!el) return;
     var act = el.getAttribute('data-act'), id = el.getAttribute('data-id');
@@ -2709,7 +2742,7 @@
         // WhatsApp: the message opens ready to send; without a number (or when the browser blocks the popup) it is copied by hand
         fbMessage = 'משוב על ' + CFG.appName + ' ' + CFG.version + (fbRating ? ' (' + fbRating + '/5)' : '') + (lid && BY_ID[lid] ? ' · שיעור "' + BY_ID[lid].title + '"' : '') + ':\n' + text;
         var wa = waNumber(), opened = null;
-        if (wa) { try { opened = window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(fbMessage), '_blank'); } catch (e) { opened = null; } }
+        if (wa) { markStepOut(); try { opened = window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(fbMessage), '_blank'); } catch (e) { opened = null; } }
         var copyBtn = '<button class="btn" data-act="fb-copy">להעתיק את ההודעה</button><button class="btn text" data-act="close-sheet">סגירה</button>';
         if (wa && opened) openSheet('<h3>עוד לחיצה אחת</h3><p class="lead">וואטסאפ נפתח עם ההודעה מוכנה' + (contactName() ? ' ל' + esc(contactName()) : '') + '. לוחצים שם שליחה, וזהו.</p>' + copyBtn);
         else if (!wa) openSheet('<h3>תודה!</h3><p class="lead">עדיין אין מספר וואטסאפ בגרסה הזו. העתיקו את ההודעה ושלחו אותה למי שהעביר לכם את ' + esc(CFG.appName) + '.</p>' + copyBtn);
@@ -2787,25 +2820,69 @@
     }
   }
 
-  var hiddenAt = 0;
-  function onVisibility() {
-    if (document.visibilityState === 'hidden') {
-      hiddenAt = Date.now();
-      if (view === 'lesson' && session) {
-        clockStop();
-        snapshot();
-        if (session.mode === 'lesson') track('lesson_paused', { lesson_id: session.lesson.id, step_index: session.idx, step_count: stepCount() });
-      }
-      flush();
-    } else {
-      var away = hiddenAt ? Date.now() - hiddenAt : 0;
-      hiddenAt = 0;
-      if (S.onboarded) checkStreakBreak();
-      // away for a while in the middle of a lesson: back to home, where "להמשיך" continues from the same screen
-      if (view === 'lesson' && session && session.mode === 'lesson' && away >= AWAY_HOME_MS) { leaveSession('away'); setView('home'); }
-      else if (view === 'lesson' && session) clockStart();
-      else if (view === 'home' && !sheetOpen) render(); // a new day may have started
+  var hiddenAt = 0, swCheckedAt = 0, stepOutAt = 0, outByApp = false;
+  // the app itself is about to send people out (a share, WhatsApp, a link): coming back is part of the same task
+  function markStepOut() { stepOutAt = Date.now(); }
+  function markHidden() {
+    if (hiddenAt) return;
+    hiddenAt = Date.now();
+    outByApp = !!stepOutAt && hiddenAt - stepOutAt < 60 * 1000;
+    stepOutAt = 0;
+  }
+  function onHidden() {
+    markHidden();
+    if (view === 'lesson' && session) {
+      clockStop();
+      snapshot();
+      if (session.mode === 'lesson') track('lesson_paused', { lesson_id: session.lesson.id, step_index: session.idx, step_count: stepCount() });
     }
+    flush();
+  }
+  function sheetHasText() {
+    var t = document.querySelectorAll('#sheet textarea:not([readonly])');
+    for (var i = 0; i < t.length; i++) if (t[i].value && t[i].value.trim()) return true;
+    return false;
+  }
+  function onShown() {
+    var away = hiddenAt ? Date.now() - hiddenAt : 0, byApp = outByApp;
+    hiddenAt = 0; outByApp = false;
+    checkForUpdate();
+    if (S.onboarded) checkStreakBreak();
+    // back after a while: start on home, like a fresh open (an iPhone app kept in memory never reloads by itself).
+    // An unfinished lesson waits in the "להמשיך" card. A trip out and back keeps its screen for up to 10 minutes:
+    // a sheet outside a lesson (a mission, the calculator, a code to paste), a practice or rescue run (no card to
+    // continue from), and a share or link the app opened. A sheet with typed text is never thrown away.
+    var keep = byApp || (sheetOpen && view !== 'lesson') || (view === 'lesson' && session && session.mode !== 'lesson') ||
+      (view === 'done' && !!root.querySelector('.done-wrap .intent:not(.done)')); // a one-time question still waiting
+    var limit = keep ? AWAY_KEEP_MS : AWAY_HOME_MS;
+    if (sheetOpen && sheetHasText()) limit = Infinity;
+    if (away >= limit && S.onboarded && S.status && (view !== 'home' || sheetOpen)) {
+      if (view === 'lesson' && session) leaveSession('away');
+      else if (view === 'done') session = null;
+      setView('home');
+    }
+    else if (view === 'lesson' && session) clockStart();
+    else if (view === 'home' && !sheetOpen) {
+      if (pendingReload) { reloadForUpdate(); return; } // a new version arrived while a sheet was open
+      render(); // a new day may have started
+    }
+  }
+  function onVisibility() {
+    if (document.visibilityState === 'hidden') onHidden(); else onShown();
+  }
+  // a page restored from the back-forward cache may skip visibilitychange; pagehide already set hiddenAt
+  function onPageShow(e) {
+    if (e && e.persisted && hiddenAt && document.visibilityState !== 'hidden') onShown();
+  }
+  // the browser looks for a new version only when the app is opened from scratch; an app resumed from memory
+  // has to ask (at most once a minute). A new version then reloads the app on home.
+  function checkForUpdate() {
+    if (IN_FRAME || !('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+    if (Date.now() - swCheckedAt < 60 * 1000) return;
+    swCheckedAt = Date.now();
+    try {
+      navigator.serviceWorker.getRegistration().then(function (r) { if (r) return r.update(); }).catch(function () { /* offline */ });
+    } catch (e) { /* ignore */ }
   }
 
   // the one-time sheet for people who used the app before 0.9: what points are for now, and what they already got
@@ -2841,7 +2918,8 @@
       histReplace({ view: 'home' });
       window.addEventListener('popstate', onPop);
     }
-    window.addEventListener('pagehide', function () { if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
+    window.addEventListener('pagehide', function () { markHidden(); if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
+    window.addEventListener('pageshow', onPageShow);
     window.addEventListener('online', flush);
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredInstall = e; });
     window.addEventListener('appinstalled', function () { track('app_installed', { method: 'appinstalled' }); S.installHidden = true; S.installSeen = true; save(); if (view === 'home') render(); });

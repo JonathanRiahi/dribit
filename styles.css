@@ -685,7 +685,7 @@ canvas.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 30; 
 a.btn { text-align: center; text-decoration: none; }
 
 /* ---------- v0.5: home cards ---------- */
-.screen > .resume-card, .screen > .repair-card, .screen > .install-card, .screen > .reminder-card, .screen > .pilot-bar { margin-top: 16px; }
+.screen > .resume-card, .screen > .repair-card, .screen > .install-card, .screen > .reminder-card { margin-top: 16px; }
 .resume-card {
   width: 100%; border: 0; cursor: pointer; text-align: right;
   display: flex; align-items: center; gap: 14px;
@@ -743,7 +743,6 @@ a.btn { text-align: center; text-decoration: none; }
 .invite-bar:active { transform: translateY(3px); box-shadow: none; }
 .invite-bar svg { width: 22px; height: 22px; flex: none; }
 .invite-bar span { flex: 1; }
-.screen > .invite-bar { margin-top: 16px; }
 .btn svg { width: 20px; height: 20px; vertical-align: -4px; margin-inline-end: 6px; }
 /* v0.8: discharge calculator */
 .calc { display: flex; flex-direction: column; gap: 14px; }
