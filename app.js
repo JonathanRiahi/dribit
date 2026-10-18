@@ -1990,7 +1990,7 @@
       (CFG.pilot ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
         (CFG.about ? '<button class="btn ghost" data-act="about" data-from="profile">' + esc(CFG.about.title) + '</button>' : '') +
-        '<div class="toggle-row"><span id="share-l">שליחת נתוני שימוש אנונימיים</span><button class="switch" role="switch" aria-labelledby="share-l" aria-checked="' + S.share + '" data-act="share"></button></div>' +
+        '<div class="toggle-row"><span id="share-l">שיתוף נתוני שימוש אנונימיים</span><button class="switch" role="switch" aria-labelledby="share-l" aria-checked="' + S.share + '" data-act="share"></button></div>' +
         '<p class="fine">ההתקדמות נשמרת רק במכשיר הזה. גרסה ' + esc(CFG.version) + '.</p>' +
         '<button class="btn text" data-act="reset">איפוס ההתקדמות</button></div>' +
       '</div>';
@@ -2140,7 +2140,9 @@
     track('push_subscribed', { endpoint: j.endpoint, p256dh: keys.p256dh, auth: keys.auth, hour: RCFG.hour, from: from, $set: { reminders: true } });
     flush();
   }
-  function enableReminder(from) {
+  // withShare: the profile switch also turns usage-data sharing on (the sender finds subscriptions there), but only
+  // once the reminder is actually on
+  function enableReminder(from, withShare) {
     var st = pushState();
     if (st === 'install') { installSheet(); return; }
     if (st === 'denied') { toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות הדפדפן', '', 2600); return; }
@@ -2152,6 +2154,7 @@
       return swReady();
     }).then(subscribePush).then(function (sub) {
       pushBusy = false;
+      if (withShare && !S.share) { S.share = true; save(); track('analytics_on', { from: 'reminder' }); }
       saveSubscription(sub, from);
       render();
       toast(ICON.bell + '<b>סגור.</b> תזכורת כל ערב, החל מ-' + hourLabel(), 'info', 2600);
@@ -2202,9 +2205,9 @@
     var daily = 'הודעה אחת בערב, החל מ-' + hourLabel() + ', רק אם עוד לא עשית שיעור באותו יום.';
     var note = st === 'install' ? 'באייפון זה עובד רק מהאפליקציה המותקנת במסך הבית.'
       : st === 'denied' ? 'ההתראות חסומות. מאפשרים אותן בהגדרות הדפדפן או הטלפון ופותחים שוב.'
-      : (st === 'off' && !S.share) ? 'התזכורת נשלחת לפי נתוני השימוש. כדי להפעיל אותה מדליקים את השיתוף למטה.'
+      : (st === 'off' && !S.share) ? daily + ' התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.'
       : daily;
-    var ctrl = (st === 'on' || (st === 'off' && S.share))
+    var ctrl = (st === 'on' || st === 'off')
       ? '<button class="switch" role="switch" aria-labelledby="rem-l" aria-checked="' + (st === 'on') + '" data-act="reminder-toggle"></button>' : '';
     return '<div class="card"><div class="toggle-row"><h2 id="rem-l">תזכורת יומית</h2>' + ctrl + '</div><p class="fine">' + note + '</p>' +
       (st === 'install' ? '<button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button>' : '') + '</div>';
@@ -2719,7 +2722,7 @@
         break;
       case 'reminder-toggle':
         if (pushState() === 'on') { disableReminder('user'); render(); toast(ICON.bell + '<b>התזכורת כבויה</b>', '', 1800); }
-        else enableReminder('profile');
+        else enableReminder('profile', true);
         break;
       case 'feedback': feedbackSheet(el.getAttribute('data-ctx'), id); break;
       case 'fb-rate': {
@@ -2913,6 +2916,10 @@
     document.addEventListener('input', onInput);
     document.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVisibility);
+    // no pinch zoom (Jonathan, 18.10): iPhone ignores user-scalable=no in the viewport, so the gesture is stopped here
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) {
+      document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false });
+    });
     if (HIST) {
       try { history.scrollRestoration = 'manual'; } catch (e) { /* ignore */ }
       histReplace({ view: 'home' });

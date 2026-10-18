@@ -980,3 +980,5 @@ button.slot { cursor: pointer; }
   .stat svg { width: 20px; height: 20px; }
   .stat.flame .off-badge { padding: 1px 4px; margin-inline-start: 1px; }
 }
+/* v0.9.2: no zoom, like a phone app (Jonathan, 18.10): no double-tap zoom; pinch is stopped in app.js and the viewport */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
