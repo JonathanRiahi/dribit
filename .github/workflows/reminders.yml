@@ -1,4 +1,4 @@
-# Daily reminder for Dribit: one Web Push message at 18:00 Israel time to everyone who turned reminders on
+# Daily reminder for Dribit: one Web Push message in the evening (from 18:00 Israel time) to everyone who turned reminders on
 # and has not finished a lesson today. The sending logic is in tools/send-reminders.js.
 # Needs two repository secrets (Settings > Secrets and variables > Actions):
 #   POSTHOG_API_KEY    a PostHog personal API key with the query:read scope (reads the subscriptions and today's lessons)
@@ -8,9 +8,10 @@ name: Daily reminders
 
 on:
   schedule:
-    # GitHub cron is UTC. 18:00 in Israel is 15:00 UTC in summer and 16:00 UTC in winter;
-    # the script checks the Israel clock and sends only once a day.
-    - cron: '0 15,16 * * *'
+    # GitHub cron is UTC and GitHub often starts scheduled runs late (by an hour or more), so the job runs every half
+    # hour from 15:00 to 19:30 UTC. The script sends between 18:00 and 21:59 Israel time (summer and winter) and at most
+    # one reminder a day per person; runs outside that window stop right away.
+    - cron: '0,30 15-19 * * *'
   workflow_dispatch:
     inputs:
       dry_run:

@@ -2,7 +2,7 @@
 window.DRIBIT_CONFIG = {
   appName: 'דריבית',
   appNameEn: 'Dribit',
-  version: '0.8.1',
+  version: '0.9.0',
   tagline: 'כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.',
 
   // גרסת ניסיון: מציג באנר משוב במסך הבית
@@ -36,20 +36,20 @@ window.DRIBIT_CONFIG = {
     mission: 25      // משימה מחוץ לאפליקציה
   },
 
-  // שלבים לפי סך הנקודות. כל שלב נקרא על שם סכום כסף.
+  // שלבים לפי סך הנקודות. בלי סכומי כסף בשמות: "שלב 2 · 500 ₪" נקרא כמו כסף שיש לך (משוב 18.10).
+  // מוצג "שלב N מתוך 11". name לא חובה: שם קצר שיופיע אחרי המספר, למשל { min: 100, name: 'טירונות' }. אף פעם לא סכום כסף.
+  // כל שלב חדש נותן יום חופש לרצף (daysOff.perLevel).
   levels: [
-    { amount: '100 ₪', min: 0 },
-    { amount: '500 ₪', min: 100 },
-    { amount: '1,000 ₪', min: 250 },
-    { amount: '2,500 ₪', min: 500 },
-    { amount: '5,000 ₪', min: 850 },
-    { amount: '10,000 ₪', min: 1300 },
-    { amount: '25,000 ₪', min: 1900 },
-    { amount: '50,000 ₪', min: 2600 },
-    { amount: '100,000 ₪', min: 3400 },
-    { amount: '250,000 ₪', min: 4300 },
-    { amount: 'מיליון ₪', min: 5400 }
+    { min: 0 }, { min: 100 }, { min: 250 }, { min: 500 }, { min: 850 }, { min: 1300 },
+    { min: 1900 }, { min: 2600 }, { min: 3400 }, { min: 4300 }, { min: 5400 }
   ],
+
+  // ימי חופש לרצף: יום בלי שיעור שהרצף לא נשבר בו. נכנסים לבד, רק על ימים שכבר עברו (אף פעם לא על היום),
+  // ורק כשיש מספיק לכל ההפסקה. אחרת הרצף נשבר כמו קודם והימים נשארים. יום חופש שומר על הרצף ולא מוסיף לו.
+  // perLevel: על כל שלב חדש. invite: על שיתוף הקישור, לכל היותר פעם ב-inviteEveryDays ימים (לא על חבר שהצטרף: אין לנו דרך לדעת).
+  // friendGift: למי שפותח בפעם הראשונה מקישור הזמנה, בלי התקדמות, אחרי השיעור הראשון. maxHeld: כמה אפשר לשמור.
+  // minStreak: מאיזה רצף משתמשים בהם. enabled: false = הרצף נשבר כמו קודם ואין מתנות (השלבים נשארים בלי סכומים).
+  daysOff: { enabled: true, maxHeld: 3, perLevel: 1, invite: 1, inviteEveryDays: 7, friendGift: 2, minStreak: 2 },
 
   // יעד יומי בנקודות
   goals: [
@@ -120,9 +120,10 @@ window.DRIBIT_CONFIG = {
   // contactName: שם פרטי שמופיע בהסבר ("המשוב נשלח בוואטסאפ ליהונתן"). לא חובה.
   feedback: { whatsapp: '972547679158', contactName: 'יהונתן' },
 
-  // הזמנת חברים: פס "ללמוד ביחד" בבית וכפתור במסך הסיום, אחרי שני שיעורים. url = הקישור שנשלח (ריק = כתובת האפליקציה).
-  // image = לצרף תמונת רצף כשהטלפון יודע לשתף קבצים. הקישור מקבל ref=share, כך רואים במדידה מי הגיע מהזמנה.
-  invite: { enabled: true, url: 'https://jonathanriahi.github.io/dribit/', image: true },
+  // הזמנת חברים: פס בבית וכפתור במסך הסיום, אחרי afterLessons שיעורים. url = הקישור שנשלח (ריק = כתובת האפליקציה).
+  // image = לצרף תמונת רצף כשהטלפון יודע לשתף קבצים. הקישור מקבל ref=share: כך רואים במדידה מי הגיע מהזמנה,
+  // ומי שפותח ממנו בפעם הראשונה מקבל את המתנה של daysOff.friendGift. אין בקישור שום מזהה של השולח.
+  invite: { enabled: true, url: 'https://jonathanriahi.github.io/dribit/', image: true, afterLessons: 2 },
 
   // התקנה בטלפון: כרטיס ההתקנה מופיע אחרי שיעור ראשון (afterLessons). באייפון הוא מופיע גם במסך הסיום של אותו שיעור (showOnDone),
   // כי באייפון האפליקציה המותקנת מתחילה מאפס וההתקדמות עוברת בקוד העברה.
@@ -131,27 +132,28 @@ window.DRIBIT_CONFIG = {
   // מחשבון שחרור (מסך בשיעור 2.1, כרטיס בבית וחלונית): פיקדון ומענק משוערים לפי סוג השירות והחודשים.
   // הסכומים הם לחודש שירות ב-₪, לפי האגף לחיילים משוחררים ומילואים, נכון ל-asOf ונבדקו ב-checked.
   // enabled: false עד שאדם מאמת את ארבעת הסכומים מול המחשבון הרשמי ומכניס את הקישור שלו ב-officialUrl.
-  // trainingTier: חודשי טירונות והכשרה נספרים לפי הדרגה הנמוכה יותר. loneSoldier: null = בלי שורת חייל בודד
+  // trainingTier: חודשי טירונות והכשרה נספרים לפי סוג השירות הנמוך יותר. loneSoldier: null = בלי שורת חייל בודד
   // (כשיהיו סכומים מאומתים: { label: 'חייל/ת בודד/ה', pikadon: 0, grant: 0 } תוספת לחודש).
   calculator: {
-    enabled: false,
-    asOf: 'אוגוסט 2026', checked: '15.10.2026', officialUrl: '',
+    enabled: true,
+    // amounts checked against the Ministry of Defense pages on 18.10.2026 (grant: hachvana.mod.gov.il/GrantAndDeposit/Pages/Grant.aspx,
+    // deposit: .../DepositUpTo5/Pages/default.aspx). They are CPI linked and change a little each month: check again before relying on them.
+    asOf: 'אוגוסט 2026', checked: '18.10.2026',
+    officialUrl: 'https://www.hachvana.mod.gov.il/GrantAndDeposit/DepositUpTo5/Pages/CalculatorOfDeposit.aspx',
     tiers: [
       { id: 'combat', label: 'לוחם/ת', note: '', pikadon: 1000.08, grant: 691.53 },
       { id: 'support', label: 'תומך/ת לחימה', note: '', pikadon: 833.40, grant: 575.86 },
-      { id: 'other', label: 'שירות אחר', note: 'גם שירות לאומי-אזרחי', pikadon: 666.72, grant: 460.19 }
+      { id: 'other', label: 'שירות אחר', note: 'גם שירות לאומי-אזרחי מלא', pikadon: 666.72, grant: 460.19 }
     ],
+    // training months usually count one tier lower: 4 months for combat soldiers (as support), 2 for support (as other)
     trainingTier: { combat: 'support', support: 'other', other: 'other' },
-    months: { presets: [24, 32, 36], min: 1, max: 48, default: 32 },
+    trainingDefault: { combat: 4, support: 2, other: 0 },
+    // months count from 12 up to 32 for men and 24 for women (the law's cap)
+    months: { presets: [24, 32], presetNotes: { 24: 'התקרה לחיילת', 32: 'התקרה לחייל' }, min: 12, max: 32, default: 32 },
     roundTo: 100,
     bands: [10000, 20000, 30000, 40000, 50000],  // למדידה בלבד: טווחים, אף פעם לא הסכום עצמו
     loneSoldier: null
   },
-
-  // ציר השחרור: שואלים חודש שחרור (בלי תאריך) ומציעים קובץ יומן עם שלוש תזכורות: חודשיים לפני, בחודש השחרור, ואחרי שהכסף נכנס.
-  // monthsAhead: עד כמה חודשים קדימה אפשר לבחור. siteUrl: הכתובת שמופיעה בתזכורות ביומן ובקישורים (ריק = כתובת האפליקציה).
-  dischargeTimeline: { enabled: true, monthsAhead: 36 },
-  siteUrl: 'https://jonathanriahi.github.io/dribit/',
 
   // שאלת "רוצים לפתוח תיק מסחר?" בסוף השיעורים האלה (נמדד כאירוע invest_intent)
   investIntentLessons: ['5.2'],

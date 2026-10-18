@@ -6,10 +6,13 @@
 
   var CFG = window.DRIBIT_CONFIG;
   var P = CFG.points;
+  // days off for the streak (config.daysOff): read by migrate(), so it is set before the state loads
+  var DO = CFG.daysOff || { enabled: false, maxHeld: 0, perLevel: 0, invite: 0, inviteEveryDays: 7, friendGift: 0, minStreak: 2 };
   var STORE_KEY = 'dribit.progress.v1';
   var QUEUE_KEY = 'dribit.events.v1';
   var HEB_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
   var RESUME_DAYS = 14;
+  var AWAY_HOME_MS = 2 * 60 * 1000;  // longer than this in the background mid-lesson, and the app returns to home
   // content v5 reordered unit 5: old lesson id -> new lesson id
   var LESSON_MOVES_V5 = { '5.1': '5.3', '5.2': '5.4', '5.3': '5.1', '5.4': '5.5' };
 
@@ -41,7 +44,9 @@
     play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>',
     rescue: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6"/></svg>',
     bell: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1.5 1.5 0 011.5 1.5v.9A6 6 0 0118 10v4.2l1.7 2.3a1 1 0 01-.8 1.6H5.1a1 1 0 01-.8-1.6L6 14.2V10a6 6 0 014.5-5.6v-.9A1.5 1.5 0 0112 2zm-2.5 17.5h5a2.5 2.5 0 01-5 0z"/></svg>',
-    dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>'
+    dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+    // a beach umbrella: a day off for the streak
+    dayoff: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5A9.5 9.5 0 002.5 12H11v7.25a1.25 1.25 0 01-2.5 0v-.75h-2v.75a3.25 3.25 0 006.5 0V12h8.5A9.5 9.5 0 0012 2.5z"/></svg>'
   };
 
   // ---------- Utils ----------
@@ -68,6 +73,8 @@
     var pa = a.split('-'), pb = b.split('-');
     return Math.round((new Date(+pb[0], pb[1] - 1, +pb[2]) - new Date(+pa[0], pa[1] - 1, +pa[2])) / 864e5);
   }
+  function parseDay(k) { var p = k.split('-'); return new Date(+p[0], p[1] - 1, +p[2]); }
+  function isDayKey(x) { return typeof x === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(x); }
   function fmt(n) { return Number(n).toLocaleString('he-IL'); }
   function plural(n, one, many) { return n === 1 ? one : fmt(n) + ' ' + many; }
   // keeps "+10" and "55 / 100" in the right order inside Hebrew text
@@ -114,18 +121,27 @@
       importedAt: null,   // the day a transfer code was pasted here
       ref: null,          // the ref= of the link this person first opened the app from (an invite link carries ref=share)
       calc: null,         // the discharge calculator's last input: { type, months, training, lone, at }
-      dischargeMonth: null, // 'YYYY-MM' the person expects to be released
-      dischargeIcs: null,   // { month, day } once the calendar file for that month was created
-      dischargeNo: null,    // { count, day } after "not now" on the discharge card
       reminder: null,    // { on, endpoint, hour, since } while the daily push reminder is on
-      reminderNo: null   // { count, day } after "not now" on the reminder card
+      reminderNo: null,  // { count, day } after "not now" on the reminder card
+      daysOff: 0,        // days off for the streak held now (config.daysOff.maxHeld at most)
+      offLevel: 0,       // the highest level index already paid with a day off
+      offSince: dayKey(), // days off cover only days missed from this date on
+      offUsed: [],       // the days a day off covered (the last 30)
+      inviteOffDay: null, // the day the last day off for sharing the link was given
+      giftPending: false, // first opened from an invite link with no progress: the friend gift waits for lesson 1
+      giftGot: false,    // the friend gift was given
+      offIntroSeen: true, // the one-time "חדש" sheet about days off was shown
+      offRetro: 0        // days off given at the update for levels already passed
     };
   }
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
   // the open lesson or the event queue.
   var TRANSFER_KEYS = ['v', 'uid', 'status', 'startUnit', 'goalXp', 'sound', 'share', 'firstDay', 'contentV', 'xp', 'streak',
-    'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent', 'amount', 'ref', 'calc', 'dischargeMonth', 'dischargeIcs', 'dischargeNo'];
+    'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent', 'amount', 'ref', 'calc',
+    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro'];
   function migrate(s) {
+    // before 0.9 there were no days off: checked before the defaults below fill offLevel in
+    var needsOff = !('offLevel' in s);
     var base = freshState();
     for (var k in base) if (!(k in s)) s[k] = base[k];
     if (s.actions) { // v1 kept a single checkbox per lesson
@@ -134,8 +150,68 @@
     }
     var goals = CFG.goals.map(function (g) { return g.xp; });
     if (goals.indexOf(s.goalXp) < 0) s.goalXp = CFG.defaultGoal;
+    // 0.8.1 had a discharge timeline (month, calendar file); 0.9 removed it
+    delete s.dischargeMonth; delete s.dischargeIcs; delete s.dischargeNo;
+    // 0.9: each level passed so far is paid with a day off (up to maxHeld); they cover missed days from today on.
+    // The state stays v 3 so older builds and their transfer codes keep working; the check is on the key, not on v.
+    if (needsOff) {
+      s.offLevel = levelIndex(s.xp || 0);
+      s.daysOff = DO.enabled ? Math.min(DO.maxHeld, s.offLevel * DO.perLevel) : 0;
+      s.offRetro = s.daysOff;
+      s.offSince = dayKey();
+      s.offIntroSeen = !(s.xp > 0);
+    }
+    var top = levelIndex(+s.xp || 0);
+    if (!(s.offLevel >= 0) || s.offLevel > top) s.offLevel = top;
+    s.offLevel = Math.floor(s.offLevel);
+    s.daysOff = Math.max(0, Math.min(Math.floor(+s.daysOff || 0), DO.maxHeld || 0));
+    if (!Array.isArray(s.offUsed)) s.offUsed = [];
+    s.offUsed = s.offUsed.filter(isDayKey).slice(-30);
+    if (!isDayKey(s.offSince)) s.offSince = dayKey();
+    if (s.inviteOffDay != null && !isDayKey(s.inviteOffDay)) s.inviteOffDay = null;
+    if (s.offSince > dayKey()) s.offSince = dayKey();
+    cleanState(s);
     s.v = 3;
     return s;
+  }
+  // stored and imported progress is untrusted: every field keeps only values of the right shape, so nothing odd reaches
+  // the page or a date function (review of 0.9, 18.10)
+  function num0(x) { return typeof x === 'number' && isFinite(x) && x >= 0 ? x : 0; }
+  function okKey(k) { return typeof k === 'string' && /^[\w.-]{1,40}$/.test(k); }
+  function okWord(x) { return typeof x === 'string' && /^[\w-]{1,20}$/.test(x); }
+  function cleanMap(m, fix, keyOk) {
+    var out = {};
+    if (m && typeof m === 'object' && !Array.isArray(m)) {
+      Object.keys(m).forEach(function (k) { if ((keyOk || okKey)(k)) { var v = fix(m[k]); if (v != null) out[k] = v; } });
+    }
+    return out;
+  }
+  function isRec(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+  function cleanState(s) {
+    ['xp', 'streak', 'bestStreak', 'answered', 'correct'].forEach(function (k) { s[k] = num0(s[k]); });
+    s.contentV = Math.floor(num0(s.contentV));
+    if (typeof s.uid !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(s.uid)) s.uid = hex(12);
+    if (!CFG.statuses.some(function (st) { return st.id === s.status; })) s.status = null;
+    if (s.startUnit != null && !(typeof s.startUnit === 'number' && isFinite(s.startUnit)) && !okKey(s.startUnit)) s.startUnit = null;
+    if (typeof s.sound !== 'boolean') s.sound = true;
+    if (typeof s.share !== 'boolean') s.share = true;
+    if (!isDayKey(s.firstDay)) s.firstDay = dayKey();
+    if (s.lastDay != null && !isDayKey(s.lastDay)) { s.lastDay = null; s.streak = 0; }
+    s.lostStreak = isRec(s.lostStreak) && isDayKey(s.lostStreak.lastDay) && num0(s.lostStreak.value) > 0
+      ? { value: num0(s.lostStreak.value), lastDay: s.lostStreak.lastDay } : null;
+    if (s.ref != null && !(typeof s.ref === 'string' && /^[\w-]{1,40}$/.test(s.ref))) s.ref = null;
+    // calcState checks the type against config later (config is not read yet when the saved state loads)
+    s.calc = isRec(s.calc) ? { type: okWord(s.calc.type) ? s.calc.type : null, months: num0(s.calc.months), training: num0(s.calc.training),
+      trainingEdited: s.calc.trainingEdited === true, lone: s.calc.lone === true, at: num0(s.calc.at) } : null;
+    s.days = cleanMap(s.days, function (v) { return num0(v); }, isDayKey);
+    s.lessons = cleanMap(s.lessons, function (r) {
+      return isRec(r) ? { done: r.done === true, best: num0(r.best), plays: num0(r.plays), fastest: num0(r.fastest) || null } : null;
+    });
+    s.missions = cleanMap(s.missions, function (m) {
+      return isRec(m) ? { steps: Array.isArray(m.steps) ? m.steps.slice(0, 20).map(function (x) { return x === true; }) : [], done: m.done === true } : null;
+    });
+    s.mistakes = cleanMap(s.mistakes, function (v) { return Math.floor(num0(v)); });
+    ['ratings', 'intent', 'amount'].forEach(function (k) { s[k] = cleanMap(s[k], function (v) { return okWord(v) ? v : null; }); });
   }
   function load() {
     try {
@@ -154,27 +230,45 @@
     var today = dayKey(), yday = dayKey(addDays(new Date(), -1));
     return (S.lastDay === today || S.lastDay === yday) ? S.streak : 0;
   }
-  // a missed day breaks the streak; a long one is kept aside so it can be rescued
+  // a missed day breaks the streak, unless there are enough days off to cover every missed day; a long streak that
+  // breaks is kept aside so it can be rescued
+  var offToast = null;
   function checkStreakBreak() {
-    if (!S.lastDay || !S.streak) return;
+    if (!S.lastDay || !S.streak || !isDayKey(S.lastDay)) return;
     var today = dayKey(), yday = dayKey(addDays(new Date(), -1));
     if (S.lastDay === today || S.lastDay === yday) return;
+    var missed = daysBetween(S.lastDay, today) - 1;
+    if (missed > 0 && useDaysOff(missed)) return;
     if (S.streak >= CFG.streakRepair.minStreak) {
       S.lostStreak = { value: S.streak, lastDay: S.lastDay };
-      track('streak_lost', { value: S.streak });
+      track('streak_lost', { value: S.streak, gap_days: missed, days_off_held: S.daysOff });
     }
     S.streak = 0;
     save();
   }
+  // all or nothing: only past days, only from offSince on, only from a streak of minStreak. The streak is kept, not grown.
+  function useDaysOff(missed) {
+    if (!DO.enabled || S.streak < DO.minStreak || S.daysOff < missed) return false;
+    var first = dayKey(addDays(parseDay(S.lastDay), 1));
+    if (first < S.offSince) return false;
+    for (var i = 1; i <= missed; i++) S.offUsed.push(dayKey(addDays(parseDay(S.lastDay), i)));
+    S.offUsed = S.offUsed.slice(-30);
+    S.daysOff -= missed;
+    S.lastDay = dayKey(addDays(new Date(), -1));
+    offToast = { used: missed, left: S.daysOff, streak: S.streak };
+    track('day_off_used', { count: missed, streak: S.streak, held_after: S.daysOff });
+    save();
+    return true;
+  }
   function repairInfo() {
     var L = S.lostStreak;
-    if (!L) return null;
+    if (!L || !isDayKey(L.lastDay)) return null;
     var missed = daysBetween(L.lastDay, dayKey()) - 1;
     if (missed > CFG.streakRepair.withinDays) { S.lostStreak = null; save(); return null; }
     if (!doneCount()) return null;
     return { value: L.value, daysLeft: CFG.streakRepair.withinDays - missed };
   }
-  function todayXp() { return S.days[dayKey()] || 0; }
+  function todayXp() { return Number(S.days[dayKey()]) || 0; }
   function awardXp(n) {
     checkStreakBreak();
     var today = dayKey();
@@ -185,9 +279,24 @@
       S.lastDay = today;
       S.bestStreak = Math.max(S.bestStreak, S.streak);
     }
+    return grantLevelDaysOff();
+  }
+  // every new level pays one day off for the streak (up to maxHeld); returns what was added, for the level-up sheet
+  function grantLevelDaysOff() {
+    var lvl = levelIndex(S.xp), gained = lvl - S.offLevel;
+    if (gained <= 0) return null;
+    S.offLevel = lvl;
+    if (!DO.enabled) return null;
+    var want = gained * DO.perLevel, before = S.daysOff;
+    S.daysOff = Math.min(DO.maxHeld, before + want);
+    var g = { added: S.daysOff - before, held: S.daysOff, atCap: S.daysOff - before < want };
+    track('day_off_earned', { source: 'level', added: g.added, held: g.held, at_cap: g.atCap, level: lvl + 1 });
+    return g;
   }
 
-  // levels: points turn into levels named after money amounts
+  // levels: points turn into levels ("שלב N מתוך 11"); each new level pays a day off for the streak
+  // days off cover a streak only from minStreak days on: said wherever the app promises them
+  function minStreakNote() { return DO.minStreak > 1 ? ' (מרצף של ' + DO.minStreak + ' ימים ומעלה)' : ''; }
   function levelIndex(xp) {
     var L = CFG.levels, i = 0;
     while (i + 1 < L.length && xp >= L[i + 1].min) i++;
@@ -196,11 +305,19 @@
   function levelInfo(xp) {
     var L = CFG.levels, i = levelIndex(xp), cur = L[i], next = L[i + 1];
     return {
-      i: i, n: i + 1, amount: cur.amount, next: next ? next.amount : null,
+      i: i, n: i + 1, total: L.length, name: cur.name || '', last: !next,
       toNext: next ? next.min - xp : 0,
       pct: next ? (xp - cur.min) / (next.min - cur.min) : 1
     };
   }
+  function levelLabel(r) { return 'שלב ' + r.n + ' מתוך ' + r.total + (r.name ? ' · ' + r.name : ''); }
+  // the line under a level: how far the next one is, and what it brings (nothing to promise when the days off are full)
+  function nextLevelLine(r) {
+    if (r.last) return 'השלב האחרון. כל הכבוד';
+    return 'עוד ' + fmt(r.toNext) + ' נקודות לשלב ' + (r.n + 1) + (DO.enabled && S.daysOff < DO.maxHeld ? ', ואיתו יום חופש לרצף' : '');
+  }
+  // "יום חופש אחד" / "2 ימי חופש"
+  function daysOffText(n) { return n === 1 ? 'יום חופש אחד לרצף' : fmt(n) + ' ימי חופש לרצף'; }
 
   // ---------- Content ----------
   var DATA = null, UNITS = [], LESSONS = [], BY_ID = {}, QUESTIONS = {};
@@ -263,6 +380,10 @@
       S.inProgress = null;
     }
     if ((S.contentV || 0) < 6 && v >= 6) S.inProgress = null;
+    // v9 replaced every mission with a short one (18.10): ticks on an unfinished mission belonged to the old steps
+    if ((S.contentV || 0) < 9 && v >= 9) {
+      Object.keys(S.missions).forEach(function (id) { var m = S.missions[id]; if (isRec(m) && !m.done) m.steps = []; });
+    }
     S.contentV = v;
     save();
   }
@@ -412,7 +533,7 @@
     var t = document.createElement('div');
     t.className = 'toast' + (cls ? ' ' + cls : '');
     t.setAttribute('role', 'status');
-    t.innerHTML = html;
+    t.innerHTML = String(html).replace(/<\/b><span>/g, '</b> <span>');
     document.body.appendChild(t);
     setTimeout(function () { t.classList.add('out'); }, ms);
     setTimeout(function () { t.remove(); }, ms + 400);
@@ -422,11 +543,12 @@
   var root, view = 'home', session = null, sheetOpen = false, notesId = null, onboardStep = 0;
   var deferredInstall = null, pendingReload = false, pushBusy = false;
   // how the app was opened: source 'homescreen' (the installed icon), 'push' (a tap on the reminder), 'ics' (a calendar
-  // reminder) or 'link'; ref (an invite link carries ref=share); kind (which reminder, e.g. discharge-pre)
+  // reminder) or 'link'; ref (an invite link carries ref=share); kind (which reminder, when a message says)
   function openParams() {
     var q = location.search || '';
     var get = function (k) { var m = new RegExp('[?&]' + k + '=([\\w-]+)').exec(q); return m ? m[1] : null; };
-    return { source: get('source') || 'link', ref: get('ref'), kind: get('kind') };
+    var ref = get('ref');
+    return { source: get('source') || 'link', ref: ref && ref.length <= 40 ? ref : null, kind: get('kind') };
   }
   var OPEN = openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
 
@@ -503,11 +625,19 @@
       : view === 'profile' ? renderProfile() : renderPath();
     root.innerHTML = renderTopbar() + '<main class="screen gutter">' + body + '</main>' + renderLegalBar() + renderNav();
     if (view === 'home') revealCurrent();
+    if (view === 'home' && offToast && !sheetOpen) showOffToast();
+  }
+  function showOffToast() {
+    var o = offToast;
+    offToast = null;
+    toast(ICON.dayoff + '<b>הרצף של ' + plural(o.streak, 'יום אחד', 'ימים') + ' נשמר</b><span>' +
+      (o.used === 1 ? 'השתמשנו ביום חופש אחד לרצף.' : 'השתמשנו ב-' + o.used + ' ימי חופש לרצף.') +
+      (o.left === 0 ? ' לא נשארו עוד.' : o.left === 1 ? ' נשאר עוד אחד.' : ' נשארו עוד ' + o.left + '.') + '</span>', 'info', 3600);
   }
   // the next lesson is what people came for: bring it into view, unless a resume, repair or reminder card leads
   // the page; then the page starts at that card (the previous screen may have been scrolled down)
   function revealCurrent() {
-    var lead = root.querySelector('.resume-card, .repair-card, .reminder-card, .discharge-card');
+    var lead = root.querySelector('.resume-card, .repair-card, .reminder-card');
     if (lead) {
       var lr = lead.getBoundingClientRect();
       if (lr.top < 0 || lr.bottom > window.innerHeight) window.scrollTo(0, 0);
@@ -530,12 +660,13 @@
   }
 
   function renderTopbar() {
-    var st = currentStreak();
+    var st = currentStreak(), k = DO.enabled ? S.daysOff : 0;
     return '<header class="topbar gutter">' +
       '<div class="brandmark">' + esc(CFG.appName) + '</div>' +
       '<div class="stats">' +
-        '<button class="stat flame' + (st ? '' : ' off') + '" data-act="explain" data-what="streak" aria-label="רצף: ' + st + ' ימים">' + ICON.flame + st + '</button>' +
-        '<button class="stat xp" data-act="explain" data-what="points" aria-label="נקודות: ' + S.xp + '">' + ICON.coin + fmt(S.xp) + '</button>' +
+        '<button class="stat flame' + (st ? '' : ' off') + '" data-act="explain" data-what="streak" aria-label="' + (st ? 'רצף: ' + plural(st, 'יום אחד', 'ימים') : 'אין רצף') + (k ? '. ימי חופש לרצף: ' + k : '') + '">' +
+          ICON.flame + st + (k ? '<i class="off-badge" aria-hidden="true">' + ICON.dayoff + k + '</i>' : '') + '</button>' +
+        '<button class="stat xp" data-act="explain" data-what="points" aria-label="נקודות: ' + S.xp + '. בשביל מה הן?">' + ICON.coin + fmt(S.xp) + '</button>' +
         '<button class="stat goal" data-act="explain" data-what="goal" aria-label="יעד יומי: ' + todayXp() + ' מתוך ' + S.goalXp + '">' + goalRing(28) + '</button>' +
       '</div></header>';
   }
@@ -595,17 +726,21 @@
       var rs = reminderCardState();
       if (rs) {
         html += '<div class="card reminder-card"><div class="rc-head"><span class="rc-ic">' + ICON.bell + '</span><div>' +
-          '<b>תזכורת יומית ב-' + hourLabel() + '</b><span>' + (rs === 'install'
+          '<b>תזכורת יומית בערב</b><span>' + (rs === 'install'
             ? 'באייפון תזכורות עובדות רק מהאפליקציה המותקנת במסך הבית.'
             : 'הודעה קצרה רק בימים שעוד לא עשית שיעור. אפשר לכבות בפרופיל.') + '</span></div></div>' +
           '<div class="row"><button class="btn" data-act="' + (rs === 'install' ? 'install' : 'reminder-on') + '" data-from="home" data-placement="home">' +
             (rs === 'install' ? 'איך מתקינים' : 'להפעיל') + '</button><button class="btn text" data-act="reminder-later">לא עכשיו</button></div></div>';
-      } else html += installCard('home') || dischargeCard();
+      } else html += installCard('home');
     }
     html += calcCard();
     if (INVITE.enabled && doneCount() >= INVITE.afterLessons) {
-      html += '<button class="invite-bar" data-act="invite" data-from="home">' + ICON.share + '<span><b>ללמוד ביחד מחזיק יותר.</b> ' +
-        (S.status === 'civ' ? 'לשלוח לחברים בוואטסאפ' : 'לשלוח לחבר׳ה מהיחידה') + '</span>' + ICON.chevron + '</button>';
+      var o = inviteOffState(), tail = S.status === 'civ' ? 'לשלוח לחברים בוואטסאפ' : 'לשלוח לחבר׳ה מהיחידה';
+      html += '<button class="invite-bar" data-act="invite" data-from="home">' + ICON.share + '<span>' + (!o.on
+        ? '<b>ללמוד ביחד מחזיק יותר.</b> ' + tail
+        : (DO.friendGift ? '<b>חבר חדש מהקישור מקבל ' + daysOffText(DO.friendGift).replace(' אחד', '') + '.</b> ' : '<b>ללמוד ביחד מחזיק יותר.</b> ') +
+          (o.ready ? 'ויום אחד גם לך, על השיתוף' : o.full ? tail : 'יום החופש הבא שלך על שיתוף: ' + (o.wait === 1 ? 'מחר' : 'בעוד ' + o.wait + ' ימים'))) +
+        '</span>' + ICON.chevron + '</button>';
     }
     if (CFG.pilot) {
       html += '<button class="pilot-bar" data-act="feedback" data-ctx="home">' + ICON.chat + '<span><b>גרסת ניסיון.</b> ספרו לנו מה לשפר</span>' + ICON.chevron + '</button>';
@@ -619,7 +754,7 @@
     var html = homeCards();
     html += '<button class="rank-strip" data-act="explain" data-what="points">' +
       '<span class="rank-badge">' + ICON.coins + '</span>' +
-      '<span class="rank-txt"><b>שלב ' + r.n + ' · ' + esc(r.amount) + '</b><span>' + (r.next ? 'עוד ' + fmt(r.toNext) + ' נקודות לשלב ' + esc(r.next) : 'השלב הגבוה ביותר') + '</span></span>' +
+      '<span class="rank-txt"><b>' + esc(levelLabel(r)) + '</b><span>' + nextLevelLine(r) + '</span></span>' +
       '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span></button>';
     var st = currentStreak(), today = todayXp();
     if (cur && st > 0 && today === 0) {
@@ -627,7 +762,6 @@
     } else if (cur && today > 0 && today < S.goalXp) {
       html += '<p class="nudge">' + ICON.target + '<span>עוד ' + fmt(S.goalXp - today) + ' נקודות ליעד היומי.</span></p>';
     }
-    html += dischargeNudge();
     UNITS.forEach(function (u) {
       var done = u.vis.filter(function (l) { return isDone(l.id); }).length;
       var img = unitImg(u);
@@ -708,7 +842,7 @@
       '<p class="lead">' + esc(l.what) + '</p>' +
       '<div class="chips"><span class="chip">' + ICON.clock + 'כ-' + lessonMinutes(l) + ' דקות</span>' +
       '<span class="chip">' + l.vScreens.length + ' הסברים · ' + l.vQuestions.length + ' שאלות</span>' +
-      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + rec.best + '% נכונות</span>' : '') + '</div>' +
+      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + '</div>' +
       '<div class="pts-box"><div class="pts-head">' + ICON.coin + '<b>נקודות בשיעור הזה</b><span>עד ' + maxLessonPoints(l) + '</span></div>' + pointsList(l) + '</div>' +
       main +
       (replay ? '<button class="btn text" data-act="notes" data-id="' + esc(l.id) + '">לקרוא שוב את ההסברים</button>' : ''), 'tall');
@@ -729,26 +863,40 @@
   function explainSheet(what) {
     var r = levelInfo(S.xp);
     if (what === 'points') {
-      var ladder = CFG.levels.map(function (k, i) {
-        return '<li class="' + (i === r.i ? 'me' : i < r.i ? 'past' : '') + '"><b>' + esc(k.amount) + '</b><span>' + fmt(k.min) + ' נק׳</span></li>';
-      }).join('');
-      openSheet('<h3>נקודות ושלבים</h3>' +
-        '<p class="lead">כל תשובה נכונה ומשימה מוסיפות נקודות. הנקודות מעלות אותך בשלבים, מ-100 ₪ ועד מיליון, וממלאות את היעד היומי.</p>' +
-        '<ul class="rules">' +
+      var rules = '<ul class="rules">' +
           '<li><span>תשובה נכונה בניסיון הראשון</span><b>' + plus(P.correct) + '</b></li>' +
           '<li><span>שאלת חזרה או תרגול</span><b>' + plus(P.review) + '</b></li>' +
           '<li><span>סיום שיעור</span><b>' + plus(P.lessonDone) + '</b></li>' +
           '<li><span>שיעור בלי אף טעות</span><b>' + plus(P.perfect) + '</b></li>' +
           '<li><span>מסיימים בזמן שכתוב בתחילת השיעור</span><b>' + plus(P.speed) + '</b></li>' +
           '<li><span>משימה מחוץ לאפליקציה</span><b>' + plus(P.mission) + '</b></li>' +
-        '</ul>' +
-        '<div class="eyebrow">השלבים · את/ה בשלב ' + r.n + '</div><ol class="ladder">' + ladder + '</ol>' +
+        '</ul>';
+      openSheet('<h3>בשביל מה הנקודות?</h3>' +
+        (DO.enabled
+          ? '<p class="chain">נקודות ← שלב חדש ← יום חופש לרצף</p>' +
+            '<p class="lead">כל שלב חדש נותן יום חופש לרצף. ' + (S.status === 'civ' ? 'מבחן, משמרת, טיול?' : 'שמירה, שטח, בסיס סגור?') +
+              ' ביום בלי שיעור, יום חופש נכנס לבד והרצף לא נשבר' + minStreakNote() + '.</p>'
+          : '<p class="lead">הנקודות מעלות אותך שלב וממלאות את היעד היומי.</p>') +
+        '<div class="card tight points-now"><b>' + (r.last ? 'שלב ' + r.total + ' מתוך ' + r.total + ', השלב האחרון' : esc(levelLabel(r)) + ' · עוד ' + fmt(r.toNext) + ' נקודות לשלב הבא') + '</b>' +
+          '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
+          (DO.enabled ? '<p class="fine off-line">' + ICON.dayoff + '<span>ימי חופש לרצף: ' + S.daysOff + ' (אפשר לשמור עד ' + DO.maxHeld + ')</span></p>' : '') + '</div>' +
+        '<div class="eyebrow">איך מקבלים נקודות</div>' + rules +
+        (DO.enabled && DO.invite ? '<p class="fine">עוד יום חופש לרצף: משתפים קישור לחבר, פעם ' + (DO.inviteEveryDays === 7 ? 'בשבוע' : 'ב-' + DO.inviteEveryDays + ' ימים') + '.' +
+          (DO.friendGift ? ' חבר חדש מקבל ' + DO.friendGift + ' ימי חופש.' : '') + '</p>' : '') +
+        '<p class="fine">הנקודות ממלאות גם את היעד היומי (העיגול למעלה).</p>' +
         '<button class="btn" data-act="close-sheet">הבנתי</button>', 'tall');
     } else if (what === 'streak') {
       var st = currentStreak(), R = CFG.streakRepair;
+      var repairLine = 'רצף של ' + R.minStreak + ' ימים ומעלה שנשבר אפשר להציל עד ' + R.withinDays + ' ימים אחרי, במבחן של ' + R.questions + ' שאלות (' + R.toPass + ' נכונות לפחות).';
       openSheet('<h3>' + (st ? 'רצף של ' + plural(st, 'יום אחד', 'ימים') : 'אין רצף כרגע') + '</h3>' +
-        '<p class="lead">כל יום שבו עושים לפחות שיעור אחד או תרגול מוסיף יום לרצף. יום בלי למידה שובר אותו.</p>' +
-        '<p class="lead">רצף של ' + R.minStreak + ' ימים ומעלה שנשבר אפשר להציל עד ' + R.withinDays + ' ימים אחרי, במבחן של ' + R.questions + ' שאלות (' + R.toPass + ' נכונות לפחות).</p>' +
+        '<p class="lead">כל יום שבו עושים לפחות שיעור אחד או תרגול מוסיף יום לרצף. יום בלי למידה שובר אותו' + (DO.enabled ? ', אלא אם יש לך יום חופש לרצף.' : '.') + '</p>' +
+        (DO.enabled
+          ? (S.daysOff > 0
+            ? '<p class="lead off-line">' + ICON.dayoff + '<span>ימי חופש לרצף: ' + S.daysOff + ' מתוך ' + DO.maxHeld + '. ביום בלי שיעור אחד מהם נכנס לבד, מרצף של ' + DO.minStreak +
+                ' ימים ומעלה. הוא שומר על הרצף ולא מוסיף לו. כמו קרן חירום, רק לרצף.</span></p>'
+            : '<p class="lead">אין לך כרגע ימי חופש לרצף. מקבלים יום בכל שלב חדש' + (DO.invite ? ', ועוד יום כשמשתפים קישור לחבר (פעם בשבוע)' : '') + '.</p>')
+          : '') +
+        '<p class="lead">' + (DO.enabled ? 'הפסקה ארוכה ממה שיש לך? הרצף נשבר והימים נשארים אצלך. ' : '') + repairLine + '</p>' +
         '<p class="lead">השיא שלך: ' + plural(S.bestStreak, 'יום אחד', 'ימים') + '.</p>' +
         '<button class="btn" data-act="close-sheet">הבנתי</button>');
     } else if (what === 'goal') {
@@ -839,7 +987,7 @@
       '<div class="eyebrow">איך ' + name + ' מרוויחה</div><p class="lead">' + earn + '</p>' + paras(a.earnLater) +
       '<p class="fine">' + esc(a.privacy) + ' גרסה ' + esc(CFG.version) + '.</p>' +
       '<button class="btn ghost" data-act="feedback" data-ctx="about">לכתוב לנו</button>' +
-      (wa ? '<p class="fine center"><a class="link" href="https://wa.me/' + esc(wa) + '" target="_blank" rel="noopener">או בוואטסאפ' + (contactName() ? ', ל' + esc(contactName()) : '') + '</a></p>' : '') +
+      (wa ? '<p class="fine center"><a class="link" href="https://wa.me/' + esc(wa) + '?text=' + encodeURIComponent('היי, לגבי ' + CFG.appName + ' ' + CFG.version + ':') + '" target="_blank" rel="noopener">או בוואטסאפ' + (contactName() ? ', ל' + esc(contactName()) : '') + '</a></p>' : '') +
       '<button class="btn" data-act="close-sheet">הבנתי</button>', 'tall');
   }
 
@@ -857,7 +1005,9 @@
          'בוחרים "התקנת אפליקציה" או "הוספה למסך הבית".',
          'מאשרים. האייקון של ' + name + ' יופיע במסך הבית.'];
     // iPhone: the installed app starts with its own empty storage, so progress made in Safari travels by code
-    var warn = IS_IOS ? '<p class="nudge warn">' + ICON.info + '<span>חשוב: באייפון האפליקציה המותקנת מתחילה מאפס. מה שעשית בספארי לא עובר לבד. מתקינים קודם, ואז משחקים. כבר התחלת? מעתיקים את קוד ההעברה שלמטה ומדביקים אותו באפליקציה המותקנת.</span></p>' : '';
+    // a friend's gift waits for lesson 1 in this browser: installing before it would lose the gift
+    var warn = IS_IOS ? '<p class="nudge warn">' + ICON.info + '<span>חשוב: באייפון האפליקציה המותקנת מתחילה מאפס. מה שעשית בספארי לא עובר לבד. ' +
+      (S.giftPending && !hasProgress() ? 'יש לך מתנה מחבר, אז עושים קודם את השיעור הראשון כאן, ורק אז מתקינים עם קוד ההעברה.' : 'מתקינים קודם, ואז משחקים. כבר התחלת? מעתיקים את קוד ההעברה שלמטה ומדביקים אותו באפליקציה המותקנת.') + '</span></p>' : '';
     var code = IS_IOS && hasProgress()
       ? '<div class="transfer-box"><p><b>קוד העברה:</b> לוחצים "להעתיק קוד", ואחרי ההתקנה מדביקים אותו במסך הפתיחה של האפליקציה.</p>' +
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="sheet">להעתיק קוד</button>' +
@@ -877,6 +1027,10 @@
   function exportCode() {
     var sub = {};
     TRANSFER_KEYS.forEach(function (k) { if (k in S) sub[k] = S[k]; });
+    var cut = dayKey(addDays(new Date(), -30)), days = {}, mistakes = {};
+    Object.keys(S.days || {}).forEach(function (k) { if (k >= cut) days[k] = S.days[k]; });
+    Object.keys(S.mistakes || {}).forEach(function (k) { if (S.mistakes[k] > 0) mistakes[k] = S.mistakes[k]; });
+    sub.days = days; sub.mistakes = mistakes;
     var body = b64url(JSON.stringify(sub));
     return 'D1.' + body + '.' + checksum(body);
   }
@@ -884,7 +1038,7 @@
   // a pasted code is untrusted input: prefix, checksum, JSON, then only known fields with sane values
   function parseCode(code) {
     code = String(code || '').trim();
-    if (code.length > 20000) return { ok: false, reason: 'bad_fields' };
+    if (code.length > 60000) return { ok: false, reason: 'bad_fields' };
     var m = /^D1\.([A-Za-z0-9_-]+)\.([0-9a-f]{4})$/.exec(code);
     if (!m) return { ok: false, reason: 'bad_prefix' };
     if (checksum(m[1]) !== m[2]) return { ok: false, reason: 'bad_checksum' };
@@ -895,14 +1049,33 @@
     if (typeof obj.uid !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(obj.uid)) return { ok: false, reason: 'bad_fields' };
     var nums = ['goalXp', 'xp', 'streak', 'bestStreak', 'answered', 'correct'], i;
     for (i = 0; i < nums.length; i++) { var x = obj[nums[i]]; if (typeof x !== 'number' || !isFinite(x) || x < 0) return { ok: false, reason: 'bad_fields' }; }
-    var maps = ['days', 'lessons', 'missions', 'mistakes', 'ratings', 'intent'];
+    var maps = ['days', 'lessons', 'missions', 'mistakes', 'ratings', 'intent', 'amount'];
     for (i = 0; i < maps.length; i++) if (maps[i] in obj && !isObj(obj[maps[i]])) return { ok: false, reason: 'bad_fields' };
-    if (obj.lostStreak != null && !isObj(obj.lostStreak)) return { ok: false, reason: 'bad_fields' };
-    if (obj.calc != null && !isObj(obj.calc)) return { ok: false, reason: 'bad_fields' };
-    if (obj.dischargeMonth != null && !validMonth(obj.dischargeMonth)) return { ok: false, reason: 'bad_fields' };
-    if (obj.dischargeIcs != null && !isObj(obj.dischargeIcs)) return { ok: false, reason: 'bad_fields' };
-    if (obj.dischargeNo != null && !isObj(obj.dischargeNo)) return { ok: false, reason: 'bad_fields' };
-    if (obj.ref != null && (typeof obj.ref !== 'string' || !/^[\w-]{1,40}$/.test(obj.ref))) return { ok: false, reason: 'bad_fields' };
+    var small = function (x, max) { return typeof x === 'number' && isFinite(x) && x >= 0 && x <= max; };
+    var count = function (x) { return small(x, 1e7); };
+    var bool = function (x) { return typeof x === 'boolean'; };
+    var opt = function (x, f) { return x == null || f(x); };
+    var each = function (k, valOk, keyOk) {
+      return !(k in obj) || Object.keys(obj[k]).every(function (id) { return (keyOk || okKey)(id) && valOk(obj[k][id]); });
+    };
+    if (!each('days', count, isDayKey) || !each('mistakes', count) || !each('ratings', okWord) || !each('intent', okWord) || !each('amount', okWord) ||
+      !each('lessons', function (r) { return isObj(r) && opt(r.done, bool) && opt(r.best, count) && opt(r.plays, count) && opt(r.fastest, function (x) { return typeof x === 'number' && isFinite(x) && x >= 0; }); }) ||
+      !each('missions', function (m) { return isObj(m) && opt(m.done, bool) && opt(m.steps, function (a) { return Array.isArray(a) && a.length <= 20 && a.every(function (x) { return x == null || bool(x); }); }); }))
+      return { ok: false, reason: 'bad_fields' };
+    if (obj.lastDay != null && !isDayKey(obj.lastDay)) return { ok: false, reason: 'bad_fields' };
+    if (obj.lostStreak != null && !(isObj(obj.lostStreak) && isDayKey(obj.lostStreak.lastDay) && count(obj.lostStreak.value))) return { ok: false, reason: 'bad_fields' };
+    if (('firstDay' in obj && !isDayKey(obj.firstDay)) || ('contentV' in obj && !small(obj.contentV, 1000))) return { ok: false, reason: 'bad_fields' };
+    if ('startUnit' in obj && obj.startUnit != null && !small(obj.startUnit, 1000) && !okKey(obj.startUnit)) return { ok: false, reason: 'bad_fields' };
+    if (['sound', 'share'].some(function (k) { return k in obj && !bool(obj[k]); })) return { ok: false, reason: 'bad_fields' };
+    var num = function (x) { return typeof x === 'number' && isFinite(x) && x >= 0; };
+    if (obj.calc != null && !(isObj(obj.calc) && opt(obj.calc.type, okWord) && opt(obj.calc.months, num) && opt(obj.calc.training, num) && opt(obj.calc.at, num) &&
+      opt(obj.calc.trainingEdited, bool) && opt(obj.calc.lone, bool))) return { ok: false, reason: 'bad_fields' };
+    if (obj.ref != null && (typeof obj.ref !== 'string' || !/^[\w-]{1,40}$/.test(obj.ref))) obj.ref = null;
+    if (('daysOff' in obj && !small(obj.daysOff, 30)) || ('offRetro' in obj && !small(obj.offRetro, 30)) ||
+      ('offLevel' in obj && !small(obj.offLevel, CFG.levels.length - 1))) return { ok: false, reason: 'bad_fields' };
+    if ('offUsed' in obj && !(Array.isArray(obj.offUsed) && obj.offUsed.length <= 30 && obj.offUsed.every(isDayKey))) return { ok: false, reason: 'bad_fields' };
+    if ((obj.offSince != null && !isDayKey(obj.offSince)) || (obj.inviteOffDay != null && !isDayKey(obj.inviteOffDay))) return { ok: false, reason: 'bad_fields' };
+    if (['giftPending', 'giftGot', 'offIntroSeen'].some(function (k) { return k in obj && typeof obj[k] !== 'boolean'; })) return { ok: false, reason: 'bad_fields' };
     var state = {};
     TRANSFER_KEYS.forEach(function (k) { if (k in obj) state[k] = obj[k]; });
     return { ok: true, reason: null, state: state };
@@ -913,14 +1086,24 @@
     if (S.reminder && S.reminder.on) disableReminder('import');
     var seen = S.installSeen;
     S = migrate(r.state);
+    offToast = null;
     S.onboarded = true; S.reminder = null; S.reminderNo = null; S.inProgress = null;
     S.installHidden = isStandalone(); S.installSeen = seen || isStandalone(); S.importedAt = dayKey();
+    checkStreakBreak(); offToast = null;
     save(); indexContent(); migrateContent();
     track('progress_imported', { ok: true, reason: null, lessons_done: doneCount(), xp: S.xp, source: source, $set: { transferred: true } });
     pickedStatus = null; onboardStep = 0; session = null;
     setView('home');
     toast(ICON.check + '<b>ההתקדמות עברה</b><span>' + plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '</span>', 'info', 3200);
     return r;
+  }
+  // a link with a code (#p=) over existing progress: ask first, the code would replace everything here
+  var pendingHash = null;
+  function hashConfirm(code) {
+    pendingHash = code;
+    openSheet('<h3>להחליף את ההתקדמות?</h3><p class="lead">הקישור מביא התקדמות ממכשיר אחר. היא תחליף את מה שיש כאן: ' +
+      plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '.</p>' +
+      '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn" data-act="hash-import">להחליף</button></div>');
   }
   function importSheet(source) {
     openSheet('<h3>ייבוא התקדמות</h3><p class="lead">מדביקים כאן את קוד ההעברה שהעתקת מהדפדפן או מהטלפון הקודם.</p>' +
@@ -996,14 +1179,21 @@
       '<button class="btn text" data-act="close-sheet">ביטול</button>', 'tall');
   }
 
-  function levelUpSheet() {
+  // g: what grantLevelDaysOff() added on this level-up (null when days off are off)
+  function levelUpSheet(g) {
     var r = levelInfo(S.xp);
     sfx.level();
     confetti(true);
-    track('level_up', { level: r.n });
-    openSheet('<div class="level-up"><div class="lvl-coin">' + ICON.coins + '</div>' +
-      '<div class="eyebrow">עלית שלב</div><h3>שלב ' + r.n + ' · ' + esc(r.amount) + '</h3>' +
-      '<p class="lead">' + (r.next ? 'הבא בתור: ' + esc(r.next) + '. עוד ' + fmt(r.toNext) + ' נקודות.' : 'הגעת לשלב הגבוה ביותר.') + '</p></div>' +
+    track('level_up', { level: r.n, day_off_added: g ? g.added : 0, held: S.daysOff });
+    var gain = '';
+    if (g && g.added) {
+      gain = g.added > 1 ? 'קיבלת ' + g.added + ' ימי חופש לרצף. יש לך עכשיו ' + g.held + '.'
+        : 'קיבלת יום חופש לרצף. יש לך עכשיו ' + (g.held === 1 ? 'יום חופש אחד.' : g.held + ' ימי חופש לרצף.');
+    } else if (g && g.atCap) gain = 'יש לך כבר ' + DO.maxHeld + ' ימי חופש לרצף, המקסימום, אז הפעם לא נוסף עוד אחד.';
+    openSheet('<div class="level-up"><div class="lvl-coin">' + (g && g.added ? ICON.dayoff : ICON.coins) + '</div>' +
+      '<div class="eyebrow">עלית שלב</div><h3>' + esc(levelLabel(r)) + '</h3>' +
+      (gain ? '<p class="lead">' + gain + '</p>' : '') +
+      '<p class="fine">' + (r.last ? 'זה השלב האחרון. כל הכבוד.' : 'לשלב הבא: עוד ' + fmt(r.toNext) + ' נקודות.') + '</p></div>' +
       '<button class="btn gold" data-act="close-sheet">יאללה, ממשיכים</button>');
   }
 
@@ -1421,6 +1611,8 @@
 
   function finish() {
     clockStop();
+    // a day may have passed during the lesson: apply a day off (or the break) first, so the done screen tells the truth
+    checkStreakBreak();
     var s = session, l = s.lesson;
     var acc = s.firstTry ? Math.round(s.firstTryRight / s.firstTry * 100) : 100;
     var perfect = s.firstTry > 0 && s.firstTry === s.firstTryRight;
@@ -1440,6 +1632,16 @@
       rec.fastest = rec.fastest ? Math.min(rec.fastest, s.time) : s.time;
       S.lessons[l.id] = rec;
       S.inProgress = null;
+      // a friend's gift: the first lesson of someone who opened the app from an invite link (before the points, so a
+      // level-up on lesson 1 reports the right count)
+      if (DO.enabled && s.firstTime && S.giftPending && doneCount() === 1) {
+        var gb = S.daysOff;
+        S.daysOff = Math.min(DO.maxHeld, S.daysOff + DO.friendGift);
+        s.giftGiven = S.daysOff - gb;
+        S.giftPending = false; S.giftGot = true;
+        track('friend_gift_given', { held: S.daysOff, lesson_id: l.id });
+        track('day_off_earned', { source: 'friend_gift', added: s.giftGiven, held: S.daysOff, at_cap: s.giftGiven < DO.friendGift });
+      }
     }
     if (s.mode === 'repair') {
       s.passed = s.firstTryRight >= s.need;
@@ -1450,7 +1652,7 @@
         S.lostStreak = null;
       }
     }
-    awardXp(s.xp);
+    s.levelGrant = awardXp(s.xp);
     s.perfect = perfect;
     s.levelUp = levelIndex(S.xp) > before.i;
     if (s.levelUp) s.pctBefore = 0;
@@ -1471,7 +1673,7 @@
     confetti(s.perfect || s.levelUp);
     countUp();
     if (s.streakUp) setTimeout(sfx.streak, 900);
-    if (s.levelUp) setTimeout(function () { if (view === 'done' && !sheetOpen) levelUpSheet(); }, 1500);
+    if (s.levelUp) setTimeout(function () { if (view === 'done' && !sheetOpen) levelUpSheet(s.levelGrant); }, 1500);
   }
 
   function countUp() {
@@ -1534,6 +1736,7 @@
     var art = CFG.images && CFG.images.done;
     var correctPts = s.xp - s.bonus - s.perfectBonus - s.speedBonus;
     var rows = '<li><span>תשובות נכונות</span><b>' + plus(correctPts) + '</b></li>';
+    if (s.giftGiven > 0) rows = '<li class="gift"><span>' + ICON.dayoff + 'מתנה מחבר</span><b>' + daysOffText(s.giftGiven) + '</b></li>' + rows;
     if (s.mode === 'lesson') {
       rows += '<li><span>סיום שיעור</span><b>' + plus(s.bonus) + '</b></li>' +
         '<li><span>בלי אף טעות</span><b>' + (s.perfectBonus ? plus(s.perfectBonus) : '<i>לא הפעם</i>') + '</b></li>' +
@@ -1548,9 +1751,12 @@
         '<div class="tile time"><div class="t-label">זמן</div><div class="t-val">' + ltr(clock(s.time)) + '</div></div>' +
       '</div>' +
       '<div class="card tight"><ul class="rules">' + rows + '</ul>' +
-        '<div class="progress-row"><span>' + esc(r.amount) + '</span><span class="bar gold"><i data-w="' + Math.round(r.pct * 100) + '" style="width:' + Math.round(s.pctBefore * 100) + '%"></i></span><span>' + (r.next ? esc(r.next) : '') + '</span></div>' +
-        '<p class="fine">' + (r.next ? 'עוד ' + fmt(r.toNext) + ' נקודות לשלב הבא. ' : '') + 'היעד היומי: ' + fmt(todayXp()) + ' מתוך ' + fmt(S.goalXp) + '. <button class="link" data-act="explain" data-what="points">איך מקבלים נקודות?</button></p>' +
-      '</div>';
+        '<div class="progress-row"><span>שלב ' + r.n + '</span><span class="bar gold"><i data-w="' + Math.round(r.pct * 100) + '" style="width:' + Math.round(s.pctBefore * 100) + '%"></i></span><span>' + (r.last ? '' : 'שלב ' + (r.n + 1)) + '</span></div>' +
+        '<p class="fine">' + (r.last ? '' : 'עוד ' + fmt(r.toNext) + ' נקודות לשלב הבא' + (DO.enabled && S.daysOff < DO.maxHeld ? ', ואיתו יום חופש לרצף. ' : '. ')) +
+          'היעד היומי: ' + fmt(todayXp()) + ' מתוך ' + fmt(S.goalXp) + '. <button class="link" data-act="explain" data-what="points">בשביל מה הנקודות?</button></p>' +
+      '</div>' +
+      (DO.enabled && s.mode === 'lesson' && s.firstTime && doneCount() === 1
+        ? '<p class="fine first-explainer">' + ICON.dayoff + '<span>הנקודות מעלות שלב, וכל שלב חדש נותן יום חופש לרצף: יום בלי שיעור שהרצף לא נשבר בו' + minStreakNote() + '.</span></p>' : '');
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
@@ -1565,7 +1771,8 @@
     html += legalLine(false) + '<div class="spacer"></div>';
     // after a lesson (or a rescued streak), not after practice: the win is worth sending to friends
     if (INVITE.enabled && doneCount() >= INVITE.afterLessons && (s.mode === 'lesson' || (s.mode === 'repair' && s.passed))) {
-      html += '<button class="btn ghost" data-act="invite" data-from="done" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + 'לשתף בוואטסאפ</button>';
+      html += '<button class="btn ghost" data-act="invite" data-from="done" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + 'להזמין חבר</button>';
+      html += inviteNote();
     }
     html += '<button class="btn" data-act="home">המשך</button></div>';
     return html;
@@ -1591,7 +1798,8 @@
         (ms.steps[i] || ms.done ? ' checked' : '') + (ms.done ? ' disabled' : '') + '><span>' + esc(s) + '</span></label></li>';
     }).join('');
     var all = m.steps.every(function (_, i) { return ms.steps[i]; });
-    openSheet('<div class="eyebrow">משימה · ' + esc(l.title) + ' · ' + ICON.clock + (m.minutes || 10) + ' דקות</div>' +
+    var mins = m.minutes || 10;
+    openSheet('<div class="eyebrow">משימה · ' + esc(l.title) + ' · ' + ICON.clock + (mins === 1 ? 'דקה' : mins + ' דקות') + '</div>' +
       '<h3>' + esc(m.title) + '</h3>' +
       (m.why ? '<p class="lead">' + esc(m.why) + '</p>' : '') +
       (steps ? '<ol class="m-steps">' + steps + '</ol>' : '') +
@@ -1680,20 +1888,36 @@
   }
 
   // ---------- Profile ----------
+  // learning days (points earned) in the last 7 days, today included: a day off is not a learning day
+  function learned7() {
+    var n = 0;
+    for (var i = 0; i < 7; i++) if ((S.days[dayKey(addDays(new Date(), -i))] || 0) > 0) n++;
+    return n;
+  }
   function weekChart() {
     var days = [], names = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
-    for (var i = 6; i >= 0; i--) { var d = addDays(new Date(), -i); days.push({ n: names[d.getDay()], xp: S.days[dayKey(d)] || 0 }); }
+    for (var i = 6; i >= 0; i--) {
+      var d = addDays(new Date(), -i), k = dayKey(d);
+      days.push({ n: names[d.getDay()], xp: Number(S.days[k]) || 0, off: S.offUsed.indexOf(k) >= 0 });
+    }
     var max = Math.max(S.goalXp * 1.25, Math.max.apply(null, days.map(function (d) { return d.xp; })));
     var W = 320, H = 150, top = 18, bottom = 24, bw = 28, gap = (W - bw * 7) / 6;
     var y = function (v) { return top + (H - top - bottom) * (1 - v / max); };
-    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="נקודות בשבעת הימים האחרונים">';
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="נקודות וימי חופש לרצף בשבעת הימים האחרונים">';
     var gy = y(S.goalXp).toFixed(1);
     svg += '<line class="goal-line" x1="0" x2="' + W + '" y1="' + gy + '" y2="' + gy + '"/>';
     // oldest day on the right, today on the left (Hebrew reading order)
     days.forEach(function (d, i) {
       var x = W - bw - i * (bw + gap);
+      if (!d.xp && d.off) {
+        // a day off for the streak: a short blue bar with the umbrella, not a learning day
+        svg += '<rect class="wbar off" x="' + x.toFixed(1) + '" y="' + (H - bottom - 22) + '" width="' + bw + '" height="22" rx="6"><title>יום חופש לרצף</title></rect>' +
+          ICON.dayoff.replace('<svg ', '<svg class="off-ic" x="' + (x + bw / 2 - 8).toFixed(1) + '" y="' + (H - bottom - 22 - 20) + '" width="16" height="16" ') +
+          '<text class="lbl" x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + d.n + '</text>';
+        return;
+      }
       var h = Math.max(4, (H - top - bottom) - (y(d.xp) - top));
-      var cls = d.xp === 0 ? 'bar zero' : d.xp >= S.goalXp ? 'bar met' : 'bar';
+      var cls = d.xp === 0 ? 'wbar zero' : d.xp >= S.goalXp ? 'wbar met' : 'wbar';
       svg += '<rect class="' + cls + '" x="' + x.toFixed(1) + '" y="' + (H - bottom - h).toFixed(1) + '" width="' + bw + '" height="' + h.toFixed(1) + '" rx="6"/>';
       if (d.xp) svg += '<text class="val" x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - bottom - h - 5).toFixed(1) + '" text-anchor="middle">' + d.xp + '</text>';
       svg += '<text class="lbl" x="' + (x + bw / 2).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + d.n + '</text>';
@@ -1717,20 +1941,20 @@
     return '<div class="page"><h1>ההתקדמות שלי</h1>' +
       '<button class="card rank-card" data-act="explain" data-what="points">' +
         '<span class="rank-badge big">' + ICON.coins + '</span>' +
-        '<span class="rank-txt"><span class="eyebrow">השלב שלך</span><b>שלב ' + r.n + ' · ' + esc(r.amount) + '</b>' +
+        '<span class="rank-txt"><span class="eyebrow">השלב שלך</span><b>' + esc(levelLabel(r)) + '</b>' +
         '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
-        '<span class="fine">' + (r.next ? 'עוד ' + fmt(r.toNext) + ' נקודות לשלב ' + esc(r.next) : 'השלב הגבוה ביותר') + '</span></span></button>' +
+        '<span class="fine">' + nextLevelLine(r) + '</span></span></button>' +
       '<div class="stat-grid">' +
         statBox(ICON.flame, 'var(--flame)', currentStreak(), 'ימים ברצף') +
         statBox(ICON.coin, 'var(--gold)', fmt(S.xp), 'נקודות') +
         statBox(ICON.book, 'var(--brand)', doneCount() + '/' + LESSONS.length, 'שיעורים') +
         statBox(ICON.target, 'var(--brand)', missionsDone, 'משימות בוצעו') +
-        statBox(ICON.trophy, 'var(--gold)', S.bestStreak, 'שיא רצף') +
+        (DO.enabled ? statBox(ICON.dayoff, 'var(--q-blue)', S.daysOff, 'ימי חופש לרצף') : statBox(ICON.trophy, 'var(--gold)', S.bestStreak, 'שיא רצף')) +
         statBox(ICON.check, 'var(--ok)', acc + '%', 'תשובות נכונות') +
       '</div>' +
-      '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">הקו המקווקו הוא היעד היומי.</p></div>' +
+      '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">ימי למידה ב-7 הימים האחרונים: ' + learned7() + ' מתוך 7. הקו המקווקו הוא היעד היומי.' +
+        (weekHasOff() ? ' עמודה כחולה עם מטרייה: יום חופש לרצף, לא יום למידה.' : '') + '</p></div>' +
       '<div class="card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
-      dischargeRow() +
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
@@ -1744,6 +1968,10 @@
         '<p class="fine">ההתקדמות נשמרת רק במכשיר הזה. גרסה ' + esc(CFG.version) + '.</p>' +
         '<button class="btn text" data-act="reset">איפוס ההתקדמות</button></div>' +
       '</div>';
+  }
+  function weekHasOff() {
+    for (var i = 0; i < 7; i++) { var k = dayKey(addDays(new Date(), -i)); if (!(S.days[k] > 0) && S.offUsed.indexOf(k) >= 0) return true; }
+    return false;
   }
   function statBox(icon, color, val, label) {
     return '<div class="stat-box"><span style="color:' + color + '">' + icon + '</span><div><b>' + val + '</b><span>' + label + '</span></div></div>';
@@ -1760,11 +1988,15 @@
     if (onboardStep === 0) {
       return '<div class="welcome gutter">' +
         '<div class="logo">' + esc(CFG.appName) + '</div>' +
-        '<p class="tag">' + esc(CFG.tagline) + '</p>' + art +
+        '<p class="tag">' + esc(CFG.tagline) + '</p>' +
+        (S.giftPending && DO.enabled && DO.friendGift
+          ? '<p class="gift-banner">' + ICON.dayoff + '<span><b>חבר שלח לך מתנה: ' + DO.friendGift + ' ימי חופש לרצף.</b> אלה ימים שאפשר לפספס בלי שהרצף נשבר' + minStreakNote() + '. הם אצלך אחרי השיעור הראשון.' +
+            (IS_IOS && !isStandalone() ? ' באייפון: עושים את השיעור הראשון כאן, ורק אז מוסיפים למסך הבית עם קוד ההעברה, והימים עוברים איתך.' : '') + '</span></p>'
+          : '') + art +
         '<ul class="promises">' +
           '<li><b>מה עושים עם הכסף לפני שהוא נעלם</b><span>פיקדון, מענק שחרור, משכורת ראשונה: תוכנית לפני שהכסף מגיע לחשבון.</span></li>' +
           '<li><b>שיעורים של כמה דקות, בלי חישובים</b><span>סיפורים של אנשים בגילך, ושאלה קצרה אחרי כל הסבר.</span></li>' +
-          '<li><b>משימה אמיתית בסוף כל שיעור</b><span>10 דקות בחוץ, וכסף שנשאר אצלך.</span></li>' +
+          '<li><b>משימה קצרה בסוף כל שיעור</b><span>דקה או שתיים בטלפון, כמו לבדוק כמה כסף יש בעו״ש.</span></li>' +
         '</ul>' +
         '<div class="spacer"></div>' +
         '<button class="btn gold" data-act="onboard-next">יאללה, מתחילים</button>' +
@@ -1796,7 +2028,6 @@
     if (S.inProgress && !shown(BY_ID[S.inProgress.lessonId])) S.inProgress = null;
     save();
     if (changed) track('status_set', { status: v, start_unit_id: S.startUnit, source: source || 'profile', $set: { status: v, start_unit_id: S.startUnit } });
-    if (v === 'civ' && S.dischargeMonth) setDischargeMonth(null, 'status_civ');
   }
 
   // ---------- Confetti ----------
@@ -1880,7 +2111,7 @@
     S.reminderNo = null;
     save();
     metaPut('uid', S.uid);
-    track('push_subscribed', { endpoint: j.endpoint, p256dh: keys.p256dh, auth: keys.auth, hour: RCFG.hour, from: from, discharge_month: S.dischargeMonth, $set: { reminders: true } });
+    track('push_subscribed', { endpoint: j.endpoint, p256dh: keys.p256dh, auth: keys.auth, hour: RCFG.hour, from: from, $set: { reminders: true } });
     flush();
   }
   function enableReminder(from) {
@@ -1897,7 +2128,7 @@
       pushBusy = false;
       saveSubscription(sub, from);
       render();
-      toast(ICON.bell + '<b>סגור.</b> תזכורת כל יום ב-' + hourLabel(), 'info', 2600);
+      toast(ICON.bell + '<b>סגור.</b> תזכורת כל ערב, החל מ-' + hourLabel(), 'info', 2600);
     }).catch(function (e) {
       pushBusy = false;
       if (e && e.quiet) {
@@ -1942,7 +2173,7 @@
   function reminderRow() {
     var st = pushState();
     if (st === 'unsupported') return '';
-    var daily = 'הודעה אחת ביום ב-' + hourLabel() + ', רק אם עוד לא עשית שיעור.';
+    var daily = 'הודעה אחת בערב, החל מ-' + hourLabel() + ', רק אם עוד לא עשית שיעור באותו יום.';
     var note = st === 'install' ? 'באייפון זה עובד רק מהאפליקציה המותקנת במסך הבית.'
       : st === 'denied' ? 'ההתראות חסומות. מאפשרים אותן בהגדרות הדפדפן או הטלפון ופותחים שוב.'
       : (st === 'off' && !S.share) ? 'התזכורת נשלחת לפי נתוני השימוש. כדי להפעיל אותה מדליקים את השיתוף למטה.'
@@ -1973,6 +2204,59 @@
     var base = String(INVITE.url || '').trim() || (location.origin + location.pathname);
     return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'ref=share';
   }
+  // the day off for sharing the link: once every inviteEveryDays days, and only while fewer than maxHeld are held
+  function inviteOffState() {
+    if (!DO.enabled || !DO.invite) return { on: false, ready: false, wait: 0, full: false };
+    var wait = 0;
+    if (S.inviteOffDay) {
+      var since = daysBetween(S.inviteOffDay, dayKey());
+      wait = since < 0 ? 0 : Math.max(0, DO.inviteEveryDays - since);
+    }
+    var full = S.daysOff >= DO.maxHeld;
+    return { on: true, wait: wait, full: full, ready: !wait && !full };
+  }
+  // called when the share sheet finished or the WhatsApp link opened (never on cancel). It rewards sharing the link,
+  // not a friend joining: the app cannot know that.
+  function grantInviteOff(method) {
+    var o = inviteOffState();
+    if (!o.on) {
+      if (method === 'native') toast(ICON.check + '<b>תודה!</b><span>ללמוד ביחד מחזיק יותר</span>', 'info', 2600);
+      return;
+    }
+    var reason = o.wait ? 'weekly_cap' : o.full ? 'max_held' : 'ok';
+    if (reason === 'ok') {
+      S.daysOff = Math.min(DO.maxHeld, S.daysOff + DO.invite);
+      S.inviteOffDay = dayKey();
+      save();
+      track('day_off_earned', { source: 'invite', added: DO.invite, held: S.daysOff, at_cap: false });
+    }
+    track('invite_reward', { given: reason === 'ok', reason: reason, method: method, held: S.daysOff });
+    toast(ICON.dayoff + (reason === 'ok'
+      ? '<b>נוסף לך יום חופש לרצף</b><span>על שיתוף הקישור. יש לך עכשיו ' + S.daysOff + '.</span>'
+      : reason === 'weekly_cap'
+        ? '<b>תודה ששיתפת!</b><span>יום חופש לרצף על שיתוף מקבלים פעם בשבוע. הבא ' + (o.wait === 1 ? 'מחר' : 'בעוד ' + o.wait + ' ימים') + '.</span>'
+        : '<b>תודה ששיתפת!</b><span>יש לך כבר ' + DO.maxHeld + ' ימי חופש לרצף, המקסימום.</span>'), 'info', 4000);
+    // the done screen is not redrawn (its count-up would start again): only its invite note changes
+    if (view === 'home' && !sheetOpen) render();
+    else if (view === 'done' && root) { var note = root.querySelector('.invite-note'); if (note) note.outerHTML = inviteNote(); }
+  }
+  function inviteNote() {
+    var io = inviteOffState();
+    if (!io.on) return '';
+    return '<p class="fine invite-note">' + (DO.friendGift ? 'חבר חדש שמתחיל מהקישור מקבל ' + DO.friendGift + ' ימי חופש לרצף אחרי השיעור הראשון.' : '') +
+      (io.ready ? ' ולך: יום חופש לרצף על השיתוף.' : io.full ? '' : ' יום החופש הבא שלך על שיתוף: ' + (io.wait === 1 ? 'מחר.' : 'בעוד ' + io.wait + ' ימים.')) + '</p>';
+  }
+  // the last 7 days as 🔥 (learned), ⛱️ (day off) and ⚪, oldest first; it ends yesterday until something is learned today
+  function weekGrid() {
+    var end = todayXp() > 0 ? 0 : 1, out = '', any = false;
+    for (var i = 6 + end; i >= end; i--) {
+      var k = dayKey(addDays(new Date(), -i));
+      if ((S.days[k] || 0) > 0) { out += '\uD83D\uDD25'; any = true; }
+      else if (S.offUsed.indexOf(k) >= 0) out += '\u26F1\uFE0F';
+      else out += '\u26AA';
+    }
+    return any ? out : '';
+  }
   // the message, without the link (the link is added by the share sheet, or after the text in WhatsApp)
   function inviteText(from, lesson) {
     var st = currentStreak(), done = doneCount(), name = CFG.appName;
@@ -1986,7 +2270,10 @@
         ? 'שיעור קצר ביום על כסף: איך כסף גדל, להבין את השוק, משכורת ראשונה. בלי חישובים.'
         : 'שיעור קצר ביום על כסף: איך כסף גדל, מה עושים עם הכסף מהצבא, משכורת ראשונה. בלי חישובים.');
     }
-    lines.push('באייפון: פותחים את הקישור בספארי ומוסיפים למסך הבית.');
+    var grid = weekGrid();
+    if (grid) lines.splice(1, 0, 'השבוע שלי: ' + grid + (grid.indexOf('\u26F1') >= 0 ? ' (\u26F1\uFE0F יום חופש לרצף)' : ''));
+    if (DO.enabled && DO.friendGift) lines.push('מתחילים מהקישור? מקבלים ' + DO.friendGift + ' ימי חופש לרצף אחרי השיעור הראשון.');
+    lines.push('באייפון: פותחים את הקישור בספארי, עושים את השיעור הראשון, ורק אז מוסיפים למסך הבית.');
     lines.push('בואו ללמוד ביחד:');
     return lines.join('\n');
   }
@@ -2033,7 +2320,9 @@
     // with noopener some browsers return null even when the window opened, so only a thrown error counts as blocked
     return w !== false;
   }
+  var sharing = false, sharingAt = 0;
   function invite(from, lessonId) {
+    if (sharing && Date.now() - sharingAt < 4000) return;
     var l = lessonId && BY_ID[lessonId], url = inviteUrl(), text = inviteText(from, l);
     var file = null, data = { title: CFG.appName, text: text, url: url };
     try {
@@ -2044,22 +2333,38 @@
       }
     } catch (e) { file = null; }
     var method = navigator.share ? 'native' : 'wa_link';
-    var props = { from: from, method: method, with_image: !!file, lesson_id: l ? l.id : null, streak: currentStreak(), lessons_done: doneCount(), level: levelInfo(S.xp).n };
+    var props = { from: from, method: method, with_image: !!file, lesson_id: l ? l.id : null, streak: currentStreak(), lessons_done: doneCount(), level: levelInfo(S.xp).n,
+      days_off_held: S.daysOff, reward_ready: inviteOffState().ready };
     track('share_clicked', props);
+    if (method === 'native' && sharing) {
+      // the last share never finished: no second share sheet (it would fail), WhatsApp instead
+      sharing = false;
+      track('share_failed', { from: from, error: 'stuck', with_image: !!file });
+      waInvite(text, url);
+      grantInviteOff('wa_link');
+      return;
+    }
     if (method === 'native') {
       var p;
+      sharing = true; sharingAt = Date.now();
       try { p = navigator.share(data); } catch (e) { p = Promise.reject(e); }
       p.then(function () {
-        track('share_completed', props); flush();
-        toast(ICON.check + '<b>תודה!</b><span>ללמוד ביחד מחזיק יותר</span>', 'info', 2600);
+        sharing = false;
+        track('share_completed', props);
+        grantInviteOff('native');
+        flush();
       }, function (e) {
-        if (e && e.name === 'AbortError') return;
+        sharing = false;
+        // cancelled, or a share sheet already open: no WhatsApp fallback and no reward
+        if (e && (e.name === 'AbortError' || e.name === 'InvalidStateError')) return;
         track('share_failed', { from: from, error: String((e && e.name) || e).slice(0, 60), with_image: !!file });
         waInvite(text, url);
+        grantInviteOff('wa_link');
       });
       return;
     }
     waInvite(text, url);
+    grantInviteOff('wa_link');
   }
 
   // ---------- Discharge calculator (config.calculator) ----------
@@ -2068,8 +2373,19 @@
   var CALC = CFG.calculator || { enabled: false };
   function calcEnabled() { return !!(CALC.enabled && CALC.tiers && CALC.tiers.length); }
   function calcTier(id) { return (CALC.tiers || []).filter(function (t) { return t.id === id; })[0] || null; }
-  function calcMonths() { return CALC.months || { presets: [24, 32, 36], min: 1, max: 48, default: 32 }; }
-  function calcState() { var M = calcMonths(); return S.calc || { type: null, months: M.default, training: 0, lone: false }; }
+  function calcMonths() { return CALC.months || { presets: [24, 32], min: 12, max: 32, default: 32 }; }
+  // S.calc can come from a transfer code, so every field is rebuilt from a known shape before it reaches the page
+  function calcState() {
+    var M = calcMonths(), c = S.calc && typeof S.calc === 'object' ? S.calc : {};
+    var months = Math.min(M.max, Math.max(M.min, Math.round(+c.months) || M.default));
+    return { type: typeof c.type === 'string' && calcTier(c.type) ? c.type : null, months: months,
+      // until the person changes it, training is the usual count for the type (4 combat, 2 support)
+      training: c.trainingEdited === true ? Math.min(months, Math.max(0, Math.round(+c.training) || 0)) : Math.min(months, calcTrainingDefault(c.type)),
+      trainingEdited: c.trainingEdited === true, lone: c.lone === true, at: +c.at || 0 };
+  }
+  // the usual training months for a service type (config.calculator.trainingDefault); a person can change them
+  function calcTrainingDefault(type) { return Math.max(0, Math.round(+((CALC.trainingDefault || {})[type]) || 0)); }
+  function calcHasTraining(type) { var t = calcTier(type), low = t && calcTier((CALC.trainingTier || {})[t.id]); return !!(t && low && low.id !== t.id); }
   // training months count at the lower tier (trainingTier); both sums are rounded to roundTo
   function calcEstimate(c) {
     var tier = c && calcTier(c.type);
@@ -2077,6 +2393,7 @@
     var M = calcMonths(), m = Math.min(M.max, Math.max(M.min, Math.round(+c.months || M.default)));
     var tr = Math.min(m, Math.max(0, Math.round(+c.training || 0)));
     var low = calcTier((CALC.trainingTier || {})[tier.id]) || tier;
+    if (low === tier) tr = 0;
     var pk = (m - tr) * tier.pikadon + tr * low.pikadon, gr = (m - tr) * tier.grant + tr * low.grant;
     if (c.lone && CALC.loneSoldier) { pk += m * (+CALC.loneSoldier.pikadon || 0); gr += m * (+CALC.loneSoldier.grant || 0); }
     var r = CALC.roundTo || 1;
@@ -2088,16 +2405,19 @@
     for (var i = 0; i < B.length; i++) if (v < B[i]) return (i ? Math.round(B[i - 1] / 1000) : 0) + '-' + Math.round(B[i] / 1000) + 'k';
     return B.length ? Math.round(B[B.length - 1] / 1000) + 'k+' : 'all';
   }
-  function monthsBand(m) { return m < 12 ? '<12' : m < 24 ? '12-23' : m < 32 ? '24-31' : m < 36 ? '32-35' : '36+'; }
+  function monthsBand(m) { return m < 12 ? '<12' : m < 24 ? '12-23' : '24-32'; }
   function money(v) { return 'כ-' + ltr(fmt(v) + ' ₪'); }
   function calcWidget(ctx, moreOpen) {
     var c = calcState(), M = calcMonths(), est = calcEstimate(c);
     var tiers = (CALC.tiers || []).map(function (t) {
       return '<button data-act="calc-type" data-v="' + esc(t.id) + '" aria-pressed="' + (c.type === t.id) + '">' + esc(t.label) + (t.note ? '<small>' + esc(t.note) + '</small>' : '') + '</button>';
     }).join('');
+    var notes = M.presetNotes || {};
     var presets = (M.presets || []).map(function (p) {
-      return '<button class="chip-btn" data-act="calc-months-set" data-v="' + p + '" aria-pressed="' + (c.months === p) + '">' + p + ' חודשים</button>';
+      return '<button class="chip-btn" data-act="calc-months-set" data-v="' + p + '" aria-pressed="' + (c.months === p) + '">' + p + ' חודשים' +
+        (notes[p] ? '<small>' + esc(notes[p]) + '</small>' : '') + '</button>';
     }).join('');
+    var tier = calcTier(c.type), low = tier && calcTier((CALC.trainingTier || {})[tier.id]);
     var stepper = function (act, val, min, max, small) {
       return '<div class="stepper' + (small ? ' small' : '') + '"><button data-act="' + act + '" data-d="-1" aria-label="פחות"' + (val <= min ? ' disabled' : '') + '>&minus;</button>' +
         '<b>' + val + '</b><button data-act="' + act + '" data-d="1" aria-label="עוד"' + (val >= max ? ' disabled' : '') + '>+</button></div>';
@@ -2111,18 +2431,25 @@
     return '<div class="calc" data-ctx="' + esc(ctx) + '">' +
       '<div class="calc-field"><span class="eyebrow">סוג השירות</span><div class="seg">' + tiers + '</div></div>' +
       '<div class="calc-field"><span class="eyebrow">חודשי שירות</span>' + stepper('calc-months', c.months, M.min, M.max) + '<div class="chips">' + presets + '</div></div>' +
-      '<details class="calc-more"' + (moreOpen || c.training ? ' open' : '') + '><summary>חודשי טירונות והכשרה</summary>' +
-        '<p class="fine">חודשי הטירונות וההכשרה נספרים לפי הדרגה הנמוכה יותר. לא בטוחים? משאירים 0.</p>' + stepper('calc-training', c.training || 0, 0, c.months, true) +
-        (CALC.loneSoldier ? '<label class="calc-check"><input type="checkbox" data-act="calc-lone"' + (c.lone ? ' checked' : '') + '><span>' + esc(CALC.loneSoldier.label || 'חייל/ת בודד/ה') + '</span></label>' : '') +
-      '</details>' + result +
-      '<p class="fine">הערכה לפי הסכומים לחודש שירות נכון ל' + esc(CALC.asOf || '') + ', שנבדקו ב-' + esc(CALC.checked || '') + '. הסכומים צמודים למדד ומתעדכנים. הסכום המדויק שלך מופיע במחשבון הרשמי של האגף לחיילים משוחררים ומילואים במשרד הביטחון.</p>' +
+      (calcHasTraining(c.type) || CALC.loneSoldier
+        ? '<details class="calc-more"' + (moreOpen ? ' open' : '') + '><summary>חודשי טירונות והכשרה: ' + (c.training || 0) + '</summary>' +
+          (calcHasTraining(c.type)
+            ? '<p class="fine">חודשי ההכשרה נספרים בדרך כלל בסוג נמוך יותר: ' + esc(tier.label) + ' מקבל/ת עליהם כמו ' + esc(low.label) + '. כבר הכנסנו את המספר הרגיל, ' +
+                calcTrainingDefault(c.type) + ' חודשים, ואפשר לשנות.</p>' + stepper('calc-training', c.training || 0, 0, c.months, true)
+            : '') +
+          (CALC.loneSoldier ? '<label class="calc-check"><input type="checkbox" data-act="calc-lone"' + (c.lone ? ' checked' : '') + '><span>' + esc(CALC.loneSoldier.label || 'חייל/ת בודד/ה') + '</span></label>' : '') +
+          '</details>'
+        : '') + result +
+      '<p class="fine">הערכה לפי הסכומים של משרד הביטחון לחודש שירות, נכון ל' + esc(CALC.asOf || '') + ' (נבדקו ב-' + esc(CALC.checked || '') + '). ' +
+        'צריך לפחות ' + M.min + ' חודשי שירות, ונספרים עד ' + M.max + ' חודשים לחייל ועד 24 לחיילת. במסלולי הביניים והמפוצל של שירות לאומי-אזרחי הסכומים נמוכים יותר. ' +
+        'הסכומים צמודים למדד. גם המחשבון הרשמי נותן הערכה, והסכום המדויק מופיע באזור האישי באתר האגף.</p>' +
       (CALC.officialUrl ? '<a class="btn ghost" href="' + esc(CALC.officialUrl) + '" target="_blank" rel="noopener" data-act="calc-official">למחשבון הרשמי</a>' : '') +
       (ctx === 'sheet' ? '<button class="btn" data-act="close-sheet">סגירה</button>' : '') + '</div>';
   }
   // the home card: for soldiers, after the pikadon lesson; shows the last estimate
   function calcCard() {
     if (!calcEnabled() || (S.status !== 'sadir' && S.status !== 'pre') || !isDone('2.1')) return '';
-    var est = calcEstimate(S.calc);
+    var est = calcEstimate(S.calc && calcState());
     return '<div class="card calc-card"><div class="rc-head"><span class="rc-ic">' + ICON.coins + '</span><div><b>כמה יהיה לך בשחרור?</b><span>' +
       (est ? 'ההערכה שלך: ' + money(est.pikadon) + ' פיקדון + ' + money(est.grant) + ' מענק' : 'פיקדון ומענק לפי סוג השירות והחודשים. האפליקציה מחשבת, לא אתם.') + '</span></div></div>' +
       (est ? '<p class="fine">לפי הסכומים ל' + esc(CALC.asOf || '') + '. הערכה בלבד.</p>' : '') +
@@ -2154,203 +2481,16 @@
     calcCtx = document.querySelector('#sheet .calc') ? 'sheet' : 'lesson';
     sfx.tap();
     calcRefresh();
+    // the home card under the sheet shows the new estimate when the sheet closes
+    var card = root && root.querySelector('.calc-card');
+    if (card) card.outerHTML = calcCard();
     clearTimeout(calcTimer);
     calcTimer = setTimeout(function () {
-      var est = calcEstimate(S.calc);
+      var est = calcEstimate(S.calc && calcState());
       if (!est) return;
-      track('calculator_used', { from: calcCtx, service_type: S.calc.type, months_band: monthsBand(est.months), training_set: est.training > 0, lone: !!S.calc.lone,
+      track('calculator_used', { from: calcCtx, service_type: S.calc.type, months_band: monthsBand(est.months), training_set: est.training > 0, training_edited: !!S.calc.trainingEdited, lone: !!S.calc.lone,
         pikadon_band: calcBand(est.pikadon), grant_band: calcBand(est.grant), total_band: calcBand(est.total), $set: { calc_total_band: calcBand(est.total) } });
     }, 2500);
-  }
-
-  // ---------- Discharge timeline (config.dischargeTimeline) ----------
-  // The month of release (no exact date), three reminders as a calendar file, and the same three as push messages
-  // from the daily sender (tools/send-reminders.js reads discharge_month_set).
-  var DT = CFG.dischargeTimeline || { enabled: false, monthsAhead: 36 };
-  var DISCHARGE_UNIT = 2;  // the unit "הכסף של השחרור" in lessons.json
-  function parseMonth(ym) { var m = /^(\d{4})-(\d{2})$/.exec(String(ym || '')); return m ? { y: +m[1], m: +m[2] } : null; }
-  function validMonth(ym) { var p = parseMonth(ym); return !!(p && p.m >= 1 && p.m <= 12 && p.y >= 2000 && p.y <= 2100); }
-  function monthKey(y, m) { return y + '-' + (m < 10 ? '0' : '') + m; }
-  // whole months from this month to the discharge month (negative = already released)
-  function monthsUntil(ym) { var p = parseMonth(ym), n = new Date(); return p ? (p.y - n.getFullYear()) * 12 + (p.m - 1 - n.getMonth()) : 0; }
-  var MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
-  function monthLabel(ym) { var p = parseMonth(ym); return p ? MONTHS_HE[p.m - 1] + ' ' + p.y : ''; }
-  // the three reminders: two months before (the 1st), the release month (the 1st), after the money came in (the 15th of the next month)
-  function dischargeMilestones(ym) {
-    var p = parseMonth(ym);
-    if (!p) return [];
-    return [{ id: 'pre', date: new Date(p.y, p.m - 3, 1) }, { id: 'month', date: new Date(p.y, p.m - 1, 1) }, { id: 'post', date: new Date(p.y, p.m, 15) }];
-  }
-  function siteUrl() { return String(CFG.siteUrl || '').trim() || (location.origin + location.pathname); }
-  function dischargeLink(kind) { var b = siteUrl(); return b + (b.indexOf('?') >= 0 ? '&' : '?') + 'source=ics&kind=discharge-' + kind; }
-  function setDischargeMonth(ym, from) {
-    var prev = S.dischargeMonth || null;
-    S.dischargeMonth = ym || null;
-    if (ym) S.dischargeNo = null;
-    save();
-    track('discharge_month_set', { month: ym || null, months_ahead: ym ? monthsUntil(ym) : null, previous: prev, from: from, $set: { discharge_month: ym || null } });
-  }
-  function dischargeAsks() { return DT.enabled && (S.status === 'sadir' || S.status === 'pre'); }
-  // the home card: 'ask' (no month yet) or 'ics' (a month without a calendar file); after "not now" it waits a week, twice
-  function dischargeCardState() {
-    if (!dischargeAsks() || !doneCount()) return null;
-    var no = S.dischargeNo;
-    if (no && (no.count >= 2 || daysBetween(no.day, dayKey()) < 7)) return null;
-    if (!S.dischargeMonth) return 'ask';
-    if ((!S.dischargeIcs || S.dischargeIcs.month !== S.dischargeMonth) && monthsUntil(S.dischargeMonth) >= 0) return 'ics';
-    return null;
-  }
-  function dischargeCard() {
-    var st = dischargeCardState();
-    if (!st) return '';
-    var ask = st === 'ask';
-    return '<div class="card discharge-card"><div class="rc-head"><span class="rc-ic">' + ICON.clock + '</span><div>' +
-      '<b>' + (ask ? 'מתי משתחררים?' : 'ציר השחרור ביומן') + '</b><span>' + (ask
-        ? 'נזכיר לך בזמן מה עושים עם הפיקדון והמענק, לפני שהכסף נעלם. רק חודש, בלי תאריך.'
-        : 'שלוש תזכורות: חודשיים לפני, בחודש השחרור, ואחרי שהכסף נכנס. אפשר לשלוח גם לחבר׳ה מהפלוגה.') + '</span></div></div>' +
-      '<div class="row"><button class="btn" data-act="' + (ask ? 'discharge-set' : 'discharge-ics') + '" data-from="home">' + (ask ? 'לבחור חודש' : 'להוסיף ליומן') + '</button>' +
-      '<button class="btn text" data-act="discharge-later" data-state="' + st + '">לא עכשיו</button></div></div>';
-  }
-  // a status that no longer fits the month: less than half a year to go while "in service", or a month that passed
-  function dischargeNudge() {
-    if (!DT.enabled || !S.dischargeMonth || (S.status !== 'sadir' && S.status !== 'pre')) return '';
-    var n = monthsUntil(S.dischargeMonth);
-    if (n < 0) return '<p class="nudge">' + ICON.clock + '<span>השתחררת? <button class="link" data-act="status" data-v="post" data-source="nudge">לעדכן ל״אחרי שחרור״</button></span></p>';
-    if (S.status === 'sadir' && n <= 6) return '<p class="nudge">' + ICON.clock + '<span>פחות מחצי שנה לשחרור? <button class="link" data-act="status" data-v="pre" data-source="nudge">לעדכן ל״לפני שחרור״</button></span></p>';
-    return '';
-  }
-  function dischargeRow() {
-    if (!DT.enabled || S.status === 'civ') return '';
-    var ym = S.dischargeMonth;
-    var fine = '<p class="fine">הכסף של השחרור: הפיקדון האישי, מענק השחרור ו-60 הימים הראשונים. מידע כללי, לא ייעוץ.</p>';
-    if (!ym) {
-      if (S.status === 'post') return '';
-      return '<div class="card discharge-row"><h2>ציר השחרור</h2><p>בוחרים חודש שחרור, ונזכיר בזמן מה עושים עם הפיקדון והמענק. רק חודש, בלי תאריך.</p>' +
-        '<button class="btn ghost" data-act="discharge-set" data-from="profile">לבחור חודש</button>' + fine + '</div>';
-    }
-    var n = monthsUntil(ym), when = n > 0 ? 'עוד ' + plural(n, 'חודש אחד', 'חודשים') : n === 0 ? 'החודש' : 'השתחררת לפני ' + plural(-n, 'חודש אחד', 'חודשים');
-    var inCal = !!(S.dischargeIcs && S.dischargeIcs.month === ym);
-    return '<div class="card discharge-row"><h2>ציר השחרור</h2><p><b>' + esc(monthLabel(ym)) + '</b> · ' + when + '</p>' +
-      (inCal ? '<p class="fine ok-line">' + ICON.check + '<span>שלוש התזכורות ביומן שלך</span></p>' : '') +
-      '<div class="row"><button class="btn' + (inCal ? ' ghost' : '') + '" data-act="discharge-ics" data-from="profile">' + (inCal ? 'ליצור שוב' : 'להוסיף ליומן') + '</button>' +
-      (S.status === 'post' ? '' : '<button class="btn ghost" data-act="discharge-set" data-from="profile">לשנות</button>') + '</div>' +
-      '<p class="fine center"><button class="link" data-act="discharge-gcal" data-from="profile">ליומן גוגל בלי קובץ</button> · <button class="link" data-act="discharge-clear">למחוק</button></p>' + fine + '</div>';
-  }
-  // the month picker: a year row and a 4x3 month grid; months that passed, or beyond monthsAhead, are disabled
-  var dischargePick = null, dischargeFrom = 'home';  // the pick { y, m } and where the sheet was opened from, while it is open
-  function dischargeSheetInner(from) {
-    var now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth() + 1, ahead = +DT.monthsAhead || 36;
-    var cur = parseMonth(S.dischargeMonth);
-    var pick = dischargePick || cur || { y: y0, m: null };
-    var years = [];
-    for (var y = y0; y <= y0 + Math.ceil(ahead / 12); y++) years.push(y);
-    var yearBtns = years.map(function (y) { return '<button data-act="discharge-pick" data-y="' + y + '" aria-pressed="' + (pick.y === y) + '">' + y + '</button>'; }).join('');
-    var monthBtns = MONTHS_HE.map(function (name, i) {
-      var m = i + 1, off = (pick.y - y0) * 12 + (m - m0), dis = off < 0 || off > ahead;
-      return '<button data-act="discharge-pick" data-m="' + m + '" aria-pressed="' + (pick.m === m) + '"' + (dis ? ' disabled' : '') + '>' + name + '</button>';
-    }).join('');
-    var chosen = pick.m ? monthKey(pick.y, pick.m) : null;
-    return '<h3>מתי משתחררים?</h3><p class="lead">רק החודש, בלי תאריך מדויק. ככה נזכיר בזמן: חודשיים לפני, בחודש השחרור, ואחרי שהכסף נכנס.</p>' +
-      '<div class="seg years">' + yearBtns + '</div><div class="seg months">' + monthBtns + '</div>' +
-      '<p class="fine">אפשר לשנות או למחוק בפרופיל בכל רגע.</p>' +
-      '<button class="btn" data-act="discharge-save" data-from="' + esc(from) + '"' + (chosen ? ' data-v="' + chosen + '"' : ' disabled') + '>שומרים</button>' +
-      '<button class="btn text" data-act="discharge-skip" data-from="' + esc(from) + '">עוד לא יודע/ת</button>';
-  }
-  function dischargeSheet(from) {
-    dischargePick = null; dischargeFrom = from || 'home';
-    openSheet(dischargeSheetInner(dischargeFrom), 'tall');
-  }
-  function dischargeSheetRefresh() {
-    var sh = document.querySelector('#sheet .sheet');
-    if (sh) sh.innerHTML = dischargeSheetInner(dischargeFrom);
-  }
-  // ----- the calendar file (RFC 5545): three all-day events with a morning alarm -----
-  function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
-  // lines longer than 75 octets continue on the next line after a space; counted in UTF-8 bytes, never inside a character
-  function icsFold(line) {
-    var out = '', cur = '', bytes = 0, limit = 75;
-    for (var i = 0; i < line.length; i++) {
-      var ch = line.charAt(i), code = line.charCodeAt(i);
-      if (code >= 0xD800 && code <= 0xDBFF && i + 1 < line.length) ch += line.charAt(++i);
-      var b = ch.length === 2 ? 4 : code < 0x80 ? 1 : code < 0x800 ? 2 : 3;
-      if (bytes + b > limit) { out += cur + '\r\n '; cur = ''; bytes = 0; limit = 74; }
-      cur += ch; bytes += b;
-    }
-    return out + cur;
-  }
-  function icsDate(d) { return d.getFullYear() + (d.getMonth() < 9 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate(); }
-  function icsStamp() { return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
-  var DISCHARGE_EVENTS = {
-    pre: { title: 'דריבית: הפיקדון מתקרב', body: 'עוד חודשיים בערך משתחררים. לפני ההחלטה על הכסף כדאי לעבור על השיעורים על הפיקדון האישי, מענק השחרור ו-60 הימים הראשונים. כמה דקות כל אחד. באייפון פותחים את דריבית מהאייקון.' },
-    month: { title: 'דריבית: חודש השחרור', body: 'החודש משתחררים. המענק נכנס לחשבון הבנק עד 60 יום אחרי השחרור, והפיקדון נפתח מהיום ה-14. כדאי לבדוק שפרטי הבנק באזור האישי מעודכנים, ולכתוב מראש מה קורה לכל שקל. באייפון פותחים את דריבית מהאייקון.' },
-    post: { title: 'דריבית: הכסף הגיע?', body: 'הכסף הגיע? הנה מה עושים ב-60 הימים הראשונים: קודם בודקים מה נכנס ומתי, אחר כך קרן חירום של כמה חודשי הוצאות, ורק אז השאר. השיעור מחכה בדריבית. באייפון פותחים את דריבית מהאייקון.' }
-  };
-  var ICS_NOTE = 'מידע כללי לחינוך פיננסי, לא ייעוץ השקעות. התאריך משוער לפי חודש השחרור.';
-  function dischargeIcsText(ym) {
-    var host = 'dribit';
-    try { host = new URL(siteUrl()).hostname || host; } catch (e) { /* keep */ }
-    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Dribit//ציר השחרור//HE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
-    var stamp = icsStamp();
-    dischargeMilestones(ym).forEach(function (ms) {
-      var ev = DISCHARGE_EVENTS[ms.id], url = dischargeLink(ms.id);
-      lines.push('BEGIN:VEVENT', 'UID:dribit-discharge-' + ms.id + '-' + ym + '@' + host, 'DTSTAMP:' + stamp,
-        'DTSTART;VALUE=DATE:' + icsDate(ms.date), 'DTEND;VALUE=DATE:' + icsDate(addDays(ms.date, 1)),
-        'SUMMARY:' + icsEscape(ev.title), 'DESCRIPTION:' + icsEscape(ev.body + '\n' + url + '\n\n' + ICS_NOTE), 'URL:' + icsEscape(url),
-        'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscape(ev.title), 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT');
-    });
-    lines.push('END:VCALENDAR');
-    return lines.map(icsFold).join('\r\n') + '\r\n';
-  }
-  function gcalDate(d) { return icsDate(d); }
-  // Google Calendar links for one event each, when no file can be handed over
-  function gcalLinks(ym) {
-    return dischargeMilestones(ym).map(function (ms) {
-      var ev = DISCHARGE_EVENTS[ms.id];
-      return { id: ms.id, title: ev.title, href: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(ev.title) +
-        '&dates=' + gcalDate(ms.date) + '/' + gcalDate(addDays(ms.date, 1)) + '&details=' + encodeURIComponent(ev.body + '\n' + dischargeLink(ms.id) + '\n\n' + ICS_NOTE) };
-    });
-  }
-  function gcalSheet(ym, from, why) {
-    var items = gcalLinks(ym).map(function (g, i) {
-      return '<a class="btn ghost" href="' + esc(g.href) + '" target="_blank" rel="noopener" data-act="discharge-gcal-link" data-v="' + esc(ym) + '" data-from="' + esc(from) + '">' + (i + 1) + '. ' + esc(g.title) + '</a>';
-    }).join('');
-    openSheet('<h3>ליומן גוגל</h3><p class="lead">' + (why || 'שלוש תזכורות, אחת בכל קישור.') + ' כל קישור פותח אירוע מוכן ביומן גוגל, ונשאר רק ללחוץ "שמירה".</p>' + items +
-      '<button class="btn text" data-act="close-sheet">סגירה</button>', 'tall');
-  }
-  function icsDone(ym, method, from) {
-    S.dischargeIcs = { month: ym, day: dayKey() }; save();
-    track('discharge_ics_created', { month: ym, method: method, from: from });
-    flush();
-    if (method !== 'gcal') toast(ICON.check + '<b>קובץ היומן מוכן.</b><span>פותחים אותו ולוחצים ״הוספה״</span>', 'info', 3200);
-    if (view === 'home' || view === 'profile') render();
-  }
-  function icsFailed(ym, e) { track('discharge_ics_failed', { month: ym, error: String((e && e.name) || e).slice(0, 60) }); }
-  // the share sheet with the file (phones put it straight into the calendar app), else a download, else the Google links
-  function shareIcs(ym, from) {
-    var text = dischargeIcsText(ym), name = 'dribit-discharge.ics';
-    var download = function () {
-      try {
-        var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' }), url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url; a.download = name; a.rel = 'noopener'; a.style.display = 'none';
-        document.body.appendChild(a); a.click();
-        setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 10000);
-        icsDone(ym, 'download', from);
-      } catch (e) { icsFailed(ym, e); gcalSheet(ym, from, 'לא הצלחנו ליצור את הקובץ בדפדפן הזה.'); }
-    };
-    try {
-      if (navigator.share && navigator.canShare && typeof File === 'function') {
-        var file = new File([text], name, { type: 'text/calendar' });
-        if (navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: 'ציר השחרור' }).then(function () { icsDone(ym, 'share', from); }, function (e) {
-            if (e && e.name === 'AbortError') return;
-            icsFailed(ym, e); download();
-          });
-          return;
-        }
-      }
-    } catch (e) { /* fall through to the download */ }
-    download();
   }
 
   function registerSW() {
@@ -2364,7 +2504,6 @@
       if (e.data && e.data.type === 'push-click') {
         var km = /[?&]kind=([\w-]+)/.exec(e.data.url || ''), kind = km ? km[1] : null;
         track('push_clicked', { app_open: true, kind: kind });
-        if (kind && /^discharge-/.test(kind) && view === 'home' && !sheetOpen && S.onboarded && S.status) unitSheet(DISCHARGE_UNIT);
       }
     });
     navigator.serviceWorker.addEventListener('controllerchange', function () {
@@ -2387,60 +2526,18 @@
       case 'legal': legalSheet(); break;
       case 'about': aboutSheet(el.getAttribute('data-from')); break;
       case 'invite': invite(el.getAttribute('data-from') || 'home', id); break;
-      case 'discharge-set': dischargeSheet(el.getAttribute('data-from') || 'home'); break;
-      case 'discharge-pick': {
-        var now = new Date(), curP = parseMonth(S.dischargeMonth);
-        dischargePick = dischargePick || (curP ? { y: curP.y, m: curP.m } : { y: now.getFullYear(), m: null });
-        if (el.getAttribute('data-y')) dischargePick.y = +el.getAttribute('data-y');
-        if (el.getAttribute('data-m')) dischargePick.m = +el.getAttribute('data-m');
-        sfx.tap();
-        dischargeSheetRefresh();
-        break;
-      }
-      case 'discharge-save': {
-        var ym = el.getAttribute('data-v');
-        if (!validMonth(ym)) break;
-        setDischargeMonth(ym, el.getAttribute('data-from') || 'home');
-        closeSheet(); sfx.pair(); render();
-        toast(ICON.check + '<b>נשמר.</b><span>השחרור ב' + esc(monthLabel(ym)) + '. נזכיר לך בזמן</span>', 'info', 3000);
-        break;
-      }
-      case 'discharge-skip':
-      case 'discharge-later': {
-        var fromCard = act === 'discharge-later';
-        S.dischargeNo = { count: ((S.dischargeNo && S.dischargeNo.count) || 0) + 1, day: dayKey() }; save();
-        track('discharge_card_declined', { count: S.dischargeNo.count, state: fromCard ? el.getAttribute('data-state') : 'sheet', from: el.getAttribute('data-from') || 'home' });
-        if (!fromCard) closeSheet();
-        render();
-        break;
-      }
-      case 'discharge-ics': if (S.dischargeMonth) shareIcs(S.dischargeMonth, el.getAttribute('data-from') || 'home'); break;
-      case 'discharge-gcal': if (S.dischargeMonth) gcalSheet(S.dischargeMonth, el.getAttribute('data-from') || 'profile'); break;
-      case 'discharge-gcal-link': {
-        var gym = el.getAttribute('data-v');
-        if (gym && !(S.dischargeIcs && S.dischargeIcs.month === gym && S.dischargeIcs.gcal)) {
-          icsDone(gym, 'gcal', el.getAttribute('data-from') || 'profile');
-          S.dischargeIcs.gcal = true; save();
-        }
-        break; // no preventDefault: the link opens
-      }
-      case 'discharge-clear':
-        openSheet('<h3>למחוק את חודש השחרור?</h3><p class="lead">התזכורות שכבר נכנסו ליומן נשארות. מוחקים אותן מהיומן.</p>' +
-          '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn bad" data-act="discharge-clear-confirm">למחוק</button></div>');
-        break;
-      case 'discharge-clear-confirm':
-        setDischargeMonth(null, 'profile'); S.dischargeIcs = null; save();
-        closeSheet(); render();
-        break;
       case 'calc-open': calcSheet(el.getAttribute('data-from') || 'home'); break;
-      case 'calc-type': calcSet(function (c) { c.type = el.getAttribute('data-v'); }); break;
+      case 'calc-type': calcSet(function (c) {
+        c.type = el.getAttribute('data-v');
+        if (!c.trainingEdited) c.training = calcTrainingDefault(c.type);
+      }); break;
       case 'calc-months': calcSet(function (c) { c.months = c.months + (+el.getAttribute('data-d') || 0); }); break;
       case 'calc-months-set': calcSet(function (c) { c.months = +el.getAttribute('data-v'); }); break;
-      case 'calc-training': calcSet(function (c) { c.training = (c.training || 0) + (+el.getAttribute('data-d') || 0); }); break;
+      case 'calc-training': calcSet(function (c) { c.training = (c.training || 0) + (+el.getAttribute('data-d') || 0); c.trainingEdited = true; }); break;
       case 'calc-lone': calcSet(function (c) { c.lone = !!el.checked; }); break;
       case 'calc-official': {
         var cw = el.closest('.calc');
-        track('calculator_official_clicked', { from: cw ? cw.getAttribute('data-ctx') : null, has_estimate: !!calcEstimate(S.calc) });
+        track('calculator_official_clicked', { from: cw ? cw.getAttribute('data-ctx') : null, has_estimate: !!calcEstimate(S.calc && calcState()) });
         flush();
         break; // no preventDefault: the link opens
       }
@@ -2492,12 +2589,12 @@
         if (m2.done) break;
         var before = levelIndex(S.xp);
         m2.done = true;
-        awardXp(P.mission);
+        var grant = awardXp(P.mission);
         save();
         track('mission_completed', { lesson_id: id });
         closeSheet(true);
         render();
-        if (levelIndex(S.xp) > before) { levelUpSheet(); break; }
+        if (levelIndex(S.xp) > before) { levelUpSheet(grant); break; }
         sfx.done();
         confetti();
         openSheet('<h3>משימה בוצעה</h3><p class="lead">' + plus(P.mission) + ' נקודות. זה החלק שבאמת משנה את המצב הכלכלי.</p>' +
@@ -2566,6 +2663,13 @@
         break;
       }
       case 'import-confirm': importSheet('profile'); break;
+      case 'hash-import': {
+        var hcode = pendingHash;
+        pendingHash = null;
+        closeSheet(true);
+        if (hcode && !importProgress(hcode, 'hash').ok) toast(ICON.x + '<b>הקוד לא תקין</b>', '', 2600);
+        break;
+      }
       case 'import-go': {
         var box = document.getElementById('imp-code'), err = document.getElementById('imp-err');
         var res = importProgress(box ? box.value : '', el.getAttribute('data-source') || 'welcome');
@@ -2654,7 +2758,7 @@
         if (S.reminder && S.reminder.on) disableReminder('reset');
         closeSheet(true); S = freshState(); S.uid = uid; onboardStep = 0; pickedStatus = null; session = null;
         track('progress_reset', {});
-        save(); indexContent(); setView('home');
+        save(); indexContent(); migrateContent(); setView('home');
         break;
       }
     }
@@ -2683,8 +2787,10 @@
     }
   }
 
+  var hiddenAt = 0;
   function onVisibility() {
     if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
       if (view === 'lesson' && session) {
         clockStop();
         snapshot();
@@ -2692,9 +2798,31 @@
       }
       flush();
     } else {
-      if (view === 'lesson' && session) clockStart();
+      var away = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      if (S.onboarded) checkStreakBreak();
+      // away for a while in the middle of a lesson: back to home, where "להמשיך" continues from the same screen
+      if (view === 'lesson' && session && session.mode === 'lesson' && away >= AWAY_HOME_MS) { leaveSession('away'); setView('home'); }
+      else if (view === 'lesson' && session) clockStart();
       else if (view === 'home' && !sheetOpen) render(); // a new day may have started
     }
+  }
+
+  // the one-time sheet for people who used the app before 0.9: what points are for now, and what they already got
+  function daysOffIntro() {
+    S.offIntroSeen = true; save();
+    var k = S.offRetro || 0;
+    track('days_off_intro_seen', { retro_days: k, held: S.daysOff });
+    openSheet('<div class="eyebrow">חדש ב' + esc(CFG.appName) + '</div><h3>עכשיו יש לנקודות תפקיד</h3>' +
+      '<p class="chain">נקודות ← שלב חדש ← יום חופש לרצף</p>' +
+      '<p class="lead">כל שלב חדש נותן יום חופש לרצף: יום בלי שיעור שהרצף לא נשבר בו' + minStreakNote() + '. ' +
+        (S.status === 'civ' ? 'מבחן, משמרת, טיול?' : 'שמירה, שטח, בסיס סגור?') + ' הוא נכנס לבד.</p>' +
+      '<p class="lead off-line">' + ICON.dayoff + '<span><b>' + (k === 0 ? 'יום החופש הראשון לרצף מחכה לך בשלב 2.'
+        : k === 1 ? 'על השלבים שכבר עברת קיבלת יום חופש אחד לרצף.'
+        : 'על השלבים שכבר עברת קיבלת ' + k + ' ימי חופש לרצף' + (k >= DO.maxHeld ? ', המקסימום שאפשר לשמור.' : '.')) + '</b> ימי החופש שומרים על הרצף מהיום והלאה.</span></p>' +
+      '<p class="fine">לשלבים כבר אין שמות של סכומי כסף. זה אף פעם לא היה כסף שלך, רק שם של שלב.</p>' +
+      (DO.invite ? '<p class="fine">עוד יום חופש לרצף: משתפים קישור לחבר, פעם בשבוע.' + (DO.friendGift ? ' חבר חדש מקבל ' + DO.friendGift + ' ימי חופש.' : '') + '</p>' : '') +
+      '<button class="btn" data-act="close-sheet">מעולה</button>');
   }
 
   function boot(data) {
@@ -2726,32 +2854,34 @@
       track('app_installed', { method: IS_IOS ? 'ios_first_standalone_open' : 'first_standalone_open', imported: !!S.importedAt });
     }
     if (OPEN_REF && !S.ref) { S.ref = OPEN_REF; save(); }
+    // a friend's invite link on a fresh device: the gift waits for the first lesson (nothing for someone with progress)
+    if (DO.enabled && DO.friendGift && OPEN_REF === 'share' && !S.giftPending && !S.giftGot && !S.xp && !doneCount()) { S.giftPending = true; save(); }
+    if (S.giftPending && !S.onboarded) track('friend_gift_shown', { placement: 'welcome' });
     track('app_opened', {
       returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND,
-      reminders: !!(S.reminder && S.reminder.on),
-      $set: { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit }, $set_once: { first_day: S.firstDay, first_ref: S.ref || 'none' }
+      reminders: !!(S.reminder && S.reminder.on), days_off: S.daysOff, learned_days_7: learned7(),
+      $set: { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff }, $set_once: { first_day: S.firstDay, first_ref: S.ref || 'none' }
     });
     if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false, kind: OPEN_KIND });
-    if (S.onboarded && S.status && S.inProgress) {
-      var s = restoreSession(S.inProgress);
-      if (s) {
-        session = s;
-        view = 'lesson';
-        histEnter({ view: 'lesson' });
-        track('lesson_resumed', { lesson_id: s.lesson.id, step_index: s.idx, step_count: s.steps.length, on_open: true });
-      } else { S.inProgress = null; save(); }
-    }
-    render();
-    if (view === 'lesson') toast(ICON.play + '<b>ממשיכים מאיפה שהפסקת</b>', 'info', 2000);
-    // a calendar reminder or a discharge push opens straight on the unit it talks about
-    if ((OPEN_SOURCE === 'ics' || OPEN_SOURCE === 'push') && /^discharge-/.test(OPEN_KIND || '') && view === 'home' && S.onboarded && S.status) unitSheet(DISCHARGE_UNIT);
+    // the app always opens on home; an unfinished lesson waits in the "להמשיך" card at the top (Jonathan, 18.10)
+    if (S.inProgress && !(S.onboarded && S.status && restoreSession(S.inProgress))) { S.inProgress = null; save(); }
     // a transfer code can also arrive in the link (#p=D1....), for example pasted into the address bar
     var hashCode = /^#p=(.+)$/.exec(location.hash || '');
+    // existing users meet days off once, over home; one sheet per open, so no toast that day (none can apply on update day)
+    var showIntro = DO.enabled && !hashCode && S.onboarded && S.status && !S.offIntroSeen;
+    if (showIntro) offToast = null;
+    render();
     if (hashCode) {
       try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) { /* ignore */ }
-      var imp = importProgress(decodeURIComponent(hashCode[1]), 'hash');
-      if (!imp.ok) toast(ICON.x + '<b>הקוד לא תקין</b>', '', 2600);
+      var hc = '';
+      try { hc = decodeURIComponent(hashCode[1]); } catch (e) { hc = ''; }
+      if (S.onboarded && hasProgress() && parseCode(hc).ok) hashConfirm(hc);
+      else {
+        var imp = importProgress(hc, 'hash');
+        if (!imp.ok) toast(ICON.x + '<b>הקוד לא תקין</b>', '', 2600);
+      }
     }
+    if (showIntro && view === 'home' && !sheetOpen) daysOffIntro();
     registerSW();
     syncPush();
     flush();

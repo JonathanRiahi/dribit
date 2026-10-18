@@ -4,11 +4,14 @@
    2. Skips people who finished a lesson today (Israel time) and people who already got today's reminder.
    3. Sends one short Web Push message to everyone else; the app's service worker shows it.
    4. Records reminder_sent per person, and push_unsubscribed for subscriptions the push service reports as gone.
-   5. Discharge timeline: people who saved a release month in the app (discharge_month_set) get three one-time messages,
-      two months before, in the release month and after the money came in; that day they get no daily reminder.
+   GitHub starts scheduled runs late (often by an hour or more, see 17.10.2026), so the workflow runs every half hour in the
+   evening and the script sends in a window: from SEND_HOUR until WINDOW_HOURS later (18:00 to 21:59 Israel time). Each person
+   still gets at most one reminder a day, because people with reminder_sent today are skipped.
    Needs: POSTHOG_API_KEY (a PostHog personal API key with query:read) and VAPID_PRIVATE_KEY (the pair of
-   reminders.vapidPublicKey in config.js). Optional: POSTHOG_PROJECT_ID, DRY_RUN=1 (count only), FORCE=1 (ignore the
-   hour), SEND_HOUR, TODAY=YYYY-MM-DD (tests), POSTHOG_API_HOST, POSTHOG_INGEST_HOST. The log never contains endpoints or keys. */
+   reminders.vapidPublicKey in config.js). Without them the run fails once a day (the first run in the window) with the
+   reason, so the red mark in Actions shows reminders are not going out. Optional: POSTHOG_PROJECT_ID, DRY_RUN=1 (count only),
+   FORCE=1 (ignore the hour), SEND_HOUR, WINDOW_HOURS, NOW=ISO time (tests), POSTHOG_API_HOST, POSTHOG_INGEST_HOST.
+   The log never contains endpoints or keys. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -25,6 +28,7 @@ const PH_INGEST = (process.env.POSTHOG_INGEST_HOST || cfg('host') || 'https://eu
 const PH_API = (process.env.POSTHOG_API_HOST || PH_INGEST.replace('.i.posthog.com', '.posthog.com')).replace(/\/$/, '');
 const APP_VERSION = cfg('version');
 const SEND_HOUR = +(process.env.SEND_HOUR || (config.match(/reminders:[\s\S]*?hour:\s*(\d+)/) || [])[1] || 18);
+const WINDOW_HOURS = +(process.env.WINDOW_HOURS || 4);
 const SITE = 'https://jonathanriahi.github.io/dribit/';
 const DRY = flag('DRY_RUN');
 const FORCE = flag('FORCE');
@@ -42,33 +46,14 @@ const MESSAGES = [
   'מה לומדים היום? פותחים ורואים.'
 ];
 
-// the three discharge messages (the app's calendar file carries the long versions of the same three)
-const DISCHARGE = {
-  pre: 'הפיקדון מתקרב. עוד חודשיים בערך משתחררים: 3 שיעורים קצרים לפני ההחלטה.',
-  month: 'החודש משתחררים! המענק נכנס עד 60 יום אחרי. יש כבר תוכנית לכל שקל?',
-  post: 'הכסף הגיע? הנה מה עושים ב-60 הימים הראשונים.'
-};
-
 function israelNow() {
   const parts = {};
   new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Jerusalem', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', weekday: 'short'
-  }).formatToParts(new Date()).forEach((p) => { parts[p.type] = p.value; });
+  }).formatToParts(process.env.NOW ? new Date(process.env.NOW) : new Date()).forEach((p) => { parts[p.type] = p.value; });
   const days = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(process.env.TODAY || '') ? process.env.TODAY : `${parts.year}-${parts.month}-${parts.day}`;
-  return { date, hour: +parts.hour % 24, minute: +parts.minute, weekday: days[parts.weekday] || 0 };
-}
-// which discharge milestone a release month ('YYYY-MM') makes due on a date: two months before (from the 1st), the release
-// month (from the 1st), after the money came in (from the 15th of the next month); each stays due for 30 days
-const utcDay = (y, m, d) => Date.UTC(y, m - 1, d);
-function dueMilestone(month, today) {
-  const m = /^(\d{4})-(\d{2})$/.exec(month || ''), tm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(today || '');
-  if (!m || !tm) return null;
-  const y = +m[1], mo = +m[2], T = utcDay(+tm[1], +tm[2], +tm[3]), DAY = 864e5;
-  const starts = { pre: utcDay(y, mo - 2, 1), month: utcDay(y, mo, 1), post: utcDay(y, mo + 1, 15) };
-  for (const id of ['post', 'month', 'pre']) if (T >= starts[id] && T < starts[id] + 30 * DAY) return id;
-  return null;
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: +parts.hour % 24, minute: +parts.minute, weekday: days[parts.weekday] || 0 };
 }
 const host = (url) => { try { return new URL(url).hostname; } catch (e) { return '?'; } };
 const two = (n) => (n < 10 ? '0' : '') + n;
@@ -109,13 +94,20 @@ async function capture(list) {
 async function main() {
   const t = israelNow();
   console.log(`Israel time ${t.date} ${two(t.hour)}:${two(t.minute)}${DRY ? ' (dry run)' : ''}`);
-  if (!FORCE && t.hour !== SEND_HOUR && t.hour !== SEND_HOUR + 1) {
-    console.log(`Reminders go out at ${two(SEND_HOUR)}:00. Nothing to do now.`);
+  const inWindow = t.hour >= SEND_HOUR && t.hour < SEND_HOUR + WINDOW_HOURS;
+  if (!FORCE && !inWindow) {
+    console.log(`Reminders go out between ${two(SEND_HOUR)}:00 and ${two(SEND_HOUR + WINDOW_HOURS - 1)}:59. Nothing to do now.`);
     return;
   }
-  if (!API_KEY) throw new Error('Missing the POSTHOG_API_KEY secret (a PostHog personal API key with query:read).');
+  const missing = [!API_KEY && 'POSTHOG_API_KEY (a PostHog personal API key with query:read)', !DRY && !VAPID_PRIVATE && 'VAPID_PRIVATE_KEY'].filter(Boolean);
+  if (missing.length) {
+    const msg = `No reminders were sent: missing the repository secret${missing.length > 1 ? 's' : ''} ${missing.join(' and ')}. Settings > Secrets and variables > Actions.`;
+    // fail once a day (the first hour of the window, or a manual run) so Actions shows a red mark; later runs only warn
+    if (FORCE || t.hour === SEND_HOUR) throw new Error(msg);
+    console.log(`::warning::${msg}`);
+    return;
+  }
   if (!VAPID_PUBLIC) throw new Error('config.js has no reminders.vapidPublicKey.');
-  if (!DRY && !VAPID_PRIVATE) throw new Error('Missing the VAPID_PRIVATE_KEY secret.');
   if (!DRY) webpush.setVapidDetails(SITE, VAPID_PUBLIC, VAPID_PRIVATE);
   PROJECT = await projectId();
 
@@ -131,32 +123,16 @@ async function main() {
   }
   const all = [...subs.values()].filter(Boolean);
 
-  // 2. the discharge timeline: the newest discharge_month_set per person (an empty month = deleted); a milestone goes out
-  //    once per person, month and milestone, so a changed month starts its own three
-  const monthRows = await hogql("SELECT distinct_id, properties.month FROM events WHERE event = 'discharge_month_set' AND timestamp > now() - INTERVAL 400 DAY ORDER BY timestamp DESC LIMIT 10000");
-  const months = new Map();
-  for (const [uid, month] of monthRows) if (uid && !months.has(uid)) months.set(uid, month || null);
-  const sentRows = await hogql("SELECT distinct_id, properties.milestone, properties.month FROM events WHERE event = 'discharge_reminder_sent' AND timestamp > now() - INTERVAL 400 DAY LIMIT 10000");
-  const dischargeSent = new Set(sentRows.map(([uid, ms, month]) => `${uid}|${ms}|${month}`));
-  const due = new Map();
-  for (const [uid, month] of months) {
-    const ms = month && dueMilestone(month, t.date);
-    if (ms && !dischargeSent.has(`${uid}|${ms}|${month}`)) due.set(uid, { milestone: ms, month });
-  }
-  const dischargeTargets = all.filter((s) => due.has(s.uid));
-
-  // 3. who already did something today (Israel time), and who already got a reminder today
+  // 2. who already did something today (Israel time), and who already got a reminder today
   const minutes = t.hour * 60 + t.minute;
   const ids = async (where) => new Set((await hogql(`SELECT distinct_id FROM events WHERE ${where} AND timestamp > now() - INTERVAL ${minutes} MINUTE LIMIT 10000`)).map((r) => r[0]));
   const active = await ids("event IN ('lesson_completed', 'practice_completed', 'repair_completed')");
   const reminded = await ids("event = 'reminder_sent'");
-  const daily = all.filter((s) => !due.has(s.uid));
-  const targets = daily.filter((s) => !active.has(s.uid) && !reminded.has(s.uid));
-  const counts = { subscriptions: all.length, skipped_active: daily.filter((s) => active.has(s.uid)).length, skipped_reminded: 0, sent: 0, gone: 0, failed: 0,
-    discharge_due: dischargeTargets.length, discharge_sent: 0 };
-  counts.skipped_reminded = daily.length - counts.skipped_active - targets.length;
+  const targets = all.filter((s) => !active.has(s.uid) && !reminded.has(s.uid));
+  const counts = { subscriptions: all.length, skipped_active: all.filter((s) => active.has(s.uid)).length, skipped_reminded: 0, sent: 0, gone: 0, failed: 0 };
+  counts.skipped_reminded = all.length - counts.skipped_active - targets.length;
 
-  // 4. send: the daily message, and the discharge message to the people whose milestone is today
+  // 3. send the daily message
   const which = t.weekday % MESSAGES.length;
   const payload = JSON.stringify({ title: 'דריבית', body: MESSAGES[which], url: './?source=push', tag: 'daily' });
   const events = [];
@@ -177,20 +153,12 @@ async function main() {
   };
   const inBatches = async (list, fn) => { for (let i = 0; i < list.length; i += 10) await Promise.all(list.slice(i, i + 10).map(fn)); };
   if (DRY) {
-    console.log(`Would send "${MESSAGES[which]}" to ${targets.length} of ${all.length} subscriptions, and a discharge reminder to ${dischargeTargets.length}.`);
+    console.log(`Would send "${MESSAGES[which]}" to ${targets.length} of ${all.length} subscriptions.`);
   } else {
     await inBatches(targets, (s) => send(s, payload, () => {
       counts.sent++;
       events.push({ event: 'reminder_sent', distinct_id: s.uid, properties: { weekday: t.weekday, message: which, push_service: host(s.endpoint) } });
     }));
-    await inBatches(dischargeTargets, (s) => {
-      const d = due.get(s.uid);
-      const body = JSON.stringify({ title: 'דריבית', body: DISCHARGE[d.milestone], url: './?source=push&kind=discharge-' + d.milestone, tag: 'discharge' });
-      return send(s, body, () => {
-        counts.discharge_sent++;
-        events.push({ event: 'discharge_reminder_sent', distinct_id: s.uid, properties: { milestone: d.milestone, month: d.month, push_service: host(s.endpoint) } });
-      });
-    });
   }
   events.push({ event: 'reminder_run', distinct_id: 'dribit-reminders', properties: Object.assign({ dry_run: DRY, weekday: t.weekday, $process_person_profile: false }, counts) });
   if (!DRY) await capture(events);

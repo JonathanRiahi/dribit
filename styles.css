@@ -217,7 +217,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .stat:hover { background: var(--surface-2); }
 .stat svg { width: 22px; height: 22px; }
 .stat.flame { color: var(--flame); }
-.stat.flame.off { color: var(--ink-3); filter: grayscale(1); }
+.stat.flame.off { color: var(--ink-3); }
+.stat.flame.off > svg { filter: grayscale(1); }
 .stat.xp { color: var(--gold-ink); }
 .stat.xp svg { color: var(--gold); }
 .goal-ring .track { stroke: var(--line); }
@@ -642,10 +643,10 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .stat-box svg { width: 28px; height: 28px; flex: none; }
 .stat-box b { font-family: var(--font-display); font-weight: 600; font-size: 22px; display: block; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat-box span { font-size: 13px; color: var(--ink-3); }
-.week svg { width: 100%; height: auto; display: block; }
-.week .bar { fill: var(--brand); }
-.week .bar.met { fill: var(--gold); }
-.week .bar.zero { fill: var(--surface-2); }
+.week > svg { width: 100%; height: auto; display: block; }
+.week .wbar { fill: var(--brand); }
+.week .wbar.met { fill: var(--gold); }
+.week .wbar.zero { fill: var(--surface-2); }
 .week .goal-line { stroke: var(--ink-3); stroke-dasharray: 4 4; }
 .week .lbl { fill: var(--ink-3); font-size: 12px; font-family: var(--font-body); }
 .week .val { fill: var(--ink-2); font-size: 11px; font-family: var(--font-body); font-weight: 700; }
@@ -684,7 +685,7 @@ canvas.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 30; 
 a.btn { text-align: center; text-decoration: none; }
 
 /* ---------- v0.5: home cards ---------- */
-.screen > .resume-card, .screen > .repair-card, .screen > .install-card, .screen > .reminder-card, .screen > .discharge-card, .screen > .pilot-bar { margin-top: 16px; }
+.screen > .resume-card, .screen > .repair-card, .screen > .install-card, .screen > .reminder-card, .screen > .pilot-bar { margin-top: 16px; }
 .resume-card {
   width: 100%; border: 0; cursor: pointer; text-align: right;
   display: flex; align-items: center; gap: 14px;
@@ -710,16 +711,8 @@ a.btn { text-align: center; text-decoration: none; }
 .repair-card { border-color: var(--flame); background: linear-gradient(160deg, var(--gold-soft), var(--surface) 70%); }
 .repair-card .rc-ic { background: var(--flame); color: #fff; animation: pulse-ic 1.6s ease-in-out infinite; }
 @keyframes pulse-ic { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-.install-card .row, .reminder-card .row, .transfer-card .row, .transfer-box .row, .discharge-card .row, .discharge-row .row { display: flex; gap: 10px; }
-.install-card .row > *, .reminder-card .row > *, .transfer-card .row > *, .transfer-box .row > *, .discharge-card .row > *, .discharge-row .row > * { flex: 1; }
-.discharge-card .rc-ic { background: var(--q-blue-soft); color: var(--q-blue); }
-.discharge-row .ok-line { display: flex; align-items: center; gap: 6px; color: var(--ok-ink); font-weight: 700; }
-.discharge-row .ok-line svg { width: 18px; height: 18px; }
-.seg.years { grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); }
-.seg.months { grid-template-columns: repeat(4, 1fr); }
-.seg.months button { padding-inline: 2px; font-size: 14px; }
-.seg button:disabled { color: var(--ink-3); background: var(--surface-2); border-color: transparent; cursor: default; }
-.nudge .link { color: inherit; }
+.install-card .row, .reminder-card .row, .transfer-card .row, .transfer-box .row { display: flex; gap: 10px; }
+.install-card .row > *, .reminder-card .row > *, .transfer-card .row > *, .transfer-box .row > * { flex: 1; }
 .transfer-box { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--brand-soft); }
 .transfer-box p { font-size: 15px; line-height: 1.45; }
 .card.opener { background: var(--brand-soft); border-color: transparent; gap: 8px; }
@@ -767,7 +760,8 @@ a.btn { text-align: center; text-decoration: none; }
 .stepper.small button { width: 40px; height: 40px; font-size: 22px; }
 .stepper.small b { font-size: 26px; }
 .calc .chips { justify-content: center; }
-.calc .chip-btn { font-size: 14px; padding: 7px 12px; }
+.calc .chip-btn { font-size: 14px; padding: 7px 14px; text-align: center; }
+.calc .chip-btn small { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-3); }
 .calc .chip-btn[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
 details.calc-more { border: 2px solid var(--line); border-radius: var(--r-md); padding: 10px 14px; }
 details.calc-more summary { cursor: pointer; font-weight: 700; color: var(--ink-2); }
@@ -880,16 +874,18 @@ button.slot { cursor: pointer; }
 }
 .toast {
   position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 64px); z-index: 35;
-  display: flex; align-items: center; gap: 8px; direction: rtl; white-space: nowrap; pointer-events: none;
-  padding: 10px 18px; border-radius: 999px; background: var(--ink); color: var(--bg);
+  display: block; direction: rtl; text-align: center; white-space: normal; pointer-events: none;
+  width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box;
+  padding: 10px 18px; border-radius: 22px; background: var(--ink); color: var(--bg);
   font-size: 16px; box-shadow: var(--shadow);
   transform: translateX(-50%);
   animation: toast-in .4s cubic-bezier(.2, 1.5, .4, 1);
   transition: opacity .35s, transform .35s;
 }
-.toast svg { width: 22px; height: 22px; flex: none; }
-.toast b { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
-.toast span { opacity: .85; font-weight: 600; }
+.toast svg { width: 22px; height: 22px; display: inline-block; vertical-align: middle; margin-inline-end: 8px; }
+.toast b { font-family: var(--font-display); font-weight: 600; font-size: 18px; vertical-align: middle; white-space: nowrap; }
+.toast span { opacity: .85; font-weight: 600; vertical-align: middle; }
+.toast b + span { margin-inline-start: 2px; }
 .toast.combo { background: linear-gradient(90deg, var(--flame), var(--gold)); color: #2A1200; }
 .toast.info { background: var(--brand); color: var(--on-brand); }
 .toast.out { opacity: 0; transform: translate(-50%, -14px); }
@@ -953,4 +949,35 @@ button.slot { cursor: pointer; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Days off for the streak (0.9) ---------- */
+.stat.flame .off-badge {
+  display: inline-flex; align-items: center; gap: 2px; margin-inline-start: 2px; padding: 1px 6px; border-radius: 999px;
+  background: var(--q-blue-soft); color: var(--q-blue-ink); font: 700 12px var(--font-body); font-style: normal;
+}
+.stat.flame .off-badge svg { width: 12px; height: 12px; }
+.week .wbar.off { fill: var(--q-blue-soft); stroke: var(--q-blue); stroke-width: 1.5; }
+.week .off-ic { color: var(--q-blue); fill: var(--q-blue); }
+.gift-banner {
+  display: flex; gap: 8px; align-items: flex-start; margin: 12px 0; padding: 10px 12px; border-radius: var(--r-md);
+  background: var(--q-blue-soft); color: var(--q-blue-ink); font-size: 15px; line-height: 1.45; text-align: start;
+}
+.gift-banner svg { width: 22px; height: 22px; flex: none; color: var(--q-blue); }
+.chain { font-weight: 700; color: var(--brand); margin: 4px 0 8px; }
+.rules li.gift b, .rules li.gift span svg { color: var(--q-blue-ink); }
+.off-line { display: flex; gap: 8px; align-items: flex-start; }
+.off-line svg { width: 20px; height: 20px; flex: none; color: var(--q-blue); margin-top: 2px; }
+.points-now { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 14px; }
+.points-now .bar { display: block; }
+.first-explainer { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; }
+.first-explainer svg { width: 18px; height: 18px; flex: none; color: var(--q-blue); margin-top: 2px; }
+.invite-note { text-align: center; margin-top: -4px; }
+/* narrow phones (320-360px): the top bar keeps the streak, the days-off badge, the points and the goal on one line */
+@media (max-width: 360px) {
+  .brandmark { font-size: 21px; }
+  .stats { gap: 0; }
+  .stat { padding: 6px 5px; gap: 3px; font-size: 16px; }
+  .stat svg { width: 20px; height: 20px; }
+  .stat.flame .off-badge { padding: 1px 4px; margin-inline-start: 1px; }
 }
