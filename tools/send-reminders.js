@@ -15,7 +15,9 @@
    even if they already got today's reminder or finished a lesson today. If that person has no reminder turned on, nothing is
    sent to anyone and the run fails with the reason.
    EVERYONE=1 (the everyone box) sends one message right now to every subscription, even people already reminded or active
-   today. MESSAGE (the message box) replaces the text of a test or everyone send; empty keeps the default.
+   today. MESSAGE (the message box) replaces the text of a test or everyone send: one line, at most 180 characters; a longer
+   text, or a text without one of the two boxes, stops the run before anything is sent. Test and everyone sends do not count
+   as the day's reminder, so the evening reminder still goes out.
    The log never contains endpoints, ids or keys. */
 'use strict';
 const fs = require('fs');
@@ -39,9 +41,11 @@ const DRY = flag('DRY_RUN');
 const FORCE = flag('FORCE');
 const ONLY_LATEST = flag('ONLY_LATEST');
 const EVERYONE = flag('EVERYONE') && !ONLY_LATEST;
-// the text of a test or everyone send: the message box of a manual run, one line, at most 180 characters
-const CUSTOM_MESSAGE = (process.env.MESSAGE || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
-const NOW_MESSAGE = CUSTOM_MESSAGE || 'השיעור של היום מחכה לך. כמה דקות וזה מאחוריך.';
+// the text of a test or everyone send: the message box of a manual run, one line, at most MESSAGE_MAX characters
+const MESSAGE_MAX = 180;
+const CUSTOM_MESSAGE = (process.env.MESSAGE || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+// the test goes to someone who just used the app; everyone includes people who already did today's lesson
+const NOW_MESSAGE = CUSTOM_MESSAGE || (ONLY_LATEST ? 'השיעור של היום מחכה לך. כמה דקות וזה מאחוריך.' : 'יש לך כמה דקות? השיעור הבא בדריבית מחכה לך.');
 const API_KEY = (process.env.POSTHOG_API_KEY || '').trim();
 const VAPID_PRIVATE = (process.env.VAPID_PRIVATE_KEY || '').trim();
 
@@ -105,6 +109,9 @@ async function main() {
   const t = israelNow();
   console.log(`Israel time ${t.date} ${two(t.hour)}:${two(t.minute)}${DRY ? ' (dry run)' : ''}${ONLY_LATEST ? ' (test: only the person who used the app last)' : EVERYONE ? ' (everyone with reminders on, now)' : ''}`);
   if (ONLY_LATEST && flag('EVERYONE')) console.log('Both only_latest and everyone were ticked: sending only to the person who used the app last.');
+  if (CUSTOM_MESSAGE && !ONLY_LATEST && !EVERYONE) throw new Error('The message box is used only with only_latest or everyone. Nothing was sent: run again with one of them ticked.');
+  const len = Array.from(CUSTOM_MESSAGE).length;
+  if (len > MESSAGE_MAX) throw new Error(`The message is ${len} characters, and the limit is ${MESSAGE_MAX}. Nothing was sent: shorten it and run again.`);
   const inWindow = t.hour >= SEND_HOUR && t.hour < SEND_HOUR + WINDOW_HOURS;
   if (!FORCE && !ONLY_LATEST && !EVERYONE && !inWindow) {
     console.log(`Reminders go out between ${two(SEND_HOUR)}:00 and ${two(SEND_HOUR + WINDOW_HOURS - 1)}:59. Nothing to do now.`);
@@ -143,7 +150,8 @@ async function main() {
   const minutes = t.hour * 60 + t.minute;
   const ids = async (where) => new Set((await hogql(`SELECT distinct_id FROM events WHERE ${where} AND timestamp > now() - INTERVAL ${minutes} MINUTE LIMIT 10000`)).map((r) => r[0]));
   const active = await ids("event IN ('lesson_completed', 'practice_completed', 'repair_completed')");
-  const reminded = await ids("event = 'reminder_sent'");
+  // only the daily reminder counts (it has message, the weekday text); test and everyone sends do not
+  const reminded = await ids("event = 'reminder_sent' AND properties.message IS NOT NULL");
   const targets = all.filter((s) => !active.has(s.uid) && !reminded.has(s.uid));
   const counts = { subscriptions: all.length, skipped_active: all.filter((s) => active.has(s.uid)).length, skipped_reminded: 0, sent: 0, gone: 0, failed: 0 };
   counts.skipped_reminded = all.length - counts.skipped_active - targets.length;
@@ -202,18 +210,21 @@ async function onlyLatest(all, t) {
   return sendNow(mine, 'test', t);
 }
 
-// a send outside the daily rules (test or everyone): NOW_MESSAGE to each subscription in the list, with its own notification tag
-// so it shows as a new notification instead of quietly replacing the evening one
+// a send outside the daily rules (test or everyone): NOW_MESSAGE to each subscription in the list. Each run has its own
+// notification tag, so it shows (and sounds) as a new notification instead of quietly replacing an earlier one; the link
+// carries kind, so a tap on it is not counted as a tap on the daily reminder. An everyone send waits up to 12 hours for a
+// phone that is off (soldiers hand phones in); a test, 1 hour.
 async function sendNow(list, kind, t) {
   const counts = { [kind === 'test' ? 'only_latest' : 'everyone']: true, subscriptions: list.length, sent: 0, gone: 0, failed: 0 };
   const events = [];
   if (DRY) {
     console.log(`Would send "${NOW_MESSAGE}" to ${list.length} subscription${list.length === 1 ? '' : 's'}.`);
   } else {
-    const payload = JSON.stringify({ title: 'דריבית', body: NOW_MESSAGE, url: './?source=push', tag: kind });
+    const payload = JSON.stringify({ title: 'דריבית', body: NOW_MESSAGE, url: './?source=push&kind=' + kind, tag: kind + '-' + Date.now() });
+    const ttl = kind === 'test' ? 3600 : 12 * 3600;
     const one = async (s) => {
       try {
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 3600, urgency: 'high' });
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: ttl, urgency: 'high' });
         counts.sent++;
         events.push({ event: 'reminder_sent', distinct_id: s.uid, properties: { [kind === 'test' ? 'test' : 'everyone']: true, custom_text: !!CUSTOM_MESSAGE, weekday: t.weekday, push_service: host(s.endpoint) } });
       } catch (e) {

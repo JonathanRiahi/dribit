@@ -609,7 +609,7 @@
     if (ignorePops > 0) {
       ignorePops--;
       // a sheet closed on home: a new version that waited for it loads now (the history step is done)
-      if (!ignorePops && pendingReload && view === 'home' && !sheetOpen) reloadForUpdate();
+      if (!ignorePops && pendingReload && !pushBusy && view === 'home' && !sheetOpen) reloadForUpdate();
       return;
     }
     var st = (e && e.state) || {};
@@ -624,18 +624,18 @@
     if (view === 'lesson' && session) leaveSession('back');
     if (view === 'done') session = null;
     view = v;
-    if (pendingReload && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
+    if (pendingReload && !pushBusy && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
     render();
-    if (v !== 'home') window.scrollTo(0, 0);
+    if (v !== 'home') window.scrollTo(0, 0); else maybeNotifAsk();
   }
 
   function setView(v) {
     view = v;
     closeSheet(true);
     if (v === 'home') { topIsSheet = false; histBack(histDepth); } else histEnter({ view: v });
-    if (pendingReload && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
+    if (pendingReload && !pushBusy && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
     render();
-    if (v !== 'home') window.scrollTo(0, 0);
+    if (v !== 'home') window.scrollTo(0, 0); else maybeNotifAsk();
   }
 
   function render() {
@@ -755,7 +755,6 @@
             (rs === 'install' ? 'איך מתקינים' : 'להפעיל') + '</button><button class="btn text" data-act="reminder-later">לא עכשיו</button></div></div>';
       } else html += installCard('home');
     }
-    html += calcCard();
     return html;
   }
   // the invite and feedback bars live on the profile, not on home (Jonathan, 18.10)
@@ -1118,6 +1117,7 @@
     track('progress_imported', { ok: true, reason: null, lessons_done: doneCount(), xp: S.xp, source: source, $set: { transferred: true } });
     pickedStatus = null; onboardStep = 0; session = null;
     setView('home');
+    if (source === 'hash') clearTimeout(askTimer); // a link with a code: the import toast is enough for this open
     toast(ICON.check + '<b>ההתקדמות עברה</b><span>' + plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '</span>', 'info', 3200);
     return r;
   }
@@ -1979,7 +1979,7 @@
       '</div>' +
       '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">ימי למידה ב-7 הימים האחרונים: ' + learned7() + ' מתוך 7. הקו המקווקו הוא היעד היומי.' +
         (weekHasOff() ? ' עמודה כחולה עם מטרייה: יום חופש לרצף, לא יום למידה.' : '') + '</p></div>' +
-      inviteBar('profile') + pilotBar('profile') +
+      inviteBar('profile') + pilotBar('profile') + calcCard() +
       '<div class="card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
@@ -2136,6 +2136,7 @@
     S.reminder = { on: true, endpoint: j.endpoint, hour: RCFG.hour, since: dayKey() };
     S.reminderNo = null;
     save();
+    markAsked('on');
     metaPut('uid', S.uid);
     track('push_subscribed', { endpoint: j.endpoint, p256dh: keys.p256dh, auth: keys.auth, hour: RCFG.hour, from: from, $set: { reminders: true } });
     flush();
@@ -2148,18 +2149,21 @@
     if (st === 'denied') { toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות הדפדפן', '', 2600); return; }
     if (st !== 'off' || pushBusy) return;
     pushBusy = true;
+    clearTimeout(askTimer);
     track('push_asked', { from: from });
     askNotify().then(function (perm) {
       if (perm !== 'granted') { track('push_denied', { from: from, permission: perm }); throw { quiet: perm }; }
       return swReady();
     }).then(subscribePush).then(function (sub) {
       pushBusy = false;
-      if (withShare && !S.share) { S.share = true; save(); track('analytics_on', { from: 'reminder' }); }
+      if (withShare && !S.share) { S.share = true; save(); track('analytics_on', { from: from === 'popup' ? 'popup' : 'reminder' }); }
       saveSubscription(sub, from);
       render();
       toast(ICON.bell + '<b>סגור.</b> תזכורת כל ערב, החל מ-' + hourLabel(), 'info', 2600);
+      reloadAfterPush();
     }).catch(function (e) {
       pushBusy = false;
+      reloadAfterPush();
       if (e && e.quiet) {
         render();
         if (e.quiet === 'denied') toast(ICON.bell + '<b>ההתראות חסומות.</b> אפשר לאפשר אותן בהגדרות', '', 2600);
@@ -2169,7 +2173,13 @@
       toast(ICON.bell + '<b>לא הצלחתי להפעיל תזכורת</b> בדפדפן הזה', '', 2600);
     });
   }
+  // a new version that arrived while the reminder was being turned on loads once the answer has been on screen a moment
+  function reloadAfterPush() {
+    if (!pendingReload) return;
+    setTimeout(function () { if (pendingReload && !pushBusy && view === 'home' && !sheetOpen) reloadForUpdate(); }, 2800);
+  }
   function disableReminder(reason) {
+    if (reason === 'user' || reason === 'analytics_off') markAsked('off'); // someone who turned it off is not asked again
     var endpoint = S.reminder && S.reminder.endpoint;
     S.reminder = null;
     save();
@@ -2190,6 +2200,49 @@
       if (sub.endpoint !== S.reminder.endpoint) saveSubscription(sub, 'renew'); else metaPut('uid', S.uid);
     }).catch(function () { /* keep the saved state */ });
   }
+  // the one-time notifications popup (Jonathan, 18.10): over home, once per device, for everyone who has finished a lesson
+  // (new people meet it when they come back home after their first lesson). The mark lives outside the saved progress,
+  // so a transfer code does not carry it: on iPhone, Safari asks to install and the installed app then asks to turn on.
+  var ASK_KEY = 'dribit.notifAsk.v1';
+  function notifAsked() { try { return !!localStorage.getItem(ASK_KEY); } catch (e) { return true; } }
+  function markAsked(why) { try { if (!localStorage.getItem(ASK_KEY)) localStorage.setItem(ASK_KEY, dayKey() + ' ' + why); } catch (e) { /* ignore */ } }
+  function notifAskState() {
+    if (!RCFG.askOnce || !S.onboarded || !S.status || !doneCount() || pushBusy || notifAsked()) return null;
+    var st = pushState();
+    return st === 'off' || st === 'install' ? st : null;
+  }
+  // a moment after home appears and after the last touch (so it does not slide up under a finger), and only if nothing
+  // else opened meanwhile
+  var askTimer = null, lastTouchAt = 0, askOpenedAt = 0;
+  function maybeNotifAsk() {
+    clearTimeout(askTimer);
+    if (!notifAskState() || view !== 'home' || sheetOpen) return;
+    askTimer = setTimeout(function tick() {
+      var quiet = Date.now() - lastTouchAt;
+      if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
+      if (view === 'home' && !sheetOpen && document.visibilityState !== 'hidden' && notifAskState()) notifAskSheet();
+    }, 700);
+  }
+  function notifAskSheet() {
+    var st = notifAskState();
+    if (!st) return;
+    try { localStorage.setItem(ASK_KEY, dayKey() + ' ' + st); } catch (e) { return; }
+    // counts as one "not now" of the home reminder card, so the same ask does not wait under the popup
+    // (turning the reminder on clears it)
+    S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() };
+    save();
+    if (root.querySelector('.reminder-card')) render();
+    track('push_popup_shown', { state: st, lessons_done: doneCount() });
+    askOpenedAt = Date.now();
+    openSheet('<div class="ask-ic">' + ICON.bell + '</div>' + (st === 'install'
+      ? '<h3>תזכורת יומית באייפון</h3><p class="lead">באייפון התראות עובדות רק מהאפליקציה שבמסך הבית. מוסיפים אותה פעם אחת, ושם מדליקים תזכורת.</p>' +
+        '<button class="btn gold" data-act="install" data-placement="popup">איך מתקינים</button>'
+      : '<h3>להדליק התראות?</h3><p class="lead">הודעה קצרה אחת בערב, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר.</p>' +
+        (S.share ? '' : '<p class="fine">התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.</p>') +
+        '<button class="btn gold" data-act="popup-reminder-on">להדליק התראות</button>') +
+      '<button class="btn text" data-act="popup-later">לא עכשיו</button><p class="fine center">אפשר לשנות בכל רגע בפרופיל.</p>');
+  }
+
   // the home card: after the first finished lesson, until it is turned on or declined twice (a week apart)
   function reminderCardState() {
     if (!doneCount() || !S.share) return null;
@@ -2477,21 +2530,21 @@
       (CALC.officialUrl ? '<a class="btn ghost" href="' + esc(CALC.officialUrl) + '" target="_blank" rel="noopener" data-act="calc-official">למחשבון הרשמי</a>' : '') +
       (ctx === 'sheet' ? '<button class="btn" data-act="close-sheet">סגירה</button>' : '') + '</div>';
   }
-  // the home card: for soldiers, after the pikadon lesson; shows the last estimate
+  // the profile card (on home until 0.9.2; moved by Jonathan, 18.10): for soldiers, after the pikadon lesson; shows the last estimate
   function calcCard() {
     if (!calcEnabled() || (S.status !== 'sadir' && S.status !== 'pre') || !isDone('2.1')) return '';
     var est = calcEstimate(S.calc && calcState());
     return '<div class="card calc-card"><div class="rc-head"><span class="rc-ic">' + ICON.coins + '</span><div><b>כמה יהיה לך בשחרור?</b><span>' +
       (est ? 'ההערכה שלך: ' + money(est.pikadon) + ' פיקדון + ' + money(est.grant) + ' מענק' : 'פיקדון ומענק לפי סוג השירות והחודשים. האפליקציה מחשבת, לא אתם.') + '</span></div></div>' +
       (est ? '<p class="fine">לפי הסכומים ל' + esc(CALC.asOf || '') + '. הערכה בלבד.</p>' : '') +
-      '<button class="btn' + (est ? ' ghost' : '') + '" data-act="calc-open" data-from="home">' + (est ? 'לעדכן' : 'לחשב') + '</button></div>';
+      '<button class="btn' + (est ? ' ghost' : '') + '" data-act="calc-open" data-from="profile">' + (est ? 'לעדכן' : 'לחשב') + '</button></div>';
   }
   function calcSheetInner() {
     return '<h3>כמה יהיה לך בשחרור?</h3><p class="lead">פיקדון ומענק משוערים לפי סוג השירות והחודשים. האפליקציה מחשבת, לא אתם.</p>' + calcWidget('sheet');
   }
   function calcSheet(from) {
     if (!calcEnabled()) return;
-    track('calculator_opened', { from: from || 'home', has_estimate: !!(S.calc && S.calc.type) });
+    track('calculator_opened', { from: from || view, has_estimate: !!(S.calc && S.calc.type) });
     openSheet(calcSheetInner(), 'tall');
   }
   // an input change redraws the widget in place (sheet or lesson screen) and, 2.5 seconds after the last change, records one calculator_used
@@ -2512,7 +2565,7 @@
     calcCtx = document.querySelector('#sheet .calc') ? 'sheet' : 'lesson';
     sfx.tap();
     calcRefresh();
-    // the home card under the sheet shows the new estimate when the sheet closes
+    // the profile card under the sheet shows the new estimate when the sheet closes
     var card = root && root.querySelector('.calc-card');
     if (card) card.outerHTML = calcCard();
     clearTimeout(calcTimer);
@@ -2544,12 +2597,14 @@
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (!had) { had = true; return; }
       // a new version is ready: reload now on the home screen, otherwise at the next screen change
-      if (view === 'home' && !sheetOpen) reloadForUpdate(); else pendingReload = true;
+      if (view === 'home' && !sheetOpen && !pushBusy) reloadForUpdate(); else pendingReload = true;
     });
   }
 
   // ---------- Events ----------
   function onClick(e) {
+    // the notifications popup ignores taps in its first moment (a tap meant for home that landed as it slid up)
+    if (Date.now() - askOpenedAt < 450 && e.target.closest('#sheet') && document.querySelector('#sheet .ask-ic')) return;
     if (e.target.closest('a[target="_blank"]')) markStepOut(); // a link out (the official calculator, WhatsApp)
     var el = e.target.closest('[data-act]');
     if (!el) return;
@@ -2562,7 +2617,7 @@
       case 'legal': legalSheet(); break;
       case 'about': aboutSheet(el.getAttribute('data-from')); break;
       case 'invite': invite(el.getAttribute('data-from') || 'home', id); break;
-      case 'calc-open': calcSheet(el.getAttribute('data-from') || 'home'); break;
+      case 'calc-open': calcSheet(el.getAttribute('data-from') || view); break;
       case 'calc-type': calcSet(function (c) {
         c.type = el.getAttribute('data-v');
         if (!c.trainingEdited) c.training = calcTrainingDefault(c.type);
@@ -2666,7 +2721,7 @@
       case 'onboard-back': if (HIST && histDepth > 0) history.back(); else { onboardStep = Math.max(0, onboardStep - 1); render(); } break;
       case 'sound': S.sound = !S.sound; save(); render(); if (S.sound) sfx.right(0); break;
       case 'share':
-        if (S.share) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); track('analytics_off', {}); flush(); }
+        if (S.share) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); else markAsked('off'); track('analytics_off', {}); flush(); }
         S.share = !S.share; save(); render();
         break;
       case 'install': installFlow(el.getAttribute('data-placement') || (view === 'profile' ? 'profile' : 'home')); break;
@@ -2716,6 +2771,8 @@
         break;
       }
       case 'reminder-on': enableReminder(el.getAttribute('data-from') || 'home'); break;
+      case 'popup-reminder-on': closeSheet(); enableReminder('popup', true); break;
+      case 'popup-later': closeSheet(); track('push_declined', { count: S.reminderNo ? S.reminderNo.count : 1, from: 'popup' }); render(); break;
       case 'reminder-later':
         S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() };
         save(); track('push_declined', { count: S.reminderNo.count }); render();
@@ -2866,7 +2923,7 @@
     }
     else if (view === 'lesson' && session) clockStart();
     else if (view === 'home' && !sheetOpen) {
-      if (pendingReload) { reloadForUpdate(); return; } // a new version arrived while a sheet was open
+      if (pendingReload && !pushBusy) { reloadForUpdate(); return; } // a new version arrived while a sheet was open
       render(); // a new day may have started
     }
   }
@@ -2916,6 +2973,7 @@
     document.addEventListener('input', onInput);
     document.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('pointerdown', function () { lastTouchAt = Date.now(); }, { capture: true, passive: true });
     // no pinch zoom (Jonathan, 18.10): iPhone ignores user-scalable=no in the viewport, so the gesture is stopped here
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) {
       document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false });
@@ -2967,6 +3025,7 @@
       }
     }
     if (showIntro && view === 'home' && !sheetOpen) daysOffIntro();
+    else if (!hashCode && OPEN_SOURCE !== 'push') maybeNotifAsk();
     registerSW();
     syncPush();
     flush();

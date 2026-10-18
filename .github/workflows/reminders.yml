@@ -27,7 +27,7 @@ on:
         type: boolean
         default: false
       message:
-        description: 'Text for a test or everyone send (empty: the default reminder text)'
+        description: 'Text for a test or everyone send: one line, up to 180 characters (empty: the default text)'
         type: string
         required: false
         default: ''

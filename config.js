@@ -2,7 +2,7 @@
 window.DRIBIT_CONFIG = {
   appName: 'דריבית',
   appNameEn: 'Dribit',
-  version: '0.9.2',
+  version: '0.9.3',
   tagline: 'כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.',
 
   // גרסת ניסיון: פס "ספרו לנו מה לשפר" בפרופיל, במקום כרטיס המשוב (מגרסה 0.9.1 כבר לא בבית)
@@ -112,6 +112,9 @@ window.DRIBIT_CONFIG = {
   reminders: {
     enabled: true,
     hour: 18,  // שעון ישראל. אם משנים, משנים גם את ה-cron בקובץ ה-workflow
+    // חלון חד פעמי מעל מסך הבית שמבקש להדליק התראות (יהונתן, 18.10): פעם אחת בכל מכשיר, למי שסיים שיעור אחד לפחות.
+    // באייפון מחוץ לאפליקציה המותקנת הוא מסביר איך מתקינים. false = בלי החלון (הכרטיס במסך הבית וההגדרה בפרופיל נשארים).
+    askOnce: true,
     vapidPublicKey: 'BMwrT7BZQpvx3UGBsw5khdO5ZkwERNxRXz1slfXdwAWv0tMwhybKF6r25OJ3Ca_xqDKUoHllMRY82gacM79Nr6g'
   },
 
