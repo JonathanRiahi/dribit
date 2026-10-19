@@ -13,6 +13,7 @@
   var HEB_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
   var RESUME_DAYS = 14;
   var AWAY_HOME_MS = 15 * 1000;  // back after longer than this in the background, and the app starts on home again (Jonathan, 18.10)
+  var OPEN_AWAY_MS = 10 * 60 * 1000;  // back after this long counts as a new open for the install and notifications popups (19.10)
   var AWAY_KEEP_MS = 10 * 60 * 1000;  // ...but a trip out and back (a sheet, a practice run, a link or share the app opened) keeps its screen this long
   // content v5 reordered unit 5: old lesson id -> new lesson id
   var LESSON_MOVES_V5 = { '5.1': '5.3', '5.2': '5.4', '5.3': '5.1', '5.4': '5.5' };
@@ -632,7 +633,7 @@
     view = v;
     if (pendingReload && !pushBusy && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
     render();
-    if (v !== 'home') window.scrollTo(0, 0); else maybeNotifAsk();
+    if (v !== 'home') window.scrollTo(0, 0); else maybeAsk();
   }
 
   function setView(v) {
@@ -641,7 +642,7 @@
     if (v === 'home') { topIsSheet = false; histBack(histDepth); } else histEnter({ view: v });
     if (pendingReload && !pushBusy && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
     render();
-    if (v !== 'home') window.scrollTo(0, 0); else maybeNotifAsk();
+    if (v !== 'home') window.scrollTo(0, 0); else maybeAsk();
   }
 
   function render() {
@@ -1021,7 +1022,7 @@
   }
 
   function hasProgress() { return S.xp > 0 || !!S.inProgress || doneCount() > 0; }
-  function installSheet() {
+  function installBody() {
     var name = esc(CFG.appName);
     var steps = IS_IOS
       ? ['פותחים את הקישור בספארי, לא בתוך וואטסאפ, אינסטגרם או טיקטוק. אם הקישור נפתח בתוך וואטסאפ, לוחצים על סמל ספארי בפינה למטה.',
@@ -1042,10 +1043,13 @@
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="sheet">להעתיק קוד</button>' +
         (navigator.share ? '<button class="btn ghost" data-act="export" data-method="share" data-placement="sheet">לשלוח לעצמי</button>' : '') + '</div></div>'
       : '';
-    openSheet('<h3>התקנה ב' + (IS_IOS ? 'אייפון' : 'אנדרואיד') + '</h3>' + warn +
+    return warn +
       '<ol class="install-steps">' + steps.map(function (s, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + s + '</span></li>'; }).join('') + '</ol>' + code +
       '<p class="fine">' + (IS_IOS ? 'אחרי ההתקנה פותחים את ' + name + ' רק מהאייקון. ההתקדמות נשמרת בטלפון, לא בענן.'
-        : 'מתקינים מכרום, וההתקדמות מכרום נשארת. אחרי ההתקנה פותחים את ' + name + ' מהאייקון.') + '</p>' +
+        : 'מתקינים מכרום, וההתקדמות מכרום נשארת. אחרי ההתקנה פותחים את ' + name + ' מהאייקון.') + '</p>';
+  }
+  function installSheet() {
+    openSheet('<h3>התקנה ב' + (IS_IOS ? 'אייפון' : 'אנדרואיד') + '</h3>' + installBody() +
       '<button class="btn" data-act="close-sheet">הבנתי</button>', 'tall');
   }
 
@@ -1123,7 +1127,7 @@
     track('progress_imported', { ok: true, reason: null, lessons_done: doneCount(), xp: S.xp, source: source, $set: { transferred: true } });
     pickedStatus = null; onboardStep = 0; session = null;
     setView('home');
-    if (source === 'hash') clearTimeout(askTimer); // a link with a code: the import toast is enough for this open
+    if (source === 'hash') { clearTimeout(askTimer); openAsked = true; } // a link with a code: the import toast is enough for this open
     toast(ICON.check + '<b>ההתקדמות עברה</b><span>' + plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '</span>', 'info', 3200);
     return r;
   }
@@ -2143,7 +2147,7 @@
     S.reminder = { on: true, endpoint: j.endpoint, hour: RCFG.hour, since: dayKey() };
     S.reminderNo = null;
     save();
-    markAsked('on');
+    notifNo(null);
     metaPut('uid', S.uid);
     track('push_subscribed', { endpoint: j.endpoint, p256dh: keys.p256dh, auth: keys.auth, hour: RCFG.hour, from: from, $set: { reminders: true } });
     flush();
@@ -2186,7 +2190,7 @@
     setTimeout(function () { if (pendingReload && !pushBusy && view === 'home' && !sheetOpen) reloadForUpdate(); }, 2800);
   }
   function disableReminder(reason) {
-    if (reason === 'user' || reason === 'analytics_off') markAsked('off'); // someone who turned it off is not asked again
+    if (reason === 'user' || reason === 'analytics_off') notifNo('off'); // someone who turned it off is not asked again
     var endpoint = S.reminder && S.reminder.endpoint;
     S.reminder = null;
     save();
@@ -2207,39 +2211,92 @@
       if (sub.endpoint !== S.reminder.endpoint) saveSubscription(sub, 'renew'); else metaPut('uid', S.uid);
     }).catch(function () { /* keep the saved state */ });
   }
-  // the one-time notifications popup (Jonathan, 18.10): over home, once per device, for everyone who has finished a lesson
-  // (new people meet it when they come back home after their first lesson). The mark lives outside the saved progress,
-  // so a transfer code does not carry it: on iPhone, Safari asks to install and the installed app then asks to turn on.
-  var ASK_KEY = 'dribit.notifAsk.v1';
-  function notifAsked() { try { return !!localStorage.getItem(ASK_KEY); } catch (e) { return true; } }
-  function markAsked(why) { try { if (!localStorage.getItem(ASK_KEY)) localStorage.setItem(ASK_KEY, dayKey() + ' ' + why); } catch (e) { /* ignore */ } }
-  function notifAskState() {
-    if (!RCFG.askOnce || !S.onboarded || !S.status || !doneCount() || pushBusy || notifAsked()) return null;
-    var st = pushState();
-    return st === 'off' || st === 'install' ? st : null;
+  // Two popups over home (Jonathan, 18.10 and 19.10), at most one per open (a fresh load, or a return after
+  // OPEN_AWAY_MS away), a moment after home appears and after the last touch (so it does not slide up under a finger):
+  // 1. "add to the home screen": on a phone, outside the installed app, at every open, until the app runs from the
+  //    home screen. On iPhone it also unlocks notifications, so it comes first.
+  // 2. "turn on notifications": at every open while they are off, after the first finished lesson, except for people
+  //    who turned the reminder or usage sharing off themselves, and when the browser blocks notifications.
+  var NOTIF_NO_KEY = 'dribit.notifNo.v1', ASKS_KEY = 'dribit.asks.v1';
+  function notifRefused() { try { return !!localStorage.getItem(NOTIF_NO_KEY); } catch (e) { return true; } }
+  function notifNo(why) { try { if (why) localStorage.setItem(NOTIF_NO_KEY, dayKey() + ' ' + why); else localStorage.removeItem(NOTIF_NO_KEY); } catch (e) { /* ignore */ } }
+  function notifNoWhy() { try { return (localStorage.getItem(NOTIF_NO_KEY) || '').split(' ')[1] || ''; } catch (e) { return ''; } }
+  function askCount(kind) {
+    var c = {};
+    try { c = JSON.parse(localStorage.getItem(ASKS_KEY) || '{}') || {}; } catch (e) { c = {}; }
+    c[kind] = (+c[kind] || 0) + 1;
+    try { localStorage.setItem(ASKS_KEY, JSON.stringify(c)); } catch (e) { /* ignore */ }
+    return c[kind];
   }
-  // a moment after home appears and after the last touch (so it does not slide up under a finger), and only if nothing
-  // else opened meanwhile
+  var openAsked = false; // a popup (or another sheet that owns this open) already showed
+  function newOpen() { openAsked = false; }
+  function installAskState() {
+    if (!INSTALL.askEveryOpen || !canInstall() || !(IS_IOS || IS_ANDROID) || !S.onboarded || !S.status || pushBusy) return null;
+    if (IS_ANDROID && S.installSeen) return null; // Android shares storage with the installed app: it is on this phone
+    if (IS_IOS && S.giftPending) return null;     // a friend's gift waits for lesson 1 here (installing now would lose it)
+    return IS_IOS ? 'ios' : deferredInstall ? 'prompt' : 'steps';
+  }
+  function notifAskState() {
+    if (!RCFG.askEveryOpen || !S.onboarded || !S.status || !doneCount() || pushBusy || notifRefused()) return null;
+    var st = pushState();
+    if (st === 'off') return 'off';
+    return st === 'install' && !INSTALL.askEveryOpen ? 'install' : null; // iPhone in Safari: the install popup asks instead
+  }
   var askTimer = null, lastTouchAt = 0, askOpenedAt = 0;
-  function maybeNotifAsk() {
+  function maybeAsk() {
     clearTimeout(askTimer);
-    if (!notifAskState() || view !== 'home' || sheetOpen) return;
+    if (openAsked || view !== 'home' || sheetOpen || !(installAskState() || notifAskState())) return;
     askTimer = setTimeout(function tick() {
       var quiet = Date.now() - lastTouchAt;
       if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
-      if (view === 'home' && !sheetOpen && document.visibilityState !== 'hidden' && notifAskState()) notifAskSheet();
+      if (openAsked || view !== 'home' || sheetOpen || document.visibilityState === 'hidden') return;
+      if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
     }, 700);
+  }
+  function installAskSheet() {
+    var st = installAskState();
+    if (!st) return;
+    openAsked = true;
+    track('install_popup_shown', { variant: st, n: askCount('install'), lessons_done: doneCount() });
+    askOpenedAt = Date.now();
+    var name = esc(CFG.appName);
+    openSheet('<div class="ask-ic">' + ICON.addHome + '</div><h3>להוסיף את ' + name + ' למסך הבית</h3>' +
+      '<p class="lead">ככה ' + name + ' נפתחת מהאייקון, במסך מלא, כמו כל אפליקציה' +
+        (RCFG.enabled ? ', ושולחת תזכורת יומית ששומרת על הרצף' : '') + '.</p>' +
+      (st === 'prompt' ? '<button class="btn gold" data-act="install-popup-go" data-variant="prompt">להוסיף למסך הבית</button>'
+        : installAskBody() + '<button class="btn gold" data-act="install-popup-go" data-variant="' + st + '">מוסיפים עכשיו</button>') +
+      '<button class="btn text" data-act="install-popup-later" data-variant="' + st + '">אחר כך</button>' +
+      (IS_IOS ? '<p class="fine center">כבר במסך הבית? פותחים את ' + name + ' משם.</p>' : ''));
+  }
+  // the popup's short version of the install steps (it shows at every open, so the buttons stay in sight)
+  function installAskBody() {
+    var name = esc(CFG.appName);
+    var steps = IS_IOS
+      ? ['לוחצים על כפתור השיתוף ' + ICON.share + ' בתחתית ספארי.',
+         'בוחרים "הוספה למסך הבית" ' + ICON.addHome + ' ולוחצים "הוספה".',
+         'מעכשיו פותחים את ' + name + ' רק מהאייקון.']
+      : ['לוחצים על ' + ICON.dots + ' בפינה של כרום.',
+         'בוחרים "התקנת אפליקציה" או "הוספה למסך הבית", ומאשרים.',
+         'מעכשיו פותחים את ' + name + ' מהאייקון.'];
+    // iPhone: the home-screen app starts with its own empty storage, so progress made here travels by code
+    var code = IS_IOS && hasProgress()
+      ? '<div class="transfer-box"><p><b>ההתקדמות לא עוברת לבד.</b> מעתיקים את קוד ההעברה, ובאפליקציה שבמסך הבית מדביקים אותו ב"יש לי קוד העברה".</p>' +
+        '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="popup">להעתיק קוד</button>' +
+        (navigator.share ? '<button class="btn ghost" data-act="export" data-method="share" data-placement="popup">לשלוח לעצמי</button>' : '') + '</div></div>'
+      : '';
+    return '<ol class="install-steps">' + steps.map(function (t, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + t + '</span></li>'; }).join('') + '</ol>' + code +
+      '<p class="fine">נפתח בתוך וואטסאפ, אינסטגרם או טיקטוק? פותחים קודם את הקישור ב' + (IS_IOS ? 'ספארי' : 'כרום') + '.</p>';
   }
   function notifAskSheet() {
     var st = notifAskState();
     if (!st) return;
-    try { localStorage.setItem(ASK_KEY, dayKey() + ' ' + st); } catch (e) { return; }
+    openAsked = true;
     // counts as one "not now" of the home reminder card, so the same ask does not wait under the popup
     // (turning the reminder on clears it)
     S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() };
     save();
     if (root.querySelector('.reminder-card')) render();
-    track('push_popup_shown', { state: st, lessons_done: doneCount() });
+    track('push_popup_shown', { state: st, n: askCount('notif'), lessons_done: doneCount() });
     askOpenedAt = Date.now();
     openSheet('<div class="ask-ic">' + ICON.bell + '</div>' + (st === 'install'
       ? '<h3>תזכורת יומית באייפון</h3><p class="lead">באייפון התראות עובדות רק מהאפליקציה שבמסך הבית. מוסיפים אותה פעם אחת, ושם מדליקים תזכורת.</p>' +
@@ -2728,7 +2785,8 @@
       case 'onboard-back': if (HIST && histDepth > 0) history.back(); else { onboardStep = Math.max(0, onboardStep - 1); render(); } break;
       case 'sound': S.sound = !S.sound; save(); render(); if (S.sound) sfx.right(0); break;
       case 'share':
-        if (S.share) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); else markAsked('off'); track('analytics_off', {}); flush(); }
+        if (S.share) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); else notifNo('share_off'); track('analytics_off', {}); flush(); }
+        else if (notifNoWhy() === 'share_off') notifNo(null); // sharing back on: the popup may ask again
         S.share = !S.share; save(); render();
         break;
       case 'install': installFlow(el.getAttribute('data-placement') || (view === 'profile' ? 'profile' : 'home')); break;
@@ -2739,7 +2797,8 @@
         break;
       case 'export': {
         var code = exportCode(), method = el.getAttribute('data-method') || 'copy';
-        var exported = function (m) { track('progress_exported', { method: m, lessons_done: doneCount(), xp: S.xp, code_len: code.length }); flush(); };
+        var place = el.getAttribute('data-placement') || '';
+        var exported = function (m) { track('progress_exported', { method: m, placement: place, lessons_done: doneCount(), xp: S.xp, code_len: code.length }); flush(); };
         if (method === 'share' && navigator.share) {
           navigator.share({ title: 'קוד העברה של ' + CFG.appName, text: code }).then(function () { exported('share'); }, function () { /* cancelled */ });
           break;
@@ -2780,6 +2839,12 @@
       case 'reminder-on': enableReminder(el.getAttribute('data-from') || 'home'); break;
       case 'popup-reminder-on': closeSheet(); enableReminder('popup', true); break;
       case 'popup-later': closeSheet(); track('push_declined', { count: S.reminderNo ? S.reminderNo.count : 1, from: 'popup' }); render(); break;
+      case 'install-popup-go':
+        closeSheet();
+        if (deferredInstall) installFlow('open_popup');
+        else track('install_clicked', { method: IS_IOS ? 'ios_steps' : 'steps', placement: 'open_popup', lessons_done: doneCount() });
+        break;
+      case 'install-popup-later': closeSheet(); track('install_popup_later', { variant: el.getAttribute('data-variant') || '' }); break;
       case 'reminder-later':
         S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() };
         save(); track('push_declined', { count: S.reminderNo.count }); render();
@@ -2913,6 +2978,7 @@
   function onShown() {
     var away = hiddenAt ? Date.now() - hiddenAt : 0, byApp = outByApp;
     hiddenAt = 0; outByApp = false;
+    if (away >= OPEN_AWAY_MS) newOpen();
     checkForUpdate();
     if (S.onboarded) checkStreakBreak();
     // back after a while: start on home, like a fresh open (an iPhone app kept in memory never reloads by itself).
@@ -2932,6 +2998,7 @@
     else if (view === 'home' && !sheetOpen) {
       if (pendingReload && !pushBusy) { reloadForUpdate(); return; } // a new version arrived while a sheet was open
       render(); // a new day may have started
+      maybeAsk();
     }
   }
   function onVisibility() {
@@ -3031,8 +3098,8 @@
         if (!imp.ok) toast(ICON.x + '<b>הקוד לא תקין</b>', '', 2600);
       }
     }
-    if (showIntro && view === 'home' && !sheetOpen) daysOffIntro();
-    else if (!hashCode && OPEN_SOURCE !== 'push') maybeNotifAsk();
+    if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
+    else if (!hashCode && OPEN_SOURCE !== 'push') maybeAsk();
     registerSW();
     syncPush();
     flush();
