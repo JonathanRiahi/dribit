@@ -2,7 +2,7 @@
 window.DRIBIT_CONFIG = {
   appName: 'דריבית',
   appNameEn: 'Dribit',
-  version: '0.9.5',
+  version: '0.9.6',
   tagline: 'כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.',
 
   // גרסת ניסיון: פס "ספרו לנו מה לשפר" בפרופיל, במקום כרטיס המשוב (מגרסה 0.9.1 כבר לא בבית)
@@ -73,8 +73,8 @@ window.DRIBIT_CONFIG = {
   // מה מבטיחים במסך הפתיחה אחרי בחירת סטטוס. בלי סכומים, בלי שמות של חברות ובלי שותף.
   openers: {
     sadir: {
-      headline: 'מה עושים עם הכסף של הצבא לפני שהוא נעלם',
-      promise: 'מתחילים מהפיקדון האישי ומענק השחרור: כמה נצבר על כל חודש שירות, מה מותר לעשות עם הכסף, ואיך מחליטים עכשיו, כשיש עוד זמן.',
+      headline: 'הכסף שנצבר לך בצבא, כבר עכשיו',
+      promise: 'על כל חודש שירות מגיע לך כסף: הפיקדון האישי, שנצבר על שמך כבר עכשיו, ומענק השחרור. מה מותר לעשות איתו, ואיך מחליטים עכשיו, כשיש עוד זמן.',
       cta: 'להתחיל מהכסף של הצבא'
     },
     pre: {
@@ -142,14 +142,14 @@ window.DRIBIT_CONFIG = {
   // (כשיהיו סכומים מאומתים: { label: 'חייל/ת בודד/ה', pikadon: 0, grant: 0 } תוספת לחודש).
   calculator: {
     enabled: true,
-    // amounts checked against the Ministry of Defense pages on 18.10.2026 (grant: hachvana.mod.gov.il/GrantAndDeposit/Pages/Grant.aspx,
+    // amounts checked against the Ministry of Defense pages on 19.10.2026 (updated there to September 2026) (grant: hachvana.mod.gov.il/GrantAndDeposit/Pages/Grant.aspx,
     // deposit: .../DepositUpTo5/Pages/default.aspx). They are CPI linked and change a little each month: check again before relying on them.
-    asOf: 'אוגוסט 2026', checked: '18.10.2026',
+    asOf: 'ספטמבר 2026', checked: '19.10.2026',
     officialUrl: 'https://www.hachvana.mod.gov.il/GrantAndDeposit/DepositUpTo5/Pages/CalculatorOfDeposit.aspx',
     tiers: [
-      { id: 'combat', label: 'לוחם/ת', note: '', pikadon: 1000.08, grant: 691.53 },
-      { id: 'support', label: 'תומך/ת לחימה', note: '', pikadon: 833.40, grant: 575.86 },
-      { id: 'other', label: 'שירות אחר', note: 'גם שירות לאומי-אזרחי מלא', pikadon: 666.72, grant: 460.19 }
+      { id: 'combat', label: 'לוחם/ת', note: '', pikadon: 995.35, grant: 688.26 },
+      { id: 'support', label: 'תומך/ת לחימה', note: '', pikadon: 829.46, grant: 573.14 },
+      { id: 'other', label: 'שירות אחר', note: 'גם שירות לאומי-אזרחי מלא', pikadon: 663.57, grant: 458.02 }
     ],
     // training months usually count one tier lower: 4 months for combat soldiers (as support), 2 for support (as other)
     trainingTier: { combat: 'support', support: 'other', other: 'other' },

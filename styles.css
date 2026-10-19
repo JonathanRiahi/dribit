@@ -541,6 +541,13 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .notes-title { display: flex; flex-direction: column; line-height: 1.25; }
 .notes-title b { font-family: var(--font-display); font-weight: 600; font-size: 20px; }
 .source { font-size: 13px; color: var(--ink-3); }
+/* the official page behind a fact: under the explanation, and listed in the notes */
+.q-src, .verdict .q-src { margin-top: 6px; }
+.q-src a { display: inline-flex; align-items: flex-start; gap: 6px; padding-block: 6px; font-size: 14px; font-weight: 600; line-height: 1.4;
+  color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.q-src svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.src-list { display: flex; flex-direction: column; gap: 2px; }
+.src-list .q-src { margin-top: 0; }
 
 /* ---------- Lesson complete ---------- */
 .done-wrap { min-height: 100%; display: flex; flex-direction: column; padding-block: 24px calc(20px + env(safe-area-inset-bottom, 0px)); gap: 16px; }

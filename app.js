@@ -48,7 +48,8 @@
     bell: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1.5 1.5 0 011.5 1.5v.9A6 6 0 0118 10v4.2l1.7 2.3a1 1 0 01-.8 1.6H5.1a1 1 0 01-.8-1.6L6 14.2V10a6 6 0 014.5-5.6v-.9A1.5 1.5 0 0112 2zm-2.5 17.5h5a2.5 2.5 0 01-5 0z"/></svg>',
     dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
     // a beach umbrella: a day off for the streak
-    dayoff: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5A9.5 9.5 0 002.5 12H11v7.25a1.25 1.25 0 01-2.5 0v-.75h-2v.75a3.25 3.25 0 006.5 0V12h8.5A9.5 9.5 0 0012 2.5z"/></svg>'
+    dayoff: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5A9.5 9.5 0 002.5 12H11v7.25a1.25 1.25 0 01-2.5 0v-.75h-2v.75a3.25 3.25 0 006.5 0V12h8.5A9.5 9.5 0 0012 2.5z"/></svg>',
+    ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>'
   };
 
   // ---------- Utils ----------
@@ -322,7 +323,19 @@
   function daysOffText(n) { return n === 1 ? 'יום חופש אחד לרצף' : fmt(n) + ' ימי חופש לרצף'; }
 
   // ---------- Content ----------
-  var DATA = null, UNITS = [], LESSONS = [], BY_ID = {}, QUESTIONS = {};
+  var DATA = null, UNITS = [], LESSONS = [], BY_ID = {}, QUESTIONS = {}, SOURCES = Object.create(null);
+  // official pages behind fact questions (lessons.json "sources", a question's "src"): https only, on these sites only
+  var SOURCE_HOST = /^https:\/\/([a-z0-9-]+\.)*(kolzchut\.org\.il|gov\.il|boi\.org\.il|tase\.co\.il)\//i;
+  function cleanSources(raw) {
+    var out = Object.create(null);
+    if (!raw || typeof raw !== 'object') return out;
+    Object.keys(raw).forEach(function (k) {
+      var x = raw[k];
+      if (k !== '__proto__' && x && typeof x.url === 'string' && SOURCE_HOST.test(x.url) && typeof x.site === 'string' && typeof x.title === 'string') out[k] = x;
+    });
+    return out;
+  }
+  function srcOf(q) { return q && typeof q.src === 'string' && Object.prototype.hasOwnProperty.call(SOURCES, q.src) ? SOURCES[q.src] : null; }
   // audience: which statuses see a lesson, screen or question (missing = everyone)
   function visible(x) { return !x.audience || !S.status || x.audience.indexOf(S.status) >= 0; }
   // the calculator screen exists only while the calculator is switched on in config
@@ -348,7 +361,7 @@
     return null;
   }
   function indexContent() {
-    UNITS = []; LESSONS = []; BY_ID = {}; QUESTIONS = {};
+    UNITS = []; LESSONS = []; BY_ID = {}; QUESTIONS = {}; SOURCES = cleanSources(DATA.sources);
     orderedUnits(S.startUnit).forEach(function (u) {
       u.lessons.forEach(function (l) {
         l.unit = u;
@@ -392,6 +405,11 @@
       var ipl = BY_ID[S.inProgress.lessonId], cur = currentLesson();
       if (ipl && cur && !isDone(ipl.id) && shown(ipl) && ipl.order > cur.order) S.inProgress = null;
     }
+    // v11 (19.10, Shahar's feedback): question Q10 in 2.1 turned from true/false into four options, so a saved answer
+    // to it no longer fits. A saved session that holds it (2.1 itself, or a later lesson that picked it as its review
+    // question) starts over. 2.1 also gained a screen for soldiers, so its saved screen numbers point elsewhere.
+    if ((S.contentV || 0) < 11 && v >= 11 && S.inProgress && (S.inProgress.lessonId === '2.1' ||
+        (S.inProgress.steps || []).some(function (x) { return x && x.k === 'q' && x.id === 'Q10'; }))) S.inProgress = null;
     S.contentV = v;
     save();
   }
@@ -1350,7 +1368,7 @@
       if (!q) { ok = false; return; }
       var st = buildQuestionStep(q, { review: x.review, retry: x.retry });
       st.checked = x.checked; st.sel = x.sel; st.right = x.right; st.gain = x.gain; st.praise = x.praise;
-      if (x.order) st.order = x.order;
+      if (x.order) { if (!st.order || x.order.length !== st.order.length) { ok = false; return; } st.order = x.order; } // a question whose options changed starts over
       if (x.o) st.o = x.o;
       if (x.m && st.m) { st.m.a = x.m.a; st.m.b = x.m.b; st.m.matched = x.m.matched; st.m.mistakes = x.m.mistakes; st.m.wrong = x.m.wrong || []; }
       steps.push(st);
@@ -1496,6 +1514,15 @@
     return q.options[q.correctIndex];
   }
 
+  // "מקור: כל זכות, פיקדון אישי..." under an explanation: one tap to check the fact on an official page (Shahar, 19.10)
+  // whole: the link stands for several entries of one page (the notes list), so it carries the page's own name when it has one
+  function srcLink(q, placement, lessonId, whole) {
+    var x = srcOf(q);
+    if (!x) return '';
+    var title = whole && typeof x.page === 'string' && x.page ? x.page : x.title;
+    return '<p class="q-src"><a href="' + esc(x.url) + '" target="_blank" rel="noopener" data-act="src" data-src="' + esc(q.src) + '" data-q="' + esc(q.id) +
+      '" data-l="' + esc(lessonId || q.lessonId || '') + '" data-placement="' + placement + '">' + ICON.ext + '<span>מקור: ' + esc(x.site) + ', ' + esc(title) + '</span></a></p>';
+  }
   function questionFoot(st) {
     var q = st.q;
     if (!st.checked) {
@@ -1514,7 +1541,7 @@
     return '<div class="player-foot gutter ' + (right ? 'ok' : 'bad') + '">' +
       '<div class="verdict"><div class="badge">' + (right ? ICON.check : ICON.x) + '</div><div>' +
       '<h3>' + title + (st.gain ? ' <span class="gain">' + plus(st.gain) + '</span>' : '') + '</h3>' +
-      fix + '<p>' + esc(q.explanation) + '</p></div></div>' +
+      fix + '<p>' + esc(q.explanation) + '</p>' + srcLink(q, 'answer') + '</div></div>' +
       '<button class="btn ' + (right ? 'ok' : 'bad') + '" data-act="next">המשך</button></div>';
   }
 
@@ -1872,10 +1899,25 @@
       '<div class="notes-title"><span class="eyebrow">יחידה ' + l.unit.n + ' · שיעור ' + l.n + '</span><b>' + esc(l.title) + '</b></div></div>' +
       '<div class="stage gutter">' + screens +
       '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-      missionCard(l, true) +
+      missionCard(l, true) + notesSources(l) +
       (l.source ? '<p class="source">מקורות: ' + esc(l.source) + '</p>' : '') +
       legalLine(false) +
       '<button class="btn" data-act="restart" data-id="' + esc(l.id) + '">לתרגל את השיעור שוב</button></div></div>';
+  }
+
+  // the official pages behind this lesson's questions, each once
+  // the lesson's official pages, each page once (several glossary entries of one page share a link)
+  function notesSources(l) {
+    var pages = Object.create(null), order = [];
+    l.vQuestions.forEach(function (q) {
+      var x = srcOf(q);
+      if (!x) return;
+      var g = pages[x.url];
+      if (!g) { g = pages[x.url] = { q: q, keys: [] }; order.push(x.url); }
+      if (g.keys.indexOf(q.src) < 0) g.keys.push(q.src);
+    });
+    var links = order.map(function (u) { var g = pages[u]; return srcLink(g.q, 'notes', l.id, g.keys.length > 1); });
+    return links.length ? '<div class="src-list"><h2 class="sec">לבדוק במקור</h2>' + links.join('') + '</div>' : '';
   }
 
   function peekSheet() {
@@ -2678,6 +2720,14 @@
       case 'preview': sfx.tap(); previewSheet(id); break;
       case 'unit': unitSheet(id); break;
       case 'explain': explainSheet(el.getAttribute('data-what')); break;
+      case 'src': {
+        var sx = srcOf({ src: el.getAttribute('data-src') });
+        track('source_opened', { lesson_id: el.getAttribute('data-l') || '', question_id: el.getAttribute('data-q') || '', src: el.getAttribute('data-src') || '',
+          host: sx ? sx.url.split('/')[2] : '', placement: el.getAttribute('data-placement') || '' });
+        flush();
+        if (view === 'lesson') setTimeout(focusPlayer, 0); // back from the page, Enter continues the lesson
+        break; // the link itself opens the page
+      }
       case 'legal': legalSheet(); break;
       case 'about': aboutSheet(el.getAttribute('data-from')); break;
       case 'invite': invite(el.getAttribute('data-from') || 'home', id); break;
@@ -2946,7 +2996,7 @@
     if (st.kind === 'q' && !st.checked && st.order && /^[1-4]$/.test(e.key) && !typing) {
       var pos = +e.key - 1;
       if (pos < st.order.length) { st.sel = st.order[pos]; render(); }
-    } else if (e.key === 'Enter' && (typing || !e.target.closest('button'))) {
+    } else if (e.key === 'Enter' && (typing || !e.target.closest('button, a'))) {
       e.preventDefault();
       if (st.kind === 'screen' || st.checked) next(); else check();
     }
