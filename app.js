@@ -385,6 +385,12 @@
     if ((S.contentV || 0) < 9 && v >= 9) {
       Object.keys(S.missions).forEach(function (id) { var m = S.missions[id]; if (isRec(m) && !m.done) m.steps = []; });
     }
+    // v10 reordered the lessons (19.10: stock and bond before index). An unfinished lesson that now sits
+    // after the next lesson in the path is dropped, so "להמשיך" never skips ahead of the path.
+    if ((S.contentV || 0) < 10 && v >= 10 && S.inProgress) {
+      var ipl = BY_ID[S.inProgress.lessonId], cur = currentLesson();
+      if (ipl && cur && !isDone(ipl.id) && shown(ipl) && ipl.order > cur.order) S.inProgress = null;
+    }
     S.contentV = v;
     save();
   }
@@ -1579,7 +1585,8 @@
     burst(target);
     if (st.gain) floatText(target, '+' + st.gain);
     if ([3, 5, 8, 12, 20].indexOf(session.combo) >= 0) {
-      setTimeout(function () { sfx.combo(session.combo); }, 220);
+      var comboNow = session.combo; // the lesson can end before the timer (a fast "next" on the last question)
+      setTimeout(function () { sfx.combo(comboNow); }, 220);
       toast(ICON.flame + '<b>' + session.combo + ' ברצף!</b><span>' + (session.combo >= 8 ? 'בלתי ניתן לעצירה' : session.combo >= 5 ? 'על הגל' : 'ממשיכים ככה') + '</span>', 'combo');
     }
   }
