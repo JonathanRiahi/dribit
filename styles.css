@@ -993,3 +993,7 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 .ask-ic { width: 64px; height: 64px; margin: 2px auto 0; border-radius: 50%; display: grid; place-items: center; background: var(--gold-soft); color: var(--flame); }
 .ask-ic svg { width: 34px; height: 34px; }
 .sheet .ask-ic ~ h3, .sheet .ask-ic ~ .lead { text-align: center; }
+/* v0.9.7: the install popup before the start, compact so both buttons fit on a small iPhone */
+.sheet.ask-welcome { gap: 12px; }
+.sheet.ask-welcome .eyebrow { color: var(--flame); text-align: center; margin-bottom: -6px; }
+.sheet.ask-welcome h3, .sheet.ask-welcome .lead { text-align: center; }

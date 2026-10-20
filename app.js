@@ -590,7 +590,10 @@
   })();
   var OPEN = RELOAD_KIND ? { source: RELOAD_KIND, ref: null, kind: null } : openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
   function reloadForUpdate() {
-    try { sessionStorage.setItem('dribit.reload', '1'); } catch (e) { /* ignore */ }
+    try {
+      sessionStorage.setItem('dribit.reload', '1');
+      if (openAsked) sessionStorage.setItem('dribit.asked', '1'); // the popup of this open already showed
+    } catch (e) { /* ignore */ }
     location.reload();
   }
 
@@ -2270,10 +2273,23 @@
     try { localStorage.setItem(ASKS_KEY, JSON.stringify(c)); } catch (e) { /* ignore */ }
     return c[kind];
   }
-  var openAsked = false; // a popup (or another sheet that owns this open) already showed
+  // a popup (or another sheet that owns this open) already showed. A reload the app makes for a new version is the
+  // same open, so it keeps the flag (otherwise someone who just saw a popup would see one again right after it).
+  var openAsked = (function () {
+    try {
+      var a = sessionStorage.getItem('dribit.asked');
+      sessionStorage.removeItem('dribit.asked');
+      return RELOAD_KIND === 'update' && a === '1';
+    } catch (e) { return false; }
+  })();
   function newOpen() { openAsked = false; }
-  function installAskState() {
-    if (!INSTALL.askEveryOpen || !canInstall() || !(IS_IOS || IS_ANDROID) || !S.onboarded || !S.status || pushBusy) return null;
+  // stage 'welcome' (0.9.7, from the 15-20.10 data): a new person on a phone browser taps "יאללה, מתחילים" and is asked
+  // first, before the status pick, while there is no progress to lose (on iPhone the home-screen app starts from zero).
+  // stage 'home' (the default): the popup at every open, over home.
+  function installAskState(stage) {
+    if (!INSTALL.askEveryOpen || !canInstall() || !(IS_IOS || IS_ANDROID) || pushBusy) return null;
+    if (stage === 'welcome') { if (!INSTALL.askBeforeStart || S.onboarded || hasProgress()) return null; }
+    else if (!S.onboarded || !S.status) return null;
     if (IS_ANDROID && S.installSeen) return null; // Android shares storage with the installed app: it is on this phone
     if (IS_IOS && S.giftPending) return null;     // a friend's gift waits for lesson 1 here (installing now would lose it)
     return IS_IOS ? 'ios' : deferredInstall ? 'prompt' : 'steps';
@@ -2295,20 +2311,32 @@
       if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
     }, 700);
   }
-  function installAskSheet() {
-    var st = installAskState();
+  function installAskSheet(stage) {
+    stage = stage === 'welcome' ? 'welcome' : 'home';
+    var st = installAskState(stage);
     if (!st) return;
     openAsked = true;
-    track('install_popup_shown', { variant: st, n: askCount('install'), lessons_done: doneCount() });
+    track('install_popup_shown', { variant: st, n: askCount('install'), lessons_done: doneCount(), stage: stage });
     askOpenedAt = Date.now();
-    var name = esc(CFG.appName);
-    openSheet('<div class="ask-ic">' + ICON.addHome + '</div><h3>להוסיף את ' + name + ' למסך הבית</h3>' +
-      '<p class="lead">ככה ' + name + ' נפתחת מהאייקון, במסך מלא, כמו כל אפליקציה' +
-        (RCFG.enabled ? ', ושולחת תזכורת יומית ששומרת על הרצף' : '') + '.</p>' +
-      (st === 'prompt' ? '<button class="btn gold" data-act="install-popup-go" data-variant="prompt">להוסיף למסך הבית</button>'
-        : installAskBody() + '<button class="btn gold" data-act="install-popup-go" data-variant="' + st + '">מוסיפים עכשיו</button>') +
-      '<button class="btn text" data-act="install-popup-later" data-variant="' + st + '">אחר כך</button>' +
-      (IS_IOS ? '<p class="fine center">כבר במסך הבית? פותחים את ' + name + ' משם.</p>' : ''));
+    var name = esc(CFG.appName), welcome = stage === 'welcome', tag = '" data-variant="' + st + '" data-stage="' + stage + '"';
+    // welcome: compact (no icon, a short iPhone line) so both buttons fit on a small iPhone without scrolling
+    openSheet((welcome ? '<div class="eyebrow">לפני שמתחילים</div>' : '<div class="ask-ic">' + ICON.addHome + '</div>') +
+      '<h3>להוסיף את ' + name + ' למסך הבית</h3>' +
+      '<p class="lead">' + (welcome && IS_IOS
+        ? 'באייפון מה שעושים בספארי לא עובר לאפליקציה שבמסך הבית, אז כדאי להוסיף עכשיו ולהתחיל ישר משם.'
+        : 'ככה ' + name + ' נפתחת מהאייקון, במסך מלא, כמו כל אפליקציה' + (RCFG.enabled ? ', ושולחת תזכורת יומית ששומרת על הרצף' : '') + '.') + '</p>' +
+      (st === 'prompt' ? '<button class="btn gold" data-act="install-popup-go' + tag + '>להוסיף למסך הבית</button>'
+        : installAskBody() + '<button class="btn gold" data-act="install-popup-go' + tag + '>מוסיפים עכשיו</button>') +
+      '<button class="btn text" data-act="install-popup-later' + tag + '>' + (welcome ? 'להמשיך בדפדפן' : 'אחר כך') + '</button>' +
+      (IS_IOS && !welcome ? '<p class="fine center">כבר במסך הבית? פותחים את ' + name + ' משם.</p>' : ''), welcome ? 'ask-welcome' : '');
+  }
+  // the status pick, the second welcome screen ("יאללה, מתחילים", or "להמשיך בדפדפן" in the install popup, which
+  // passes viaSheet: the step takes the popup's history entry, so back returns to the first screen)
+  function toStatusPick(viaSheet) {
+    onboardStep = 1;
+    if (viaSheet && topIsSheet) { closeSheet(true); topIsSheet = false; histReplace({ onboard: 1 }); }
+    else { closeSheet(); histPush({ onboard: 1 }); }
+    render(); window.scrollTo(0, 0);
   }
   // the popup's short version of the install steps (it shows at every open, so the buttons stay in sight)
   function installAskBody() {
@@ -2710,7 +2738,7 @@
   // ---------- Events ----------
   function onClick(e) {
     // the notifications popup ignores taps in its first moment (a tap meant for home that landed as it slid up)
-    if (Date.now() - askOpenedAt < 450 && e.target.closest('#sheet') && document.querySelector('#sheet .ask-ic')) return;
+    if (Date.now() - askOpenedAt < 450 && e.target.closest('#sheet') && document.querySelector('#sheet .ask-ic, #sheet .ask-welcome')) return;
     if (e.target.closest('a[target="_blank"]')) markStepOut(); // a link out (the official calculator, WhatsApp)
     var el = e.target.closest('[data-act]');
     if (!el) return;
@@ -2831,7 +2859,10 @@
         break;
       }
       case 'begin-status': if (pickedStatus) { setStatus(pickedStatus); setView('home'); } break;
-      case 'onboard-next': onboardStep = 1; histPush({ onboard: 1 }); render(); window.scrollTo(0, 0); break;
+      case 'onboard-next':
+        if (!openAsked && installAskState('welcome')) { installAskSheet('welcome'); break; }
+        toStatusPick(false);
+        break;
       case 'onboard-back': if (HIST && histDepth > 0) history.back(); else { onboardStep = Math.max(0, onboardStep - 1); render(); } break;
       case 'sound': S.sound = !S.sound; save(); render(); if (S.sound) sfx.right(0); break;
       case 'share':
@@ -2889,12 +2920,20 @@
       case 'reminder-on': enableReminder(el.getAttribute('data-from') || 'home'); break;
       case 'popup-reminder-on': closeSheet(); enableReminder('popup', true); break;
       case 'popup-later': closeSheet(); track('push_declined', { count: S.reminderNo ? S.reminderNo.count : 1, from: 'popup' }); render(); break;
-      case 'install-popup-go':
+      case 'install-popup-go': {
+        var ipPlace = el.getAttribute('data-stage') === 'welcome' ? 'welcome_popup' : 'open_popup';
         closeSheet();
-        if (deferredInstall) installFlow('open_popup');
-        else track('install_clicked', { method: IS_IOS ? 'ios_steps' : 'steps', placement: 'open_popup', lessons_done: doneCount() });
+        if (deferredInstall) installFlow(ipPlace);
+        else track('install_clicked', { method: IS_IOS ? 'ios_steps' : 'steps', placement: ipPlace, lessons_done: doneCount() });
         break;
-      case 'install-popup-later': closeSheet(); track('install_popup_later', { variant: el.getAttribute('data-variant') || '' }); break;
+      }
+      case 'install-popup-later': {
+        var ipStage = el.getAttribute('data-stage') === 'welcome' ? 'welcome' : 'home';
+        track('install_popup_later', { variant: el.getAttribute('data-variant') || '', stage: ipStage });
+        // before the start: "להמשיך בדפדפן" goes on to the status pick
+        if (ipStage === 'welcome' && !S.onboarded) { openAsked = true; toStatusPick(true); } else closeSheet(); // this open had its popup
+        break;
+      }
       case 'reminder-later':
         S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() };
         save(); track('push_declined', { count: S.reminderNo.count }); render();
