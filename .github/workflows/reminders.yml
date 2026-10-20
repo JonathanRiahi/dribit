@@ -8,10 +8,13 @@ name: Daily reminders
 
 on:
   schedule:
-    # GitHub cron is UTC and GitHub often starts scheduled runs late (by an hour or more), so the job runs every half
-    # hour from 15:00 to 19:30 UTC. The script sends between 18:00 and 21:59 Israel time (summer and winter) and at most
-    # one reminder a day per person; runs outside that window stop right away.
-    - cron: '0,30 15-19 * * *'
+    # The main trigger is NOT this schedule: a Claude scheduled task runs this workflow (workflow_dispatch, backup=true)
+    # every day at 18:04 Israel time. GitHub creates only a few scheduled runs for this repository, all late
+    # (17-19.10.2026: 4 of 30 half-hour slots; on 19.10 the only one came at 23:17, so nobody got a reminder). This cron
+    # is the fallback: every 10 minutes, off the busy :00 and :30, from 15:07 to 19:57 UTC, which covers 18:00 to 21:59
+    # Israel time in summer (UTC+3) and in winter (UTC+2). If the Claude task is turned off, reminders depend on it alone.
+    # The script sends only inside that window and at most one reminder a day per person; other runs stop right away.
+    - cron: '7,17,27,37,47,57 15-19 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -31,6 +34,10 @@ on:
         type: string
         required: false
         default: ''
+      backup:
+        description: 'The daily 18:04 trigger: keep the 18:00-21:59 window (a late run sends nothing)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -53,8 +60,9 @@ jobs:
           POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
-          # a manual run sends right away, whatever the hour (still at most once a day per person)
-          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          # a manual run sends right away, whatever the hour (still at most once a day per person); the daily backup
+          # trigger (backup=true) keeps the window, so a late one sends nothing
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.backup != true && '1' || '' }}
           ONLY_LATEST: ${{ inputs.only_latest == true && '1' || '' }}
           EVERYONE: ${{ inputs.everyone == true && '1' || '' }}
           MESSAGE: ${{ inputs.message }}

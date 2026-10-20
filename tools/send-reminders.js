@@ -4,13 +4,18 @@
    2. Skips people who finished a lesson today (Israel time) and people who already got today's reminder.
    3. Sends one short Web Push message to everyone else; the app's service worker shows it.
    4. Records reminder_sent per person, and push_unsubscribed for subscriptions the push service reports as gone.
-   GitHub starts scheduled runs late (often by an hour or more, see 17.10.2026), so the workflow runs every half hour in the
-   evening and the script sends in a window: from SEND_HOUR until WINDOW_HOURS later (18:00 to 21:59 Israel time). Each person
-   still gets at most one reminder a day, because people with reminder_sent today are skipped.
+   GitHub starts scheduled runs late and creates only a few of them (17-19.10.2026: 4 of 30 slots, all late; on 19.10 the
+   only one came at 23:17), so the main trigger is a daily workflow_dispatch at 18:04 Israel time with backup=true (a Claude
+   scheduled task), and the cron every 10 minutes is the fallback. Either way the script sends only in the window: from
+   SEND_HOUR until WINDOW_HOURS later (18:00 to 21:59 Israel time).
+   At most one reminder a day per person: reminder_sent is recorded before the pushes go out (if PostHog does not take it,
+   nothing is sent and the run fails), and the run does not end until PostHog shows it, so the next run, which the
+   workflow's concurrency group holds until this one ends, skips those people. Queries skip PostHog's result cache.
    Needs: POSTHOG_API_KEY (a PostHog personal API key with query:read) and VAPID_PRIVATE_KEY (the pair of
    reminders.vapidPublicKey in config.js). Without them the run fails once a day (the first run in the window) with the
    reason, so the red mark in Actions shows reminders are not going out. Optional: POSTHOG_PROJECT_ID, DRY_RUN=1 (count only),
-   FORCE=1 (ignore the hour), SEND_HOUR, WINDOW_HOURS, NOW=ISO time (tests), POSTHOG_API_HOST, POSTHOG_INGEST_HOST.
+   FORCE=1 (ignore the hour), SEND_HOUR, WINDOW_HOURS, NOW=ISO time (tests), POLL_MS (tests), POSTHOG_API_HOST,
+   POSTHOG_INGEST_HOST.
    ONLY_LATEST=1 is a test send (the only_latest box of a manual run): one message only to the person who used the app last,
    even if they already got today's reminder or finished a lesson today. If that person has no reminder turned on, nothing is
    sent to anyone and the run fails with the reason.
@@ -47,6 +52,10 @@ const CUSTOM_MESSAGE = (process.env.MESSAGE || '').replace(/[\u0000-\u001f\u007f
 // the test goes to someone who just used the app; everyone includes people who already did today's lesson
 const NOW_MESSAGE = CUSTOM_MESSAGE || (ONLY_LATEST ? 'השיעור של היום מחכה לך. כמה דקות וזה מאחוריך.' : 'יש לך כמה דקות? השיעור הבא בדריבית מחכה לך.');
 const API_KEY = (process.env.POSTHOG_API_KEY || '').trim();
+// this run's id on its daily reminder_sent events, to wait until PostHog shows them
+const RUN = crypto.randomUUID();
+const POLL_MS = +(process.env.POLL_MS || 10000);
+const POLL_TRIES = 24; // about 4 minutes; timeout-minutes in the workflow leaves room for it
 const VAPID_PRIVATE = (process.env.VAPID_PRIVATE_KEY || '').trim();
 
 // one message per weekday (0 = Sunday), so a week of reminders does not repeat itself
@@ -89,20 +98,34 @@ async function projectId() {
   if (!list.length) throw new Error('PostHog listed no project for this key. Add the POSTHOG_PROJECT_ID secret (PostHog > Settings > Project).');
   return String(list[0].id);
 }
+// force_blocking: always compute, never answer from PostHog's cache (a cached answer would hide the reminders that a run
+// a minute earlier recorded, and everyone would get a second one)
 async function hogql(query) {
-  const j = await api(`/api/projects/${PROJECT}/query/`, { query: { kind: 'HogQLQuery', query } });
+  const j = await api(`/api/projects/${PROJECT}/query/`, { query: { kind: 'HogQLQuery', query }, refresh: 'force_blocking' });
   return j.results || [];
 }
 
 // events are sent the way the app sends them: the public project key, distinct_id inside properties
-async function capture(list) {
-  if (!list.length || !PH_KEY) return;
+// must: true throws when PostHog does not take the events (after 3 tries), so a run that cannot record who it reminded
+// sends nothing and shows red
+async function capture(list, must) {
+  if (!list.length) return;
+  if (!PH_KEY) { if (must) throw new Error('config.js has no posthogKey, so the run cannot record who it reminded. Nothing was sent.'); return; }
   const batch = list.map((e) => ({
     uuid: crypto.randomUUID(), event: e.event, timestamp: new Date().toISOString(),
     properties: Object.assign({ distinct_id: e.distinct_id, app_version: APP_VERSION, platform: 'sender' }, e.properties)
   }));
-  const r = await fetch(`${PH_INGEST}/batch/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: PH_KEY, batch }) });
-  if (!r.ok) console.log(`PostHog did not accept the run's events (${r.status})`);
+  let why = '';
+  for (let i = 0; i < 3; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 2000 * i));
+    try {
+      const r = await fetch(`${PH_INGEST}/batch/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: PH_KEY, batch }) });
+      if (r.ok) return;
+      why = `HTTP ${r.status}`;
+    } catch (e) { why = String((e && e.message) || e).slice(0, 100); }
+  }
+  if (must) throw new Error(`PostHog did not take the reminder records (${why}), so nothing was sent. The next run tries again.`);
+  console.log(`PostHog did not accept the run's events (${why})`);
 }
 
 async function main() {
@@ -146,9 +169,10 @@ async function main() {
     return sendNow(all, 'everyone', t);
   }
 
-  // 2. who already did something today (Israel time), and who already got a reminder today
-  const minutes = t.hour * 60 + t.minute;
-  const ids = async (where) => new Set((await hogql(`SELECT distinct_id FROM events WHERE ${where} AND timestamp > now() - INTERVAL ${minutes} MINUTE LIMIT 10000`)).map((r) => r[0]));
+  // 2. who already did something today (the Israel calendar date, also right on the days the clock changes), and who
+  // already got a reminder today
+  const today = `toDate(toTimeZone(timestamp, 'Asia/Jerusalem')) = toDate('${t.date}') AND timestamp > now() - INTERVAL 2 DAY`;
+  const ids = async (where) => new Set((await hogql(`SELECT distinct_id FROM events WHERE ${where} AND ${today} LIMIT 10000`)).map((r) => r[0]));
   const active = await ids("event IN ('lesson_completed', 'practice_completed', 'repair_completed')");
   // only the daily reminder counts (it has message, the weekday text); test and everyone sends do not
   const reminded = await ids("event = 'reminder_sent' AND properties.message IS NOT NULL");
@@ -156,10 +180,11 @@ async function main() {
   const counts = { subscriptions: all.length, skipped_active: all.filter((s) => active.has(s.uid)).length, skipped_reminded: 0, sent: 0, gone: 0, failed: 0 };
   counts.skipped_reminded = all.length - counts.skipped_active - targets.length;
 
-  // 3. send the daily message
+  // 3. record, then send the daily message
   const which = t.weekday % MESSAGES.length;
   const payload = JSON.stringify({ title: 'דריבית', body: MESSAGES[which], url: './?source=push', tag: 'daily' });
   const events = [];
+  const sentRecord = (s) => ({ event: 'reminder_sent', distinct_id: s.uid, properties: { weekday: t.weekday, message: which, push_service: host(s.endpoint), run: RUN } });
   const send = async (s, body, onSent) => {
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body, { TTL: 6 * 3600, urgency: 'normal' });
@@ -178,15 +203,28 @@ async function main() {
   const inBatches = async (list, fn) => { for (let i = 0; i < list.length; i += 10) await Promise.all(list.slice(i, i + 10).map(fn)); };
   if (DRY) {
     console.log(`Would send "${MESSAGES[which]}" to ${targets.length} of ${all.length} subscriptions.`);
-  } else {
-    await inBatches(targets, (s) => send(s, payload, () => {
-      counts.sent++;
-      events.push({ event: 'reminder_sent', distinct_id: s.uid, properties: { weekday: t.weekday, message: which, push_service: host(s.endpoint) } });
-    }));
+    await shown(); // checks that the wait query works, without waiting
+  } else if (targets.length) {
+    await capture(targets.map(sentRecord), true);
+    await inBatches(targets, (s) => send(s, payload, () => { counts.sent++; }));
   }
-  events.push({ event: 'reminder_run', distinct_id: 'dribit-reminders', properties: Object.assign({ dry_run: DRY, weekday: t.weekday, $process_person_profile: false }, counts) });
+  events.push({ event: 'reminder_run', distinct_id: 'dribit-reminders', properties: Object.assign({ dry_run: DRY, weekday: t.weekday, run: RUN, $process_person_profile: false }, counts) });
   if (!DRY) await capture(events);
-  console.log(JSON.stringify(counts));
+  // hold the concurrency group until PostHog shows this run's reminder_sent, so the next run skips these people
+  if (!DRY && targets.length) {
+    for (let i = 0; ; i++) {
+      const n = await shown();
+      if (n >= targets.length) { console.log(`PostHog shows the ${n} reminder record${n === 1 ? '' : 's'} of this run.`); break; }
+      if (i >= POLL_TRIES) { console.log(`::warning::PostHog shows only ${n} of ${targets.length} reminder records after ${Math.round(POLL_TRIES * POLL_MS / 1000)} s; a run right after this one could remind them again.`); break; }
+      await new Promise((r) => setTimeout(r, POLL_MS));
+    }
+  }
+  console.log(JSON.stringify(counts)); // last line, so the counts are easy to find in the log
+}
+// how many of this run's daily reminder_sent events PostHog shows
+async function shown() {
+  const r = await hogql(`SELECT count() FROM events WHERE event = 'reminder_sent' AND properties.run = '${RUN}' AND timestamp > now() - INTERVAL 1 HOUR`);
+  return +((r[0] || [])[0] || 0);
 }
 
 // the test send: one message to whoever used the app last (their newest event in the last 7 days, not counting this script's own)
