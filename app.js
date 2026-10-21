@@ -11,6 +11,13 @@
   // tools that open by level (config.tools, 0.10): read by cleanState(), so it is set before the state loads
   var TOOLS = CFG.tools || { enabled: false, list: [] };
   var TOOL_IDS = ['discharge', 'pikadon_check', 'time_machine', 'fees', 'my_plan'];
+  // colors that open by level (config.skins, 0.12): read by cleanState(), so they are set before the state loads.
+  // Names live here, not in config. Every name works after "צבע ה" ("צבע הים").
+  var SKINS = CFG.skins || { enabled: false, list: [] };
+  var SKIN_IDS = ['forest', 'sea', 'sunset', 'galaxy', 'raspberry', 'neon', 'gold'];
+  var SKIN_NAME = { forest: 'יער', sea: 'ים', sunset: 'שקיעה', galaxy: 'גלקסיה', raspberry: 'פטל', neon: 'נאון', gold: 'זהב' };
+  // the phone's status bar (Android) follows the color: its light brand
+  var SKIN_META = { forest: '#0E6E58', sea: '#1D5FCC', sunset: '#A84A0C', galaxy: '#6A3DD6', raspberry: '#C2185B', neon: '#0B6F8C', gold: '#1F262B' };
   var WISH_IDS = ['studies', 'training', 'driving', 'business', 'marriage', 'home', 'rent', 'car', 'trip', 'other'];
   var GOAL_IDS = ['studies', 'training', 'driving', 'business', 'marriage', 'home', 'wait5', 'unsure'];
   var STORE_KEY = 'dribit.progress.v1';
@@ -62,8 +69,17 @@
     hourglass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h12M6 21.5h12"/><path d="M7.5 2.5v3.2c0 1.6.8 3.1 2.1 4l2.4 1.8 2.4-1.8c1.3-.9 2.1-2.4 2.1-4V2.5M7.5 21.5v-3.2c0-1.6.8-3.1 2.1-4l2.4-1.8 2.4 1.8c1.3.9 2.1 2.4 2.1 4v3.2"/><path d="M9.5 19.5h5l-2.5-2z" fill="currentColor"/></svg>',
     percent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18.5 5.5l-13 13"/><circle cx="7" cy="7" r="2.6"/><circle cx="17" cy="17" r="2.6"/></svg>',
     jars: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2.5" y="9" width="5.4" height="12.5" rx="1.6"/><rect x="9.3" y="5" width="5.4" height="16.5" rx="1.6" opacity=".75"/><rect x="16.1" y="12" width="5.4" height="9.5" rx="1.6" opacity=".55"/></svg>',
-    unlock: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V7a5 5 0 019.6-2l-1.9.8A3 3 0 009 7v3h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2h1z"/></svg>'
+    unlock: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V7a5 5 0 019.6-2l-1.9.8A3 3 0 009 7v3h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2h1z"/></svg>',
+    // 0.12: one emblem per color (inside its swatch)
+    sk_forest: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 21v-6.6C6.7 14.1 3.5 11 3.5 5.5c4.6 0 7.7 2.7 8.4 6.4.8-4 3.9-7.4 8.6-7.4 0 5.4-3.3 8.8-7.5 9.4V21z"/></svg>',
+    sk_sea: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M2.5 9c2.4 0 2.4-2 4.8-2s2.4 2 4.7 2 2.4-2 4.7-2 2.4 2 4.8 2M2.5 16c2.4 0 2.4-2 4.8-2s2.4 2 4.7 2 2.4-2 4.7-2 2.4 2 4.8 2"/></svg>',
+    sk_sunset: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 16.5a7 7 0 0114 0z"/><rect x="2" y="18.5" width="20" height="2.4" rx="1.2"/><path d="M12 7.7V4.9M5.8 10.3L4.1 8.6M18.2 10.3l1.7-1.7M20.4 13.8l2-.7M3.6 13.8l-2-.7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    sk_galaxy: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 2.5l1.9 5.6 5.6 1.9-5.6 1.9L10 17.5l-1.9-5.6L2.5 10l5.6-1.9z"/><path d="M18 13l1 2.9 3 1.1-3 1.1-1 2.9-1-2.9-3-1.1 3-1.1z"/></svg>',
+    sk_raspberry: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="10.5" r="3"/><circle cx="15" cy="10.5" r="3"/><circle cx="12" cy="14.6" r="3"/><circle cx="8.3" cy="15.6" r="2.6"/><circle cx="15.7" cy="15.6" r="2.6"/><circle cx="12" cy="19.4" r="2.5"/><path d="M12 7.4C11 4.9 8.5 3.9 6 4.4c1.3 2.2 3.5 3.3 6 3zm0 0c1-2.5 3.5-3.5 6-3-1.3 2.2-3.5 3.3-6 3z"/></svg>',
+    sk_neon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg>',
+    sk_gold: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.8 3.5h10.4L22 9.2 12 21 2 9.2z"/><path d="M2 9.2h20M9.2 3.5L7.6 9.2 12 21l4.4-11.8-1.6-5.7" fill="none" stroke="rgba(0,0,0,.28)" stroke-width="1.2" stroke-linejoin="round"/></svg>'
   };
+  var SKIN_ICON = { forest: ICON.sk_forest, sea: ICON.sk_sea, sunset: ICON.sk_sunset, galaxy: ICON.sk_galaxy, raspberry: ICON.sk_raspberry, neon: ICON.sk_neon, gold: ICON.sk_gold };
 
   // ---------- Utils ----------
   function esc(s) {
@@ -150,22 +166,28 @@
       offRetro: 0,       // days off given at the update for levels already passed
       // 0.10 tools: which were opened (the tab badge), the one-time intro, and each tool's last inputs.
       // Which tools are open is derived from xp and the status, never stored.
-      tools: { seen: [], introSeen: true, check: null, growth: null, fees: null, plan: null }
+      tools: { seen: [], introSeen: true, check: null, growth: null, fees: null, plan: null },
+      // 0.12 colors: the chosen one, the open ones already shown (the "חדש" chip and the tab badge; never forest), and
+      // the one-time intro. Which colors are open is derived from xp, never stored.
+      skins: { id: 'forest', seen: [], introSeen: true }
     };
   }
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
   // the open lesson or the event queue.
   var TRANSFER_KEYS = ['v', 'uid', 'status', 'startUnit', 'goalXp', 'sound', 'share', 'firstDay', 'contentV', 'xp', 'streak',
     'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent', 'amount', 'ref', 'calc',
-    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools'];
+    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools', 'skins'];
   function migrate(s) {
     // before 0.9 there were no days off: checked before the defaults below fill offLevel in
     var needsOff = !('offLevel' in s);
     // before 0.10 there were no tools: someone with points meets them once in an intro sheet
     var needsTools = !('tools' in s);
+    // before 0.12 there were no colors: someone with points meets them once in an intro sheet
+    var needsSkins = !('skins' in s);
     var base = freshState();
     for (var k in base) if (!(k in s)) s[k] = base[k];
     if (needsTools) s.tools.introSeen = !(+s.xp > 0);
+    if (needsSkins) s.skins = { id: 'forest', seen: [], introSeen: !(+s.xp > 0) };
     if (s.actions) { // v1 kept a single checkbox per lesson
       Object.keys(s.actions).forEach(function (id) { if (s.actions[id]) s.missions[id] = { steps: [], done: true }; });
       delete s.actions;
@@ -235,6 +257,16 @@
     s.mistakes = cleanMap(s.mistakes, function (v) { return Math.floor(num0(v)); });
     ['ratings', 'intent', 'amount'].forEach(function (k) { s[k] = cleanMap(s[k], function (v) { return okWord(v) ? v : null; }); });
     s.tools = cleanTools(s.tools);
+    s.skins = cleanSkins(s.skins);
+  }
+  // S.skins also arrives in transfer codes: an unknown color becomes forest, seen keeps known ids only
+  function cleanSkins(k) {
+    k = isRec(k) ? k : {};
+    return {
+      id: SKIN_IDS.indexOf(k.id) >= 0 ? k.id : 'forest',
+      seen: Array.isArray(k.seen) ? k.seen.filter(function (x, i, a) { return x !== 'forest' && SKIN_IDS.indexOf(x) >= 0 && a.indexOf(x) === i; }) : [],
+      introSeen: k.introSeen !== false
+    };
   }
   // S.tools also arrives in transfer codes: every field is rebuilt from allow-lists and plain numbers (the tool screens
   // clamp the numbers to the config lists again when they read them)
@@ -269,6 +301,7 @@
     try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ }
   }
   var S = load();
+  applySkin(); // before the first render, so the page never flashes green
 
   function currentStreak() {
     if (!S.lastDay) return 0;
@@ -318,6 +351,7 @@
     checkStreakBreak();
     var today = dayKey();
     S.xp += n;
+    if (paintedSkin() !== activeSkin()) applySkin(true); // 0.12: a kept color comes back at its level (no skin_set)
     S.days[today] = (S.days[today] || 0) + n;
     if (S.lastDay !== today) {
       S.streak = (S.lastDay === dayKey(addDays(new Date(), -1))) ? S.streak + 1 : 1;
@@ -357,12 +391,13 @@
   }
   function levelLabel(r) { return 'שלב ' + r.n + ' מתוך ' + r.total + (r.name ? ' · ' + r.name : ''); }
   // the line under a level: what the next level brings, first (tester interviews 20.10: "what do points give me?").
-  // Every new level pays a day off, unless the days off are full; a level that opens a tool says which (0.10).
+  // Every new level pays a day off, unless the days off are full; a level that opens a tool says which (0.10), and
+  // a level that opens a color says so (0.12).
   function nextLevelLine(r) {
     if (r.last) return 'השלב האחרון. כל הכבוד';
-    var nt = toolsAtLevel(r.n + 1)[0], pts = 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות');
-    if (nextLevelDayOff()) return pts + ' ליום חופש לרצף' + (nt ? ' ו' + toolTo(nt.id) : '');
-    return pts + ' לשלב ' + (r.n + 1) + (nt ? ', שפותח את ' + toolShort(nt.id) : '');
+    var nt = toolsAtLevel(r.n + 1)[0], ns = skinsAtLevel(r.n + 1)[0], pts = 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות');
+    if (nextLevelDayOff()) return pts + ' ליום חופש לרצף' + (nt && ns ? ', ' + toolTo(nt.id) + ' ולצבע חדש' : nt ? ' ו' + toolTo(nt.id) : ns ? ' ולצבע חדש' : '');
+    return pts + ' לשלב ' + (r.n + 1) + (nt ? ', שפותח את ' + toolShort(nt.id) + (ns ? ' וצבע חדש' : '') : ns ? ', שפותח צבע חדש' : '');
   }
   function nextLevelDayOff() { return DO.enabled && DO.perLevel > 0 && S.daysOff < DO.maxHeld; }
 
@@ -832,7 +867,7 @@
     var tools = toolsTab();
     return '<nav class="nav"><div class="nav-inner' + (tools ? ' n5' : '') + '">' +
       b('home', ICON.path, 'מסלול') + b('practice', ICON.dumbbell, 'תרגול') +
-      b('missions', ICON.target, 'משימות', pending) + (tools ? b('tools', ICON.toolbox, 'כלים', newToolsCount()) : '') + b('profile', ICON.user, 'פרופיל') +
+      b('missions', ICON.target, 'משימות', pending) + (tools ? b('tools', ICON.toolbox, 'כלים', newToolsCount()) : '') + b('profile', ICON.user, 'פרופיל', view === 'profile' ? 0 : newSkinsCount()) +
       '</div></nav>';
   }
 
@@ -902,11 +937,12 @@
   function renderPath() {
     var cur = currentLesson();
     var r = levelInfo(S.xp);
-    var html = homeCards();
-    html += '<button class="rank-strip" data-act="explain" data-what="points">' +
+    var html = homeCards(), nsk = r.last ? null : skinsAtLevel(r.n + 1)[0];
+    html += '<button class="rank-strip' + (nsk ? ' has-skin' : '') + '" data-act="explain" data-what="points">' +
       '<span class="rank-badge">' + ICON.coins + '</span>' +
       '<span class="rank-txt"><b>' + esc(levelLabel(r)) + '</b><span>' + nextLevelLine(r) + '</span></span>' +
-      '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span></button>';
+      '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
+      (nsk ? '<i class="pr-skin" data-skin="' + nsk.id + '" aria-hidden="true"></i>' : '') + '</button>';
     var st = currentStreak(), today = todayXp();
     if (cur && st > 0 && today === 0) {
       var tx = streakTimes(streakIfLearnToday());
@@ -944,15 +980,17 @@
   }
 
   // ---------- Sheets ----------
-  function openSheet(inner, cls) {
+  // skin: a color id draws the whole sheet in that color (a new or locked color, 0.12)
+  function openSheet(inner, cls, skin) {
     closeSheet(true);
     var wrap = document.createElement('div');
     wrap.id = 'sheet';
-    wrap.innerHTML = '<div class="scrim" data-act="close-sheet"></div><div class="sheet gutter' + (cls ? ' ' + cls : '') + '" role="dialog" aria-modal="true">' + inner + '</div>';
+    wrap.innerHTML = '<div class="scrim" data-act="close-sheet"></div><div class="sheet gutter' + (cls ? ' ' + cls : '') + '"' +
+      (SKIN_IDS.indexOf(skin) >= 0 ? ' data-skin="' + skin + '"' : '') + ' role="dialog" aria-modal="true">' + inner + '</div>';
     document.body.appendChild(wrap);
     sheetOpen = true;
     if (topIsSheet) histReplace({ view: view, sheet: true }); else histEnter({ view: view, sheet: true });
-    var btn = wrap.querySelector('.btn');
+    var btn = wrap.querySelector('button.btn, a.btn'); // not the color preview's look-alike button
     if (btn) { try { btn.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
   }
   // keepEntry: the caller is about to reuse the sheet's history entry (a view change or another sheet)
@@ -1026,11 +1064,14 @@
           '<li><span>משימה מחוץ לאפליקציה</span><b>' + plus(P.mission) + '</b></li>' +
           sbTiers().map(function (t) { return '<li class="streak-x"><span>' + ICON.flame + 'רצף של ' + t.days + ' ימים ומעלה, על שיעור ותרגול</span><b>' + timesText(t.times) + '</b></li>'; }).join('') +
         '</ul>';
-      var tl = toolList();
+      var tl = toolList(), sk = skinList().length > 0;
+      var chainEnd = sk ? andList([DO.enabled ? 'ימי חופש לרצף' : '', tl.length ? 'כלים' : '', 'צבעים'].filter(Boolean))
+        : tl.length ? (DO.enabled ? 'ימי חופש לרצף וכלים חדשים' : 'כלים חדשים') : 'יום חופש לרצף';
       openSheet('<h3>בשביל מה הנקודות?</h3>' +
-        (DO.enabled || tl.length
-          ? '<p class="chain">' + (sbTiers().length ? 'רצף ← ' : '') + 'נקודות ← ' + (tl.length ? 'שלבים' : 'שלב חדש') + ' ← ' + (tl.length ? (DO.enabled ? 'ימי חופש לרצף וכלים חדשים' : 'כלים חדשים') : 'יום חופש לרצף') + '</p>' +
+        (DO.enabled || tl.length || sk
+          ? '<p class="chain">' + (sbTiers().length ? 'רצף ← ' : '') + 'נקודות ← ' + (tl.length || sk ? 'שלבים' : 'שלב חדש') + ' ← ' + chainEnd + '</p>' +
             (tl.length ? '<p class="lead">כל כמה שלבים נפתח כלי שמחשב בשבילך: בוחרים, והאפליקציה מחשבת.</p>' : '') +
+            (sk ? '<p class="lead">' + (tl.length ? 'וכל כמה שלבים נפתח גם' : 'כל כמה שלבים נפתח') + ' צבע חדש לכל האפליקציה. לא קונים כלום: הנקודות נשארות, והשלב לא יורד.</p>' : '') +
             (DO.enabled ? '<p class="lead">כל שלב חדש נותן יום חופש לרצף. ' + (S.status === 'civ' ? 'מבחן, משמרת, טיול?' : 'שמירה, שטח, בסיס סגור?') +
               ' ביום בלי שיעור, יום חופש נכנס לבד והרצף לא נשבר' + minStreakNote() + '.</p>' : '')
           : '<p class="lead">הנקודות מעלות אותך שלב וממלאות את היעד היומי.</p>') +
@@ -1039,6 +1080,7 @@
           '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
           (DO.enabled ? '<p class="fine off-line">' + ICON.dayoff + '<span>ימי חופש לרצף: ' + S.daysOff + ' (אפשר לשמור עד ' + DO.maxHeld + ')</span></p>' : '') + '</div>' +
         (tl.length ? '<div class="eyebrow">הכלים שנפתחים בשלבים</div>' + toolLadder(tl, 'points_sheet') : '') +
+        (sk ? '<div class="eyebrow">הצבעים שנפתחים בשלבים</div>' + skinGrid('points_sheet') : '') +
         '<div class="eyebrow">איך מקבלים נקודות</div>' + rules +
         (DO.enabled && DO.invite ? '<p class="fine">עוד יום חופש לרצף: משתפים קישור לחבר, פעם ' + (DO.inviteEveryDays === 7 ? 'בשבוע' : 'ב-' + DO.inviteEveryDays + ' ימים') + '.' +
           (DO.friendGift ? ' חבר חדש מקבל ' + DO.friendGift + ' ימי חופש.' : '') + '</p>' : '') +
@@ -1246,6 +1288,10 @@
     var T = obj.tools;
     if (T != null && !(isObj(T) && opt(T.seen, function (a) { return Array.isArray(a) && a.length <= 20 && a.every(okWord); }) && opt(T.introSeen, bool) &&
       ['check', 'growth', 'fees', 'plan'].every(function (k) { return T[k] == null || isObj(T[k]); }))) return { ok: false, reason: 'bad_fields' };
+    // 0.12 colors: the shape here; cleanSkins() turns an unknown color into forest. Which colors are open follows the xp.
+    var K = obj.skins;
+    if (K != null && !(isObj(K) && opt(K.id, okWord) && opt(K.seen, function (a) { return Array.isArray(a) && a.length <= 20 && a.every(okWord); }) &&
+      opt(K.introSeen, bool))) return { ok: false, reason: 'bad_fields' };
     var state = {};
     TRANSFER_KEYS.forEach(function (k) { if (k in obj) state[k] = obj[k]; });
     return { ok: true, reason: null, state: state };
@@ -1256,6 +1302,7 @@
     if (S.reminder && S.reminder.on) disableReminder('import');
     var seen = S.installSeen;
     S = migrate(r.state);
+    applySkin();
     offToast = null;
     S.onboarded = true; S.reminder = null; S.reminderNo = null; S.inProgress = null;
     S.installHidden = isStandalone(); S.installSeen = seen || isStandalone(); S.importedAt = dayKey();
@@ -1350,35 +1397,54 @@
       '<button class="btn text" data-act="close-sheet">ביטול</button>', 'tall');
   }
 
+  // level_up goes out when the level changes (0.12; before, when the sheet drew, so a quick exit lost it)
+  function levelUpProps(g, fromIdx) {
+    var r = levelInfo(S.xp), o = toolsCrossed(fromIdx, r.i), c = skinsCrossed(fromIdx, r.i);
+    return { level: r.n, day_off_added: g ? g.added : 0, held: S.daysOff, tool_unlocked: o.length ? o[0].id : null, skin_unlocked: c.length ? c[c.length - 1].id : null };
+  }
   // g: what grantLevelDaysOff() added on this level-up (null when days off are off)
-  // fromIdx: the level index before the points (0.10: a level that opens a tool shows the tool, with "לפתוח את הכלי")
+  // fromIdx: the level index before the points (0.10: a level that opens a tool shows the tool, with "לפתוח את הכלי";
+  // 0.12: a level that opens a color and no tool shows the color, with "לנסות את הצבע"; with a tool, a row tries it)
   function levelUpSheet(g, fromIdx) {
     var r = levelInfo(S.xp);
     var opened = fromIdx != null ? toolsCrossed(fromIdx, r.i) : [];
+    var colors = fromIdx != null ? skinsCrossed(fromIdx, r.i) : [];
+    var sk = colors[colors.length - 1] || null, skMore = colors.length > 1 ? colors[colors.length - 2] : null; // the highest leads
     sfx.level();
     confetti(true);
-    track('level_up', { level: r.n, day_off_added: g ? g.added : 0, held: S.daysOff, tool_unlocked: opened.length ? opened[0].id : null });
     var gain = '';
     if (g && g.added) {
       gain = g.added > 1 ? 'קיבלת ' + g.added + ' ימי חופש לרצף. יש לך עכשיו ' + g.held + '.'
         : 'קיבלת יום חופש לרצף. יש לך עכשיו ' + (g.held === 1 ? 'יום חופש אחד.' : g.held + ' ימי חופש לרצף.');
     } else if (g && g.atCap) gain = 'יש לך כבר ' + DO.maxHeld + ' ימי חופש לרצף, המקסימום, אז הפעם לא נוסף עוד אחד.';
-    var nt = nextTool(), tl = toolList();
-    var toolLine = !tl.length ? '' : nt ? 'הכלי הבא: ' + esc(toolShort(nt.id)) + ', בשלב ' + nt.level + '.'
-      : 'פתחת את כל הכלים.' + (DO.enabled ? ' כל שלב נוסף עדיין נותן יום חופש לרצף.' : '');
+    var toolLine = nextRewardLine();
     if (opened.length) {
       var t = opened[0];
       buzz([30, 40, 70]);
       openSheet('<div class="level-up tool-unlock"><div class="lvl-coin unlock t-' + t.id + '">' + toolIcon(t.id) + '<i class="unlock-lock" aria-hidden="true">' + ICON.lock + '</i></div>' +
         '<div class="eyebrow">עלית שלב · ' + esc(levelLabel(r)) + '</div><h3>נפתח כלי חדש</h3>' +
-        toolCard(t, 'level_up', true) +
+        toolCard(t, 'level_up', true) + (sk ? skinRow(sk.id) : '') +
         (opened[1] ? '<p class="fine">ועוד: ' + esc(toolName(opened[1].id)) + '</p>' : '') +
+        (skMore ? '<p class="fine">ועוד צבע: ' + esc(skinName(skMore.id)) + '</p>' : '') +
         (gain ? '<p class="fine off-line">' + ICON.dayoff + '<span>' + gain + '</span></p>' : '') +
         (toolLine ? '<p class="fine">' + toolLine + '</p>' : '') + '</div>' +
         '<button class="btn gold" data-act="tool" data-id="' + t.id + '" data-from="level_up">לפתוח את הכלי</button>' +
         '<button class="btn text" data-act="close-sheet">אחר כך</button>');
       var coin = document.querySelector('#sheet .lvl-coin');
       if (coin) setTimeout(function () { if (document.body.contains(coin)) burst(coin); }, 700);
+      return;
+    }
+    if (sk) {
+      buzz([30, 40, 70]);
+      openSheet('<div class="level-up skin-unlock"><div class="lvl-coin skin unlock" data-skin="' + sk.id + '">' + (SKIN_ICON[sk.id] || '').replace('<svg', '<svg style="width:54px;height:54px"') +
+          '<i class="unlock-lock" aria-hidden="true">' + ICON.lock + '</i></div>' +
+        '<div class="eyebrow">עלית שלב · ' + esc(levelLabel(r)) + '</div><h3>נפתח צבע חדש: <span class="skin-name">' + esc(skinName(sk.id)) + '</span></h3>' +
+        (gain ? '<p class="lead">' + gain + '</p>' : '') +
+        (skMore ? '<p class="fine">ועוד צבע: ' + esc(skinName(skMore.id)) + '</p>' : '') +
+        (r.last ? '<p class="fine">זה השלב האחרון. כל הכבוד.</p>' : toolLine ? '<p class="fine">' + toolLine + '</p>' : '') + '</div>' +
+        '<div class="lu-actions"><button class="btn" data-act="skin-try" data-id="' + sk.id + '">לנסות את הצבע</button><button class="btn text" data-act="close-sheet">אחר כך</button></div>', '', sk.id);
+      var coin2 = document.querySelector('#sheet .lvl-coin');
+      if (coin2) setTimeout(function () { if (document.body.contains(coin2)) burst(coin2); }, 700);
       return;
     }
     openSheet('<div class="level-up"><div class="lvl-coin">' + (g && g.added ? ICON.dayoff : ICON.coins) + '</div>' +
@@ -1896,7 +1962,10 @@
     s.perfect = perfect;
     s.levelUp = levelIndex(S.xp) > before.i;
     s.levelFrom = before.i;
-    if (s.levelUp) { s.pctBefore = 0; toolsUnlocked(toolsCrossed(before.i, levelIndex(S.xp)), 'level_up'); }
+    if (s.levelUp) {
+      s.pctBefore = 0; toolsUnlocked(toolsCrossed(before.i, levelIndex(S.xp)), 'level_up'); skinsLevelUp(before.i, levelIndex(S.xp));
+      track('level_up', levelUpProps(s.levelGrant, before.i));
+    }
     s.goalHit = !goalBefore && todayXp() >= S.goalXp;
     s.streakUp = currentStreak() > streakBefore;
     save();
@@ -1907,6 +1976,7 @@
       props.speed_bonus = !!s.speedBonus; props.first_time = s.firstTime;
       var ntl = nextTool();
       if (toolList().length) { props.next_tool = ntl ? ntl.id : null; props.to_next_band = ntl ? pointsBand(toolPointsTo(ntl)) : null; }
+      if (skinList().length) { var nsl = nextSkin(); props.next_skin = nsl ? nsl.id : null; }
       track('lesson_completed', props);
     } else if (s.mode === 'repair') {
       props.passed = s.passed;
@@ -1979,7 +2049,7 @@
       : s.goalHit ? 'עמדת ביעד היומי.' : s.streakUp ? 'רצף של ' + plural(currentStreak(), 'יום אחד', 'ימים') + '.' : 'עוד צעד בדרך.';
     var art = CFG.images && CFG.images.done;
     var correctPts = s.xp - s.bonus - s.perfectBonus - s.speedBonus - (s.streakBonus || 0);
-    var nextAt = r.last ? null : toolsAtLevel(r.n + 1)[0] || null;
+    var nextAt = r.last ? null : toolsAtLevel(r.n + 1)[0] || null, nextSk = r.last ? null : skinsAtLevel(r.n + 1)[0] || null;
     var rows = '<li><span>תשובות נכונות</span><b>' + plus(correctPts) + '</b></li>';
     if (s.giftGiven > 0) rows = '<li class="gift"><span>' + ICON.dayoff + 'מתנה מחבר</span><b>' + daysOffText(s.giftGiven) + '</b></li>' + rows;
     if (s.mode === 'lesson') {
@@ -2007,7 +2077,8 @@
       '</div>' +
       '<div class="card tight"><ul class="rules">' + rows + '</ul>' +
         '<div class="progress-row"><span>שלב ' + r.n + '</span><span class="bar gold"><i data-w="' + Math.round(r.pct * 100) + '" style="width:' + Math.round(s.pctBefore * 100) + '%"></i></span><span>' + (r.last ? '' : 'שלב ' + (r.n + 1)) +
-          (nextAt ? '<i class="pr-tool t-' + nextAt.id + '" aria-hidden="true">' + toolIcon(nextAt.id) + '</i>' : '') + '</span></div>' +
+          (nextAt ? '<i class="pr-tool t-' + nextAt.id + '" aria-hidden="true">' + toolIcon(nextAt.id) + '</i>' : '') +
+          (nextSk ? '<i class="pr-skin" data-skin="' + nextSk.id + '" aria-hidden="true"></i>' : '') + '</span></div>' +
         '<p class="fine">' + (r.last ? '' : doneNextLine(r, s, l, nextAt) + ' ') +
           'היעד היומי: ' + fmt(todayXp()) + ' מתוך ' + fmt(S.goalXp) + '. <button class="link" data-act="explain" data-what="points">בשביל מה הנקודות?</button></p>' +
       '</div>' +
@@ -2208,12 +2279,13 @@
     var goals = CFG.goals.map(function (g) {
       return '<button data-act="goal" data-xp="' + g.xp + '" aria-pressed="' + (S.goalXp === g.xp) + '">' + g.label + '<small>' + g.xp + ' נק׳ · ' + g.note + '</small></button>';
     }).join('');
-    return '<div class="page"><h1>ההתקדמות שלי</h1>' +
+    var html = '<div class="page"><h1>ההתקדמות שלי</h1>' +
       '<button class="card rank-card" data-act="explain" data-what="points">' +
         '<span class="rank-badge big">' + ICON.coins + '</span>' +
         '<span class="rank-txt"><span class="eyebrow">השלב שלך</span><b>' + esc(levelLabel(r)) + '</b>' +
         '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
         '<span class="fine">' + nextLevelLine(r) + '</span></span></button>' +
+      skinsCard() +
       '<div class="stat-grid">' +
         statBox(ICON.flame, 'var(--flame)', currentStreak(), 'ימים ברצף') +
         statBox(ICON.coin, 'var(--gold)', fmt(S.xp), 'נקודות') +
@@ -2239,6 +2311,8 @@
         '<p class="fine">ההתקדמות נשמרת רק במכשיר הזה. גרסה ' + esc(CFG.version) + '.</p>' +
         '<button class="btn text" data-act="reset">איפוס ההתקדמות</button></div>' +
       '</div>';
+    markSkinsSeen(); // the "חדש" chips show on this render only, and the tab badge clears
+    return html;
   }
   function weekHasOff() {
     for (var i = 0; i < 7; i++) { var k = dayKey(addDays(new Date(), -i)); if (!(S.days[k] > 0) && S.offUsed.indexOf(k) >= 0) return true; }
@@ -2497,12 +2571,13 @@
   var askTimer = null, lastTouchAt = 0, askOpenedAt = 0;
   function maybeAsk() {
     clearTimeout(askTimer);
-    if (openAsked || view !== 'home' || sheetOpen || !(toolsIntroDue() || installAskState() || notifAskState())) return;
+    if (openAsked || view !== 'home' || sheetOpen || !(toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
     askTimer = setTimeout(function tick() {
       var quiet = Date.now() - lastTouchAt;
       if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
       if (openAsked || view !== 'home' || sheetOpen || document.visibilityState === 'hidden') return;
-      if (toolsIntroDue()) { openAsked = true; toolsIntro(); } else if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
+      if (toolsIntroDue()) { openAsked = true; toolsIntro(); } else if (skinsIntroDue()) { openAsked = true; skinsIntro(); }
+      else if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
     }, 700);
   }
   function installAskSheet(stage) {
@@ -2964,6 +3039,181 @@
     return k(B[B.length - 1]) + '+';
   }
 
+  // ---------- Colors that open by level (config.skins, 0.12) ----------
+  // Jonathan (21.10, "נפתחים לפי שלב"): every few levels opens a color for the whole app. Nothing is bought and the points
+  // never drop. Which colors are open follows the points (the same levels for every status) and is never stored: S.skins
+  // keeps only the chosen id, the open colors already shown, and whether the one-time intro was seen. The colors
+  // themselves are CSS tokens per data-skin on <html> (styles.css, generated by tools/skins/gen-skins.js).
+  function skinsOn() { return !!(SKINS.enabled && SKINS.list && SKINS.list.length > 1); }
+  function skinLevelOf(x) { return x.id === 'forest' ? 1 : Math.max(1, Math.round(+x.level || 1)); }
+  // { id, level, open } by level, forest first; [] when colors are off (or fewer than two are left)
+  function skinList() {
+    if (!skinsOn()) return [];
+    var n = levelIndex(S.xp) + 1, ids = [], src = SKINS.list.some(function (x) { return x && x.id === 'forest'; }) ? SKINS.list : [{ id: 'forest', level: 1 }].concat(SKINS.list);
+    var out = src.filter(function (x) { var ok = !!x && SKIN_IDS.indexOf(x.id) >= 0 && ids.indexOf(x.id) < 0 && skinLevelOf(x) <= CFG.levels.length; if (ok) ids.push(x.id); return ok; })
+      .map(function (x) { var lv = skinLevelOf(x); return { id: x.id, level: lv, open: lv <= n }; })
+      .sort(function (a, b) { return a.level - b.level; });
+    return out.length > 1 ? out : [];
+  }
+  function skinInfo(id) { return skinList().filter(function (x) { return x.id === id; })[0] || null; }
+  // a chosen color that is locked again (an import with fewer points) is kept, and forest shows until its level
+  function activeSkin() { var x = skinInfo(S.skins.id); return x && x.open ? x.id : 'forest'; }
+  function skinsAtLevel(n) { return n > 1 ? skinList().filter(function (x) { return x.level === n; }) : []; }
+  function nextSkin() { return skinList().filter(function (x) { return !x.open; })[0] || null; }
+  // the colors a level-up from level index a to level index b opened
+  function skinsCrossed(a, b) { return skinList().filter(function (x) { return x.level > a + 1 && x.level <= b + 1; }); }
+  function skinPointsTo(x) { var L = CFG.levels[x.level - 1]; return L ? Math.max(0, L.min - S.xp) : 0; }
+  function skinsOpenCount() { return skinList().filter(function (x) { return x.open; }).length; }
+  function newSkinsCount() { return skinList().filter(function (x) { return x.open && x.level > 1 && S.skins.seen.indexOf(x.id) < 0; }).length; }
+  function skinsIntroDue() { return skinList().length > 0 && S.onboarded && !!S.status && !S.skins.introSeen; }
+  function skinName(id) { return SKIN_NAME[id] || ''; }
+  function markSkinsSeen() {
+    var add = skinList().filter(function (x) { return x.open && x.level > 1 && S.skins.seen.indexOf(x.id) < 0; });
+    if (!add.length) return;
+    add.forEach(function (x) { S.skins.seen.push(x.id); });
+    save();
+  }
+
+  // ----- painting -----
+  var swapTimer = null;
+  function applySkin(animate) {
+    var id = activeSkin(), el = document.documentElement;
+    if (animate && !reducedMotion()) {
+      el.classList.add('skin-swap'); clearTimeout(swapTimer);
+      swapTimer = setTimeout(function () { el.classList.remove('skin-swap'); }, 600);
+    }
+    el.setAttribute('data-skin', id);
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', SKIN_META[id] || SKIN_META.forest);
+  }
+  function paintedSkin() { return document.documentElement.getAttribute('data-skin') || 'forest'; }
+  // true when the color on screen changed (skin_set is sent only then)
+  function setSkin(id, from) {
+    var x = skinInfo(id), prev = paintedSkin();
+    if (!x || !x.open) return false;
+    if (id !== 'forest' && S.skins.seen.indexOf(id) < 0) S.skins.seen.push(id);
+    S.skins.id = id; save();
+    if (id === prev) return false;
+    applySkin(true); sfx.pair(); buzz(15);
+    track('skin_set', { skin_id: id, prev: prev, from: from, level: levelInfo(S.xp).n, skins_open: skinsOpenCount(), $set: { skin: id } });
+    return true;
+  }
+  // a level-up from level index a to b: while the one-time intro is still pending, the level-up sheet takes its place,
+  // and the colors that were open before go out as 'migration' (so each color is reported once)
+  function skinsLevelUp(a, b) {
+    var crossed = skinsCrossed(a, b);
+    if (crossed.length && !S.skins.introSeen) { S.skins.introSeen = true; skinsUnlocked(skinsCrossed(-1, a), 'migration'); }
+    skinsUnlocked(crossed, 'level_up');
+  }
+  function skinsUnlocked(list, source) {
+    (list || []).filter(function (x) { return x.level > 1; }).forEach(function (x) {
+      track('skin_unlocked', { skin_id: x.id, level: x.level, source: source, lessons_done: doneCount(), days_since_first: daysBetween(S.firstDay, dayKey()), $set: { skins_open: skinsOpenCount() } });
+    });
+  }
+  function skinToast(id) { toast((SKIN_ICON[id] || '') + '<b>' + esc(skinName(id)) + '</b><span>זה הצבע שלך עכשיו</span>', 'info', 1800); }
+
+  // ----- pieces -----
+  // the round swatch: drawn in its own color (data-skin), whatever the app's color is
+  function skinSw(id, badge, size) {
+    return '<span class="sw" data-skin="' + id + '"' + (size ? ' style="width:' + size + 'px;height:' + size + 'px"' : '') + ' aria-hidden="true">' + (SKIN_ICON[id] || '') + (badge || '') + '</span>';
+  }
+  function swLock() { return '<i class="sw-badge">' + ICON.lock + '</i>'; }
+  function swOn() { return '<i class="sw-badge on">' + ICON.check + '</i>'; }
+  function skinGrid(from) {
+    var act = activeSkin();
+    return '<div class="skin-grid" role="group" aria-label="הצבעים שלך">' + skinList().map(function (x) {
+      var nm = esc(skinName(x.id));
+      if (!x.open) {
+        return '<button class="skin-opt locked" data-act="skin" data-id="' + x.id + '" data-from="' + from + '" aria-label="' + nm + ', צבע נעול. נפתח בשלב ' + x.level + '">' +
+          skinSw(x.id, swLock()) + '<b>' + nm + '</b><small>שלב ' + x.level + '</small></button>';
+      }
+      var on = x.id === act, fresh = !on && x.level > 1 && S.skins.seen.indexOf(x.id) < 0;
+      return '<button class="skin-opt" data-act="skin" data-id="' + x.id + '" data-from="' + from + '" aria-pressed="' + on + '">' + skinSw(x.id, on ? swOn() : '') + '<b>' + nm + '</b>' +
+        (on ? '<small>בשימוש</small>' : fresh ? '<span class="chip gold">חדש</span>' : '<small></small>') + '</button>';
+    }).join('') + '</div>';
+  }
+  // the profile card
+  function skinsCard() {
+    var sl = skinList();
+    if (!sl.length) return '';
+    var ns = nextSkin(), html = '<div class="card skins-card" id="skins"><div class="sk-head"><h2>הצבעים שלך</h2><span class="chip">' + skinsOpenCount() + ' מתוך ' + sl.length + '</span></div>' +
+      '<p class="fine">' + (ns ? 'כל כמה שלבים נפתח צבע חדש.' : 'פתחת את כל הצבעים.') + ' בוחרים, וכל האפליקציה מתחלפת.</p>' + skinGrid('profile');
+    if (ns) { var pts = skinPointsTo(ns); html += '<p class="fine">הצבע הבא: ' + esc(skinName(ns.id)) + ', בשלב ' + ns.level + ': עוד ' + plural(pts, 'נקודה אחת', 'נקודות') + '. ' + lessonsToGo(pts) + '</p>'; }
+    return html + '</div>';
+  }
+  // a tap on a color: an open one applies at once (the grids redraw in place), a locked one shows what it opens
+  function skinTap(id, from) {
+    var x = skinInfo(id);
+    if (!x) return;
+    if (!x.open) { skinLockedSheet(x, from); return; }
+    if (setSkin(id, from)) skinToast(id);
+    skinRefresh(id, from);
+  }
+  function skinRefresh(id, from) {
+    Array.prototype.forEach.call(document.querySelectorAll('.skin-grid'), function (g) {
+      var b = g.querySelector('[data-from]');
+      g.outerHTML = skinGrid(b ? b.getAttribute('data-from') : from);
+    });
+    var t = document.querySelector('.skin-grid [data-id="' + id + '"][data-from="' + from + '"]');
+    if (t) { t.classList.add('pop'); try { t.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+    navRefresh();
+  }
+  function navRefresh() { var n = root && root.querySelector('.nav'); if (n) n.outerHTML = renderNav(); }
+  // the level-up row when a level opens a tool and a color: the tool stays first, the row tries the color
+  function skinRow(id) {
+    return '<button class="skin-row" data-act="skin-row" data-id="' + id + '" aria-pressed="false">' + skinSw(id, '') +
+      '<span class="sr-txt"><b>וגם צבע חדש: ' + esc(skinName(id)) + '</b><small>לוחצים כדי לנסות</small></span></button>';
+  }
+  // the button to the next step: the open lesson, the next lesson, a mission or practice
+  function nextStepBtn(act, from) {
+    var cur = currentLesson();
+    return cur ? '<button class="btn" data-act="' + act + '" data-id="' + esc(cur.id) + '"' + (from ? ' data-from="' + from + '"' : '') + '>' + (S.inProgress && S.inProgress.lessonId === cur.id ? 'להמשיך בשיעור' : 'לשיעור הבא') + '</button>'
+      : openMissions().length ? '<button class="btn" data-act="nav" data-to="missions">למשימות</button>'
+      : doneCount() ? '<button class="btn" data-act="practice">לתרגול</button>' : '';
+  }
+  // a locked color: the sheet is drawn in that color, with a small preview
+  function skinLockedSheet(x, from) {
+    var pts = skinPointsTo(x), grad = x.id === 'neon' || x.id === 'gold';
+    track('skin_locked_tapped', { skin_id: x.id, level_needed: x.level, to_next_band: pointsBand(pts), from: from || 'profile' });
+    openSheet('<div class="eyebrow">' + ICON.lock + 'נפתח בשלב ' + x.level + '</div><h3>' + esc(skinName(x.id)) + '</h3>' +
+      '<p class="lead">צבע חדש לכל האפליקציה: הכפתורים, התפריט, הרקע והלוגו' + (grad ? ', עם מעבר צבעים' : '') + '.</p>' +
+      '<div class="skin-preview" aria-hidden="true"><div class="sp-top"><span class="brandmark">' + esc(CFG.appName) + '</span>' + skinSw(x.id, '', 28) + '</div>' +
+        '<span class="bar"><i style="width:62%"></i></span><p class="nudge">' + ICON.star + '<span>השיעור הבא מחכה לך</span></p><span class="btn">התחל שיעור</span></div>' +
+      '<p class="lock-note">' + ICON.coins + '<span>עוד ' + plural(pts, 'נקודה אחת', 'נקודות') + ' לשלב ' + x.level + '. ' + lessonsToGo(pts) + '</span></p>' +
+      nextStepBtn('skin-lesson', 'locked') + '<button class="btn text" data-act="close-sheet">הבנתי</button>', 'tall', x.id);
+  }
+  // the one-time sheet for people who had points before 0.12 (one popup per open, after the tools intro)
+  function skinsIntro() {
+    S.skins.introSeen = true;
+    var sl = skinList(), open = sl.filter(function (x) { return x.open && x.level > 1; }), first = sl.filter(function (x) { return x.level > 1; })[0];
+    track('skins_intro_seen', { open_count: open.length, level: levelInfo(S.xp).n });
+    skinsUnlocked(open, 'migration');
+    var lead = 'כל כמה שלבים נפתח צבע חדש לכל האפליקציה. ' + (open.length === 1
+      ? 'לפי הנקודות שכבר צברת, נפתח לך צבע אחד: ' + esc(skinName(open[0].id)) + '. לוחצים עליו, וכל האפליקציה מתחלפת.'
+      : open.length ? 'לפי הנקודות שכבר צברת, נפתחו לך ' + open.length + ' צבעים חדשים. לוחצים על צבע, וכל האפליקציה מתחלפת.'
+      : 'הצבע הראשון, ' + esc(skinName(first.id)) + ', נפתח בשלב ' + first.level + ': עוד ' + plural(skinPointsTo(first), 'נקודה אחת', 'נקודות') + '. ' + lessonsToGo(skinPointsTo(first)));
+    var grid = skinGrid('intro'), go = open.length ? '' : nextStepBtn('skin-lesson', 'intro');
+    open.forEach(function (x) { if (S.skins.seen.indexOf(x.id) < 0) S.skins.seen.push(x.id); });
+    save();
+    askOpenedAt = Date.now(); // a tap meant for home as it slides up does not close it
+    openSheet('<div class="eyebrow">חדש ב' + esc(CFG.appName) + '</div><h3>עכשיו הנקודות פותחות גם צבעים</h3><p class="lead">' + lead + '</p>' + grid +
+      '<p class="fine">לא קונים כלום: הנקודות נשארות, והשלב לא יורד.</p>' +
+      (open.length ? '<button class="btn" data-act="close-sheet">יאללה, ממשיכים</button>'
+        : go ? go + '<button class="btn text" data-act="close-sheet">אחר כך</button>' : '<button class="btn" data-act="close-sheet">הבנתי</button>'), 'tall skins-intro');
+    navRefresh();
+  }
+  // "א, ב וג"
+  function andList(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' ו' + a[a.length - 1]; }
+  // the level-up sheets' line about what comes next: a tool, a color or both (with colors off, the 0.11 tool line)
+  function nextRewardLine() {
+    var tl = toolList(), nt = nextTool(), ns = nextSkin(), allOff = DO.enabled && !levelInfo(S.xp).last ? ' כל שלב נוסף עדיין נותן יום חופש לרצף.' : '';
+    if (!skinList().length) return !tl.length ? '' : nt ? 'הכלי הבא: ' + esc(toolShort(nt.id)) + ', בשלב ' + nt.level + '.' : 'פתחת את כל הכלים.' + allOff;
+    if (nt && ns && nt.level === ns.level) return 'בשלב ' + nt.level + ' נפתחים ' + esc(toolShort(nt.id)) + ' וצבע חדש.';
+    if (nt && (!ns || nt.level < ns.level)) return 'הכלי הבא: ' + esc(toolShort(nt.id)) + ', בשלב ' + nt.level + '.';
+    if (ns) return 'הצבע הבא: ' + esc(skinName(ns.id)) + ', בשלב ' + ns.level + '.';
+    return 'פתחת את כל ' + (tl.length ? 'הכלים והצבעים.' : 'הצבעים.') + allOff;
+  }
+
   // ----- names and words -----
   var TOOL_SHORT = { discharge: 'מחשבון השחרור', pikadon_check: 'בודק הפיקדון', time_machine: 'מכונת הזמן', fees: 'מחשבון דמי הניהול', my_plan: 'התוכנית שלי' };
   var TOOL_FEM = { time_machine: true, my_plan: true }; // "נפתחת מכונת הזמן"
@@ -3056,7 +3306,9 @@
         '<span class="bar gold"><i style="width:' + (goal > base ? Math.round((S.xp - base) / (goal - base) * 100) : 0) + '%"></i></span></button>';
     }
     html += '<div class="tool-list">' + open.concat(locked).map(function (t) { return toolCard(t, 'tools'); }).join('') + '</div>';
-    if (!locked.length) html += '<p class="fine center">פתחת את כל הכלים.' + (DO.enabled ? ' כל שלב נוסף עדיין נותן יום חופש לרצף.' : '') + '</p>';
+    var nsk = nextSkin(), allSk = !nsk && skinList().length > 0; // 0.12: with every tool open, the next color is what points still bring
+    if (!locked.length) html += '<p class="fine center">פתחת את כל הכלים' + (allSk ? ' והצבעים' : '') + '.' +
+      (nsk ? ' הצבע הבא: ' + esc(skinName(nsk.id)) + ', בשלב ' + nsk.level + '.' : DO.enabled && !levelInfo(S.xp).last ? ' כל שלב נוסף עדיין נותן יום חופש לרצף.' : '') + '</p>';
     html += '<p class="fine center">' + esc(CFG.disclaimer) + '. הסכומים שלך נשארים בטלפון.</p>';
     if (CFG.about) html += '<p class="fine center about-link"><button class="legal-line" data-act="about" data-from="tools">' + ICON.user + esc(CFG.about.link) + '</button></p>';
     return html + '</div>';
@@ -3118,11 +3370,9 @@
     return c ? 'קרן חירום ' + fmt(c.toEF) + ' ₪, פינוק ' + (c.T ? fmt(c.T) + ' ₪' : 'בלי') + ', טווח ארוך ' + fmt(c.L) + ' ₪' + (c.complete ? '. לכל שקל יש תפקיד' : '') : '';
   }
   function toolLockedSheet(t, from) {
-    var pts = toolPointsTo(t), cur = currentLesson();
+    var pts = toolPointsTo(t);
     track('tool_locked_tapped', { tool_id: t.id, level_needed: t.level, to_next_band: pointsBand(pts), from: from || 'tools' });
-    var go = cur ? '<button class="btn" data-act="tool-lesson" data-id="' + esc(cur.id) + '">' + (S.inProgress && S.inProgress.lessonId === cur.id ? 'להמשיך בשיעור' : 'לשיעור הבא') + '</button>'
-      : openMissions().length ? '<button class="btn" data-act="nav" data-to="missions">למשימות</button>'
-      : doneCount() ? '<button class="btn" data-act="practice">לתרגול</button>' : '';
+    var go = nextStepBtn('tool-lesson');
     openSheet('<div class="eyebrow">' + ICON.lock + 'נפתח בשלב ' + t.level + '</div><h3>' + esc(toolName(t.id)) + '</h3>' +
       '<p class="lead">' + esc(toolTeaser(t.id)) + '</p>' +
       '<p class="fine">' + (t.id === 'time_machine' ? 'ככה זה נראה, עם סכום לדוגמה:' : t.id === 'my_plan' ? 'ככה זה נראה:' : 'ככה זה נראה, עם הדוגמה מהשיעור:') + '</p>' +
@@ -3239,11 +3489,22 @@
   // the done screen: what the next level brings, or the mission that gets there
   function doneNextLine(r, s, l, nt) {
     var m = s.mode === 'lesson' && l && l.mission && !missionState(l.id).done && r.toNext <= P.mission ? l.mission : null;
-    if (m) return 'המשימה של השיעור, ' + (m.minutes > 2 ? m.minutes + ' דקות' : 'דקה או שתיים') + ', ' + (nt ? 'פותחת לך את ' + esc(toolShort(nt.id)) : nextLevelDayOff() ? 'מביאה לך יום חופש לרצף' : 'מעלה אותך לשלב ' + (r.n + 1)) + '.';
+    var ns = m ? skinsAtLevel(r.n + 1)[0] : null;
+    if (m) return 'המשימה של השיעור, ' + (m.minutes > 2 ? m.minutes + ' דקות' : 'דקה או שתיים') + ', ' + (nt ? 'פותחת לך את ' + esc(toolShort(nt.id)) + (ns ? ' וצבע חדש' : '')
+      : ns ? 'פותחת לך צבע חדש' : nextLevelDayOff() ? 'מביאה לך יום חופש לרצף' : 'מעלה אותך לשלב ' + (r.n + 1)) + '.';
     return nextLevelLine(r) + '.';
   }
   function firstExplainer() {
-    var t2 = toolList().filter(function (t) { return t.level > 1; })[0], fem = t2 && TOOL_FEM[t2.id];
+    var t2 = toolList().filter(function (t) { return t.level > 1; })[0], fem = t2 && TOOL_FEM[t2.id], s2 = skinList().filter(function (x) { return x.level > 1; })[0];
+    var offNote = DO.enabled ? ' וכל שלב חדש נותן גם יום חופש לרצף: יום בלי שיעור שהרצף לא נשבר בו' + minStreakNote() + '.' : '';
+    // 0.12: tools and colors (they open together at level 2), or colors alone
+    if (s2 && (!t2 || t2.level === s2.level)) {
+      return '<p class="fine first-explainer">' + (t2 ? ICON.toolbox : SKIN_ICON[s2.id]) + '<span>' + (!t2
+        ? (s2.open ? 'הנקודות פותחות צבעים: צבע חדש כבר נפתח לך, והוא מחכה לך בפרופיל.' : 'הנקודות פותחות צבעים: בשלב ' + s2.level + ' נפתח צבע חדש לאפליקציה.')
+        : t2.open
+          ? 'הנקודות פותחות כלים וצבעים: ' + esc(toolShort(t2.id)) + ' כבר ' + (fem ? 'נפתחה' : 'נפתח') + ' לך בלשונית "כלים", וצבע חדש מחכה לך בפרופיל.'
+          : 'הנקודות פותחות כלים וצבעים: בשלב ' + t2.level + ' נפתחים ' + esc(toolShort(t2.id)) + ' וצבע חדש לאפליקציה.') + offNote + '</span></p>';
+    }
     if (t2) {
       return '<p class="fine first-explainer">' + ICON.toolbox + '<span>' + (t2.open
         ? 'הנקודות פותחות כלים, ו' + esc(toolShort(t2.id)) + ' כבר ' + (fem ? 'נפתחה' : 'נפתח') + ' לך בלשונית "כלים".'
@@ -3567,7 +3828,7 @@
   // ---------- Events ----------
   function onClick(e) {
     // the notifications popup ignores taps in its first moment (a tap meant for home that landed as it slid up)
-    if (Date.now() - askOpenedAt < 450 && e.target.closest('#sheet') && document.querySelector('#sheet .ask-ic, #sheet .ask-welcome, #sheet .tools-intro')) return;
+    if (Date.now() - askOpenedAt < 450 && e.target.closest('#sheet') && document.querySelector('#sheet .ask-ic, #sheet .ask-welcome, #sheet .tools-intro, #sheet .skins-intro')) return;
     if (e.target.closest('a[target="_blank"]')) markStepOut(); // a link out (the official calculator, WhatsApp)
     var el = e.target.closest('[data-act]');
     if (!el) return;
@@ -3582,6 +3843,44 @@
       case 'tool': openTool(id, el.getAttribute('data-from') || 'tools', el.getAttribute('data-src'), +el.getAttribute('data-amt') || 0); break;
       case 'tools-go': setView('tools'); toolsViewed(el.getAttribute('data-from') || 'intro'); break;
       case 'tool-lesson': sfx.tap(); startFrom = 'tool_locked'; startLesson(id); startFrom = null; break;
+      // 0.12 colors
+      case 'skin': skinTap(id, el.getAttribute('data-from') || 'profile'); break;
+      case 'skin-lesson': sfx.tap(); startFrom = el.getAttribute('data-from') === 'intro' ? 'skins_intro' : 'skin_locked'; startLesson(id); startFrom = null; break;
+      case 'skin-try': {
+        var skPrev = paintedSkin();
+        if (!skinInfo(id) || !skinInfo(id).open) break;
+        setSkin(id, 'level_up');
+        confetti(false);
+        var skCoin = document.querySelector('#sheet .lvl-coin');
+        if (skCoin) burst(skCoin);
+        var la = document.querySelector('#sheet .lu-actions');
+        if (la) {
+          la.innerHTML = '<p class="fine center">אפשר להחליף צבע בפרופיל, מתי שרוצים.</p><button class="btn" data-act="close-sheet">יאללה, ממשיכים</button>' +
+            (skPrev !== id ? '<button class="btn text" data-act="skin-undo" data-id="' + skPrev + '">לחזור לצבע הקודם</button>' : '');
+          var laGo = la.querySelector('.btn');
+          if (laGo) { try { laGo.focus({ preventScroll: true }); } catch (e2) { /* ignore */ } }
+        }
+        navRefresh();
+        break;
+      }
+      case 'skin-undo': {
+        if (setSkin(id, 'level_up_undo')) { closeSheet(); skinToast(activeSkin()); } else closeSheet();
+        navRefresh();
+        break;
+      }
+      case 'skin-row': {
+        var rowOn = el.getAttribute('aria-pressed') === 'true';
+        if (!rowOn) { el.setAttribute('data-prev', paintedSkin()); if (!setSkin(id, 'level_up_row') && paintedSkin() !== id) break; }
+        else setSkin(el.getAttribute('data-prev') || 'forest', 'level_up_undo');
+        rowOn = !rowOn;
+        el.setAttribute('aria-pressed', String(rowOn));
+        var rowSw = el.querySelector('.sw');
+        if (rowSw) rowSw.outerHTML = skinSw(id, rowOn ? swOn() : '');
+        var rowSm = el.querySelector('.sr-txt small');
+        if (rowSm) rowSm.textContent = rowOn ? 'זה הצבע שלך עכשיו. לוחצים שוב כדי לחזור' : 'לוחצים כדי לנסות';
+        navRefresh();
+        break;
+      }
       case 'tool-calc': if (toolInfo(id)) calcSheet(id, id); break;
       case 'tool-set': {
         var tk = id, tf = el.getAttribute('data-k');
@@ -3683,7 +3982,11 @@
         track('mission_completed', { lesson_id: id });
         closeSheet(true);
         render();
-        if (levelIndex(S.xp) > before) { toolsUnlocked(toolsCrossed(before, levelIndex(S.xp)), 'level_up'); levelUpSheet(grant, before); break; }
+        if (levelIndex(S.xp) > before) {
+          toolsUnlocked(toolsCrossed(before, levelIndex(S.xp)), 'level_up'); skinsLevelUp(before, levelIndex(S.xp)); save();
+          track('level_up', levelUpProps(grant, before));
+          levelUpSheet(grant, before); break;
+        }
         sfx.done();
         confetti();
         openSheet('<h3>משימה בוצעה</h3><p class="lead">' + plus(P.mission) + ' נקודות. זה החלק שבאמת משנה את המצב הכלכלי.</p>' +
@@ -3867,6 +4170,7 @@
         var uid = S.uid;
         if (S.reminder && S.reminder.on) disableReminder('reset');
         closeSheet(true); S = freshState(); S.uid = uid; onboardStep = 0; pickedStatus = null; session = null;
+        applySkin();
         track('progress_reset', {});
         save(); indexContent(); migrateContent(); setView('home');
         break;
@@ -4022,13 +4326,16 @@
     track('app_opened', {
       returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND,
       reminders: !!(S.reminder && S.reminder.on), days_off: S.daysOff, learned_days_7: learned7(),
-      $set: { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff }, $set_once: { first_day: S.firstDay, first_ref: S.ref || 'none' }
+      $set: skinList().length ? { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff, skin: activeSkin(), skins_open: skinsOpenCount() }
+        : { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff },
+      $set_once: { first_day: S.firstDay, first_ref: S.ref || 'none' }
     });
     if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false, kind: OPEN_KIND });
     // the app always opens on home; an unfinished lesson waits in the "להמשיך" card at the top (Jonathan, 18.10)
     if (S.inProgress && !(S.onboarded && S.status && restoreSession(S.inProgress))) { S.inProgress = null; save(); }
     // a transfer code can also arrive in the link (#p=D1....), for example pasted into the address bar
     var hashCode = /^#p=(.+)$/.exec(location.hash || '');
+    if (hashCode || OPEN_SOURCE === 'push') openAsked = true; // 0.12: no popup in an open from a reminder or a code link, also after a later visit home
     // existing users meet days off once, over home; one sheet per open, so no toast that day (none can apply on update day)
     var showIntro = DO.enabled && !hashCode && S.onboarded && S.status && !S.offIntroSeen;
     if (showIntro) offToast = null;
