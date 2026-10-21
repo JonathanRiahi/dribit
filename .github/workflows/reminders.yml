@@ -38,6 +38,10 @@ on:
         description: 'The daily 18:04 trigger: keep the 18:00-21:59 window (a late run sends nothing)'
         type: boolean
         default: false
+      diagnose:
+        description: 'Send nothing: show what happened to each subscription in the last 3 days (delete the log after reading)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -66,3 +70,4 @@ jobs:
           ONLY_LATEST: ${{ inputs.only_latest == true && '1' || '' }}
           EVERYONE: ${{ inputs.everyone == true && '1' || '' }}
           MESSAGE: ${{ inputs.message }}
+          DIAGNOSE: ${{ inputs.diagnose == true && '1' || '' }}

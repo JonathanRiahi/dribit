@@ -23,7 +23,13 @@
    today. MESSAGE (the message box) replaces the text of a test or everyone send: one line, at most 180 characters; a longer
    text, or a text without one of the two boxes, stops the run before anything is sent. Test and everyone sends do not count
    as the day's reminder, so the evening reminder still goes out.
-   The log never contains endpoints, ids or keys. */
+   DIAGNOSE=1 (the diagnose box) sends nothing and records nothing. It prints, for each subscription and for everyone who
+   used the app today, the last 3 days (Israel time): app opens, finished lessons, reminders and taps, plus today's runs.
+   It answers "why didn't I get today's reminder". People show only as the first 8 characters of their PostHog person id
+   (as in a PostHog export). Delete the run's log once read.
+   Each day's reminder has its own notification tag (daily-<date>), so it pops up with a sound even when yesterday's
+   reminder is still in the phone's notification list. With one tag for every day, the new one quietly replaced the old.
+   The log never contains endpoints, distinct ids or keys. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -46,6 +52,7 @@ const DRY = flag('DRY_RUN');
 const FORCE = flag('FORCE');
 const ONLY_LATEST = flag('ONLY_LATEST');
 const EVERYONE = flag('EVERYONE') && !ONLY_LATEST;
+const DIAGNOSE = flag('DIAGNOSE');
 // the text of a test or everyone send: the message box of a manual run, one line, at most MESSAGE_MAX characters
 const MESSAGE_MAX = 180;
 const CUSTOM_MESSAGE = (process.env.MESSAGE || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -130,39 +137,41 @@ async function capture(list, must) {
 
 async function main() {
   const t = israelNow();
-  console.log(`Israel time ${t.date} ${two(t.hour)}:${two(t.minute)}${DRY ? ' (dry run)' : ''}${ONLY_LATEST ? ' (test: only the person who used the app last)' : EVERYONE ? ' (everyone with reminders on, now)' : ''}`);
+  console.log(`Israel time ${t.date} ${two(t.hour)}:${two(t.minute)}${DIAGNOSE ? ' (diagnose: nothing is sent)' : DRY ? ' (dry run)' : ''}${DIAGNOSE ? '' : ONLY_LATEST ? ' (test: only the person who used the app last)' : EVERYONE ? ' (everyone with reminders on, now)' : ''}`);
   if (ONLY_LATEST && flag('EVERYONE')) console.log('Both only_latest and everyone were ticked: sending only to the person who used the app last.');
-  if (CUSTOM_MESSAGE && !ONLY_LATEST && !EVERYONE) throw new Error('The message box is used only with only_latest or everyone. Nothing was sent: run again with one of them ticked.');
+  if (CUSTOM_MESSAGE && !ONLY_LATEST && !EVERYONE && !DIAGNOSE) throw new Error('The message box is used only with only_latest or everyone. Nothing was sent: run again with one of them ticked.');
   const len = Array.from(CUSTOM_MESSAGE).length;
   if (len > MESSAGE_MAX) throw new Error(`The message is ${len} characters, and the limit is ${MESSAGE_MAX}. Nothing was sent: shorten it and run again.`);
   const inWindow = t.hour >= SEND_HOUR && t.hour < SEND_HOUR + WINDOW_HOURS;
-  if (!FORCE && !ONLY_LATEST && !EVERYONE && !inWindow) {
+  if (!FORCE && !ONLY_LATEST && !EVERYONE && !DIAGNOSE && !inWindow) {
     console.log(`Reminders go out between ${two(SEND_HOUR)}:00 and ${two(SEND_HOUR + WINDOW_HOURS - 1)}:59. Nothing to do now.`);
     return;
   }
-  const missing = [!API_KEY && 'POSTHOG_API_KEY (a PostHog personal API key with query:read)', !DRY && !VAPID_PRIVATE && 'VAPID_PRIVATE_KEY'].filter(Boolean);
+  const missing = [!API_KEY && 'POSTHOG_API_KEY (a PostHog personal API key with query:read)', !DRY && !DIAGNOSE && !VAPID_PRIVATE && 'VAPID_PRIVATE_KEY'].filter(Boolean);
   if (missing.length) {
     const msg = `No reminders were sent: missing the repository secret${missing.length > 1 ? 's' : ''} ${missing.join(' and ')}. Settings > Secrets and variables > Actions.`;
     // fail once a day (the first hour of the window, or a manual run) so Actions shows a red mark; later runs only warn
-    if (FORCE || ONLY_LATEST || EVERYONE || t.hour === SEND_HOUR) throw new Error(msg);
+    if (FORCE || ONLY_LATEST || EVERYONE || DIAGNOSE || t.hour === SEND_HOUR) throw new Error(msg);
     console.log(`::warning::${msg}`);
     return;
   }
   if (!VAPID_PUBLIC) throw new Error('config.js has no reminders.vapidPublicKey.');
-  if (!DRY) webpush.setVapidDetails(SITE, VAPID_PUBLIC, VAPID_PRIVATE);
+  if (!DRY && !DIAGNOSE) webpush.setVapidDetails(SITE, VAPID_PUBLIC, VAPID_PRIVATE);
   PROJECT = await projectId();
 
   // 1. the subscriptions: the newest push_subscribed or push_unsubscribed event per endpoint wins
   const rows = await hogql(
-    "SELECT properties.endpoint, event, properties.p256dh, properties.auth, distinct_id FROM events " +
+    "SELECT properties.endpoint, event, properties.p256dh, properties.auth, distinct_id, toString(toTimeZone(timestamp, 'Asia/Jerusalem')), " +
+    'properties.from, substring(toString(person_id), 1, 8) FROM events ' +
     "WHERE event IN ('push_subscribed', 'push_unsubscribed') AND timestamp > now() - INTERVAL 400 DAY " +
     'ORDER BY timestamp DESC LIMIT 10000');
   const subs = new Map();
-  for (const [endpoint, event, p256dh, auth, uid] of rows) {
+  for (const [endpoint, event, p256dh, auth, uid, at, from, person] of rows) {
     if (!endpoint || subs.has(endpoint)) continue;
-    subs.set(endpoint, event === 'push_subscribed' && p256dh && auth ? { endpoint, p256dh, auth, uid } : null);
+    subs.set(endpoint, event === 'push_subscribed' && p256dh && auth ? { endpoint, p256dh, auth, uid, at, from, person } : null);
   }
   const all = [...subs.values()].filter(Boolean);
+  if (DIAGNOSE) return diagnose(all, t);
   if (ONLY_LATEST) return onlyLatest(all, t);
   if (EVERYONE) {
     console.log(`Everyone with reminders on: ${all.length} subscription${all.length === 1 ? '' : 's'}.`);
@@ -182,7 +191,9 @@ async function main() {
 
   // 3. record, then send the daily message
   const which = t.weekday % MESSAGES.length;
-  const payload = JSON.stringify({ title: 'דריבית', body: MESSAGES[which], url: './?source=push', tag: 'daily' });
+  // a tag per day: a new day's reminder pops up even if yesterday's is still in the notification list (one tag for every
+  // day made the new one quietly replace the old one, with no sound or banner)
+  const payload = JSON.stringify({ title: 'דריבית', body: MESSAGES[which], url: './?source=push', tag: 'daily-' + t.date });
   const events = [];
   const sentRecord = (s) => ({ event: 'reminder_sent', distinct_id: s.uid, properties: { weekday: t.weekday, message: which, push_service: host(s.endpoint), run: RUN } });
   const send = async (s, body, onSent) => {
@@ -221,6 +232,84 @@ async function main() {
   }
   console.log(JSON.stringify(counts)); // last line, so the counts are easy to find in the log
 }
+// the diagnose box: what happened to each subscription, and to everyone who used the app today, in the last 3 days
+async function diagnose(all, t) {
+  const tz = "toString(toTimeZone(timestamp, 'Asia/Jerusalem'))";
+  const rows = await hogql(
+    `SELECT substring(toString(person_id), 1, 8), distinct_id, event, ${tz}, properties.platform, properties.standalone, ` +
+    'properties.app_version, properties.message, properties.test, properties.everyone FROM events ' +
+    "WHERE timestamp > now() - INTERVAL 4 DAY AND event IN ('app_opened', 'lesson_completed', 'practice_completed', " +
+    "'repair_completed', 'reminder_sent', 'push_clicked', 'push_subscribed', 'push_unsubscribed') " +
+    "AND distinct_id != 'dribit-reminders' ORDER BY timestamp LIMIT 10000");
+  const runs = await hogql(
+    `SELECT ${tz}, properties.sent, properties.skipped_active, properties.skipped_reminded, properties.failed, properties.gone, ` +
+    "properties.dry_run, properties.only_latest, properties.everyone FROM events WHERE event = 'reminder_run' " +
+    'AND timestamp > now() - INTERVAL 4 DAY ORDER BY timestamp LIMIT 500');
+  const day = (n) => { const d = new Date(t.date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
+  const days = [day(2), day(1), day(0)];
+  const dm = (date) => date.slice(8, 10) + '.' + date.slice(5, 7);
+  const hm = (at) => String(at || '').slice(11, 16);
+  const service = (url) => {
+    const h = host(url);
+    return /apple\.com$/.test(h) ? 'iPhone/iPad (Apple push)' : /googleapis\.com$/.test(h) ? 'Android/Chrome (Google push)' :
+      /mozilla/.test(h) ? 'Firefox (Mozilla push)' : /windows\.com$/.test(h) ? 'Windows push' : 'push service ' + h;
+  };
+  const done = { lesson_completed: 'lesson', practice_completed: 'practice', repair_completed: 'streak repair' };
+  const evs = rows.map(([person, uid, event, at, platform, standalone, version, message, test, everyone]) =>
+    ({ person, uid, event, at: String(at || ''), date: String(at || '').slice(0, 10), platform, standalone, version, message, test, everyone }));
+  const dayLine = (list, date) => {
+    const of = list.filter((e) => e.date === date);
+    const parts = [];
+    const opens = of.filter((e) => e.event === 'app_opened');
+    if (opens.length) {
+      const last = opens[opens.length - 1];
+      const where = last.standalone === true || last.standalone === 'true' ? 'home-screen app' : last.standalone === false || last.standalone === 'false' ? 'browser' : '?';
+      parts.push(`opened ${opens.length}x (last ${hm(last.at)}, ${last.platform || '?'}, ${where}, ${last.version || '?'})`);
+    }
+    of.filter((e) => done[e.event]).forEach((e) => parts.push(`finished a ${done[e.event]} ${hm(e.at)}`));
+    of.filter((e) => e.event === 'reminder_sent').forEach((e) => parts.push(`${e.message != null && e.message !== '' ? 'daily reminder' : e.test ? 'test reminder' : e.everyone ? 'everyone send' : 'reminder'} sent ${hm(e.at)}`));
+    of.filter((e) => e.event === 'push_clicked').forEach((e) => parts.push(`tapped a reminder ${hm(e.at)}`));
+    of.filter((e) => e.event === 'push_subscribed').forEach((e) => parts.push(`turned reminders on ${hm(e.at)}`));
+    of.filter((e) => e.event === 'push_unsubscribed').forEach((e) => parts.push(`reminders off ${hm(e.at)}`));
+    return `    ${dm(date)}: ${parts.length ? parts.join('; ') : 'nothing'}`;
+  };
+  console.log(`Subscriptions with reminders on: ${all.length}`);
+  const subUids = new Set(all.map((s) => s.uid));
+  all.slice().sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))).forEach((s, i) => {
+    const mine = evs.filter((e) => e.uid === s.uid);
+    const person = s.person || (mine.find((e) => e.person) || {}).person || '?';
+    console.log(`#${i + 1} person ${person}, ${service(s.endpoint)}, on since ${s.at ? dm(String(s.at).slice(0, 10)) + ' ' + hm(s.at) : '?'}${s.from ? ' (from ' + s.from + ')' : ''}`);
+    days.forEach((d) => console.log(dayLine(mine, d)));
+    const today = mine.filter((e) => e.date === t.date);
+    const sent = today.find((e) => e.event === 'reminder_sent' && e.message != null && e.message !== '');
+    const learned = today.filter((e) => done[e.event]);
+    console.log('    today: ' + (sent ? `got the daily reminder at ${hm(sent.at)}` :
+      learned.length ? `no daily reminder: finished a ${done[learned[0].event]} today at ${hm(learned[0].at)}, and people who already learned today get none` :
+        'no daily reminder sent yet'));
+  });
+  const others = new Map();
+  evs.filter((e) => e.date === t.date && e.event === 'app_opened' && !subUids.has(e.uid)).forEach((e) => {
+    const k = e.person || e.uid;
+    if (!others.has(k)) others.set(k, []);
+    others.get(k).push(e);
+  });
+  console.log(`Used the app today without reminders on: ${others.size}`);
+  [...others.entries()].forEach(([person, list]) => {
+    const all3 = evs.filter((e) => (e.person || e.uid) === person);
+    console.log(`  person ${String(person).slice(0, 8)}`);
+    days.forEach((d) => console.log(dayLine(all3, d)));
+  });
+  console.log('Reminder runs (only runs that reached the sending step):');
+  days.forEach((d) => {
+    const of = runs.filter((r) => String(r[0] || '').slice(0, 10) === d);
+    console.log(`  ${dm(d)}: ` + (of.length ? of.map(([at, sent, act, rem, failed, gone, dry, only, every]) =>
+      `${hm(at)} ${dry === true || dry === 'true' ? 'dry run' : only === true || only === 'true' ? 'test' : every === true || every === 'true' ? 'everyone' : 'daily'}: sent ${sent || 0}` +
+      (act != null ? `, skipped (learned today) ${act || 0}` : '') + (rem != null ? `, skipped (already reminded) ${rem || 0}` : '') +
+      `, failed ${failed || 0}, gone ${gone || 0}`).join('; ') : 'none'));
+  });
+  console.log(JSON.stringify({ diagnose: true, subscriptions: all.length, used_today_without_reminders: others.size }));
+}
+
 // how many of this run's daily reminder_sent events PostHog shows
 async function shown() {
   const r = await hogql(`SELECT count() FROM events WHERE event = 'reminder_sent' AND properties.run = '${RUN}' AND timestamp > now() - INTERVAL 1 HOUR`);
