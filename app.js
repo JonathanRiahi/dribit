@@ -8,6 +8,11 @@
   var P = CFG.points;
   // days off for the streak (config.daysOff): read by migrate(), so it is set before the state loads
   var DO = CFG.daysOff || { enabled: false, maxHeld: 0, perLevel: 0, invite: 0, inviteEveryDays: 7, friendGift: 0, minStreak: 2 };
+  // tools that open by level (config.tools, 0.10): read by cleanState(), so it is set before the state loads
+  var TOOLS = CFG.tools || { enabled: false, list: [] };
+  var TOOL_IDS = ['discharge', 'pikadon_check', 'time_machine', 'fees', 'my_plan'];
+  var WISH_IDS = ['studies', 'training', 'driving', 'business', 'marriage', 'home', 'rent', 'car', 'trip', 'other'];
+  var GOAL_IDS = ['studies', 'training', 'driving', 'business', 'marriage', 'home', 'wait5', 'unsure'];
   var STORE_KEY = 'dribit.progress.v1';
   var QUEUE_KEY = 'dribit.events.v1';
   var HEB_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
@@ -50,7 +55,14 @@
     dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
     // a beach umbrella: a day off for the streak
     dayoff: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5A9.5 9.5 0 002.5 12H11v7.25a1.25 1.25 0 01-2.5 0v-.75h-2v.75a3.25 3.25 0 006.5 0V12h8.5A9.5 9.5 0 0012 2.5z"/></svg>',
-    ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>'
+    ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>',
+    // 0.10: the tools tab and its tools
+    toolbox: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h6a2 2 0 012 2v2h3a2 2 0 012 2v3H2V9a2 2 0 012-2h3V5a2 2 0 012-2zm0 2v2h6V5z"/><path d="M2 13.5h8v1.2a1.3 1.3 0 001.3 1.3h1.4a1.3 1.3 0 001.3-1.3v-1.2h8V19a2 2 0 01-2 2H4a2 2 0 01-2-2z"/></svg>',
+    shieldCheck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l7.5 2.8v5.6c0 4.7-3.2 8.7-7.5 10.4-4.3-1.7-7.5-5.7-7.5-10.4V5.3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>',
+    hourglass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h12M6 21.5h12"/><path d="M7.5 2.5v3.2c0 1.6.8 3.1 2.1 4l2.4 1.8 2.4-1.8c1.3-.9 2.1-2.4 2.1-4V2.5M7.5 21.5v-3.2c0-1.6.8-3.1 2.1-4l2.4-1.8 2.4 1.8c1.3.9 2.1 2.4 2.1 4v3.2"/><path d="M9.5 19.5h5l-2.5-2z" fill="currentColor"/></svg>',
+    percent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18.5 5.5l-13 13"/><circle cx="7" cy="7" r="2.6"/><circle cx="17" cy="17" r="2.6"/></svg>',
+    jars: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2.5" y="9" width="5.4" height="12.5" rx="1.6"/><rect x="9.3" y="5" width="5.4" height="16.5" rx="1.6" opacity=".75"/><rect x="16.1" y="12" width="5.4" height="9.5" rx="1.6" opacity=".55"/></svg>',
+    unlock: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V7a5 5 0 019.6-2l-1.9.8A3 3 0 009 7v3h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2h1z"/></svg>'
   };
 
   // ---------- Utils ----------
@@ -135,19 +147,25 @@
       giftPending: false, // first opened from an invite link with no progress: the friend gift waits for lesson 1
       giftGot: false,    // the friend gift was given
       offIntroSeen: true, // the one-time "חדש" sheet about days off was shown
-      offRetro: 0        // days off given at the update for levels already passed
+      offRetro: 0,       // days off given at the update for levels already passed
+      // 0.10 tools: which were opened (the tab badge), the one-time intro, and each tool's last inputs.
+      // Which tools are open is derived from xp and the status, never stored.
+      tools: { seen: [], introSeen: true, check: null, growth: null, fees: null, plan: null }
     };
   }
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
   // the open lesson or the event queue.
   var TRANSFER_KEYS = ['v', 'uid', 'status', 'startUnit', 'goalXp', 'sound', 'share', 'firstDay', 'contentV', 'xp', 'streak',
     'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent', 'amount', 'ref', 'calc',
-    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro'];
+    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools'];
   function migrate(s) {
     // before 0.9 there were no days off: checked before the defaults below fill offLevel in
     var needsOff = !('offLevel' in s);
+    // before 0.10 there were no tools: someone with points meets them once in an intro sheet
+    var needsTools = !('tools' in s);
     var base = freshState();
     for (var k in base) if (!(k in s)) s[k] = base[k];
+    if (needsTools) s.tools.introSeen = !(+s.xp > 0);
     if (s.actions) { // v1 kept a single checkbox per lesson
       Object.keys(s.actions).forEach(function (id) { if (s.actions[id]) s.missions[id] = { steps: [], done: true }; });
       delete s.actions;
@@ -216,6 +234,29 @@
     });
     s.mistakes = cleanMap(s.mistakes, function (v) { return Math.floor(num0(v)); });
     ['ratings', 'intent', 'amount'].forEach(function (k) { s[k] = cleanMap(s[k], function (v) { return okWord(v) ? v : null; }); });
+    s.tools = cleanTools(s.tools);
+  }
+  // S.tools also arrives in transfer codes: every field is rebuilt from allow-lists and plain numbers (the tool screens
+  // clamp the numbers to the config lists again when they read them)
+  function toolNum(x, max) { return typeof x === 'number' && isFinite(x) && x >= 0 && x <= max ? x : null; }
+  function cleanAmountPart(p, keys) {
+    if (!isRec(p)) return null;
+    var out = { src: ['grant', 'preset', 'custom'].indexOf(p.src) >= 0 ? p.src : null, amount: toolNum(p.amount, 1e6) };
+    keys.forEach(function (k) { out[k] = toolNum(p[k], k === 'monthly' ? 1e5 : 100); });
+    return out;
+  }
+  function cleanTools(t) {
+    t = isRec(t) ? t : {};
+    var p = isRec(t.plan) ? t.plan : null;
+    return {
+      seen: Array.isArray(t.seen) ? t.seen.filter(function (x, i, a) { return TOOL_IDS.indexOf(x) >= 0 && a.indexOf(x) === i; }) : [],
+      introSeen: t.introSeen !== false,
+      check: isRec(t.check) && WISH_IDS.indexOf(t.check.wish) >= 0 ? { wish: t.check.wish } : null,
+      growth: cleanAmountPart(t.growth, ['years', 'monthly']),
+      fees: cleanAmountPart(t.fees, ['years', 'monthly', 'gap']),
+      plan: p ? { g: toolNum(p.g, 1e6), expenses: toolNum(p.expenses, 1e6), buffer: toolNum(p.buffer, 100), treat: toolNum(p.treat, 1e6),
+        goal: GOAL_IDS.indexOf(p.goal) >= 0 ? p.goal : null, transfer: toolNum(p.transfer, 1e6), savedAt: toolNum(p.savedAt, 1e13), done: p.done === true } : null
+    };
   }
   function load() {
     try {
@@ -318,7 +359,9 @@
   // the line under a level: how far the next one is, and what it brings (nothing to promise when the days off are full)
   function nextLevelLine(r) {
     if (r.last) return 'השלב האחרון. כל הכבוד';
-    return 'עוד ' + fmt(r.toNext) + ' נקודות לשלב ' + (r.n + 1) + (DO.enabled && S.daysOff < DO.maxHeld ? ', ואיתו יום חופש לרצף' : '');
+    var nt = toolsAtLevel(r.n + 1)[0]; // 0.10: a level that opens a tool says which
+    if (nt) return 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות') + ' לשלב ' + (r.n + 1) + ', שפותח את ' + toolShort(nt.id);
+    return 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות') + ' לשלב ' + (r.n + 1) + (DO.enabled && S.daysOff < DO.maxHeld ? ', ואיתו יום חופש לרצף' : '');
   }
   // "יום חופש אחד" / "2 ימי חופש"
   function daysOffText(n) { return n === 1 ? 'יום חופש אחד לרצף' : fmt(n) + ' ימי חופש לרצף'; }
@@ -673,7 +716,7 @@
     if (view === 'done' && session) { root.innerHTML = renderDone(); return; }
     if (view === 'notes' && notesId && BY_ID[notesId]) { root.innerHTML = renderNotes(BY_ID[notesId]); return; }
     var body = view === 'practice' ? renderPractice() : view === 'missions' ? renderMissions()
-      : view === 'profile' ? renderProfile() : renderPath();
+      : view === 'profile' ? renderProfile() : view === 'tools' && toolsTab() ? renderTools() : renderPath();
     root.innerHTML = renderTopbar() + '<main class="screen gutter">' + body + '</main>' + renderLegalBar() + renderNav();
     if (view === 'home') revealCurrent();
     if (view === 'home' && offToast && !sheetOpen) showOffToast();
@@ -732,9 +775,10 @@
       return '<button data-act="nav" data-to="' + id + '"' + (view === id ? ' aria-current="page"' : '') + '>' +
         '<span class="ic">' + icon + (badge ? '<i class="badge">' + badge + '</i>' : '') + '</span>' + label + '</button>';
     }
-    return '<nav class="nav"><div class="nav-inner">' +
+    var tools = toolsTab();
+    return '<nav class="nav"><div class="nav-inner' + (tools ? ' n5' : '') + '">' +
       b('home', ICON.path, 'מסלול') + b('practice', ICON.dumbbell, 'תרגול') +
-      b('missions', ICON.target, 'משימות', pending) + b('profile', ICON.user, 'פרופיל') +
+      b('missions', ICON.target, 'משימות', pending) + (tools ? b('tools', ICON.toolbox, 'כלים', newToolsCount()) : '') + b('profile', ICON.user, 'פרופיל') +
       '</div></nav>';
   }
 
@@ -923,15 +967,18 @@
           '<li><span>מסיימים בזמן שכתוב בתחילת השיעור</span><b>' + plus(P.speed) + '</b></li>' +
           '<li><span>משימה מחוץ לאפליקציה</span><b>' + plus(P.mission) + '</b></li>' +
         '</ul>';
+      var tl = toolList();
       openSheet('<h3>בשביל מה הנקודות?</h3>' +
-        (DO.enabled
-          ? '<p class="chain">נקודות ← שלב חדש ← יום חופש לרצף</p>' +
-            '<p class="lead">כל שלב חדש נותן יום חופש לרצף. ' + (S.status === 'civ' ? 'מבחן, משמרת, טיול?' : 'שמירה, שטח, בסיס סגור?') +
-              ' ביום בלי שיעור, יום חופש נכנס לבד והרצף לא נשבר' + minStreakNote() + '.</p>'
+        (DO.enabled || tl.length
+          ? '<p class="chain">נקודות ← ' + (tl.length ? 'שלבים' : 'שלב חדש') + ' ← ' + (tl.length ? (DO.enabled ? 'ימי חופש לרצף וכלים חדשים' : 'כלים חדשים') : 'יום חופש לרצף') + '</p>' +
+            (tl.length ? '<p class="lead">כל כמה שלבים נפתח כלי שמחשב בשבילך: בוחרים, והאפליקציה מחשבת.</p>' : '') +
+            (DO.enabled ? '<p class="lead">כל שלב חדש נותן יום חופש לרצף. ' + (S.status === 'civ' ? 'מבחן, משמרת, טיול?' : 'שמירה, שטח, בסיס סגור?') +
+              ' ביום בלי שיעור, יום חופש נכנס לבד והרצף לא נשבר' + minStreakNote() + '.</p>' : '')
           : '<p class="lead">הנקודות מעלות אותך שלב וממלאות את היעד היומי.</p>') +
         '<div class="card tight points-now"><b>' + (r.last ? 'שלב ' + r.total + ' מתוך ' + r.total + ', השלב האחרון' : esc(levelLabel(r)) + ' · עוד ' + fmt(r.toNext) + ' נקודות לשלב הבא') + '</b>' +
           '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
           (DO.enabled ? '<p class="fine off-line">' + ICON.dayoff + '<span>ימי חופש לרצף: ' + S.daysOff + ' (אפשר לשמור עד ' + DO.maxHeld + ')</span></p>' : '') + '</div>' +
+        (tl.length ? '<div class="eyebrow">הכלים שנפתחים בשלבים</div>' + toolLadder(tl, 'points_sheet') : '') +
         '<div class="eyebrow">איך מקבלים נקודות</div>' + rules +
         (DO.enabled && DO.invite ? '<p class="fine">עוד יום חופש לרצף: משתפים קישור לחבר, פעם ' + (DO.inviteEveryDays === 7 ? 'בשבוע' : 'ב-' + DO.inviteEveryDays + ' ימים') + '.' +
           (DO.friendGift ? ' חבר חדש מקבל ' + DO.friendGift + ' ימי חופש.' : '') + '</p>' : '') +
@@ -1131,6 +1178,10 @@
     if ('offUsed' in obj && !(Array.isArray(obj.offUsed) && obj.offUsed.length <= 30 && obj.offUsed.every(isDayKey))) return { ok: false, reason: 'bad_fields' };
     if ((obj.offSince != null && !isDayKey(obj.offSince)) || (obj.inviteOffDay != null && !isDayKey(obj.inviteOffDay))) return { ok: false, reason: 'bad_fields' };
     if (['giftPending', 'giftGot', 'offIntroSeen'].some(function (k) { return k in obj && typeof obj[k] !== 'boolean'; })) return { ok: false, reason: 'bad_fields' };
+    // 0.10 tools: the shape here; cleanTools() keeps only allow-listed words and plain numbers
+    var T = obj.tools;
+    if (T != null && !(isObj(T) && opt(T.seen, function (a) { return Array.isArray(a) && a.length <= 20 && a.every(okWord); }) && opt(T.introSeen, bool) &&
+      ['check', 'growth', 'fees', 'plan'].every(function (k) { return T[k] == null || isObj(T[k]); }))) return { ok: false, reason: 'bad_fields' };
     var state = {};
     TRANSFER_KEYS.forEach(function (k) { if (k in obj) state[k] = obj[k]; });
     return { ok: true, reason: null, state: state };
@@ -1236,20 +1287,41 @@
   }
 
   // g: what grantLevelDaysOff() added on this level-up (null when days off are off)
-  function levelUpSheet(g) {
+  // fromIdx: the level index before the points (0.10: a level that opens a tool shows the tool, with "לפתוח את הכלי")
+  function levelUpSheet(g, fromIdx) {
     var r = levelInfo(S.xp);
+    var opened = fromIdx != null ? toolsCrossed(fromIdx, r.i) : [];
     sfx.level();
     confetti(true);
-    track('level_up', { level: r.n, day_off_added: g ? g.added : 0, held: S.daysOff });
+    track('level_up', { level: r.n, day_off_added: g ? g.added : 0, held: S.daysOff, tool_unlocked: opened.length ? opened[0].id : null });
     var gain = '';
     if (g && g.added) {
       gain = g.added > 1 ? 'קיבלת ' + g.added + ' ימי חופש לרצף. יש לך עכשיו ' + g.held + '.'
         : 'קיבלת יום חופש לרצף. יש לך עכשיו ' + (g.held === 1 ? 'יום חופש אחד.' : g.held + ' ימי חופש לרצף.');
     } else if (g && g.atCap) gain = 'יש לך כבר ' + DO.maxHeld + ' ימי חופש לרצף, המקסימום, אז הפעם לא נוסף עוד אחד.';
+    var nt = nextTool(), tl = toolList();
+    var toolLine = !tl.length ? '' : nt ? 'הכלי הבא: ' + esc(toolShort(nt.id)) + ', בשלב ' + nt.level + '.'
+      : 'פתחת את כל הכלים.' + (DO.enabled ? ' כל שלב נוסף עדיין נותן יום חופש לרצף.' : '');
+    if (opened.length) {
+      var t = opened[0];
+      buzz([30, 40, 70]);
+      openSheet('<div class="level-up tool-unlock"><div class="lvl-coin unlock t-' + t.id + '">' + toolIcon(t.id) + '<i class="unlock-lock" aria-hidden="true">' + ICON.lock + '</i></div>' +
+        '<div class="eyebrow">עלית שלב · ' + esc(levelLabel(r)) + '</div><h3>נפתח כלי חדש</h3>' +
+        toolCard(t, 'level_up', true) +
+        (opened[1] ? '<p class="fine">ועוד: ' + esc(toolName(opened[1].id)) + '</p>' : '') +
+        (gain ? '<p class="fine off-line">' + ICON.dayoff + '<span>' + gain + '</span></p>' : '') +
+        (toolLine ? '<p class="fine">' + toolLine + '</p>' : '') + '</div>' +
+        '<button class="btn gold" data-act="tool" data-id="' + t.id + '" data-from="level_up">לפתוח את הכלי</button>' +
+        '<button class="btn text" data-act="close-sheet">אחר כך</button>');
+      var coin = document.querySelector('#sheet .lvl-coin');
+      if (coin) setTimeout(function () { if (document.body.contains(coin)) burst(coin); }, 700);
+      return;
+    }
     openSheet('<div class="level-up"><div class="lvl-coin">' + (g && g.added ? ICON.dayoff : ICON.coins) + '</div>' +
       '<div class="eyebrow">עלית שלב</div><h3>' + esc(levelLabel(r)) + '</h3>' +
       (gain ? '<p class="lead">' + gain + '</p>' : '') +
-      '<p class="fine">' + (r.last ? 'זה השלב האחרון. כל הכבוד.' : 'לשלב הבא: עוד ' + fmt(r.toNext) + ' נקודות.') + '</p></div>' +
+      '<p class="fine">' + (r.last ? 'זה השלב האחרון. כל הכבוד.' : 'לשלב הבא: עוד ' + fmt(r.toNext) + ' נקודות.') + '</p>' +
+      (toolLine ? '<p class="fine">' + toolLine + '</p>' : '') + '</div>' +
       '<button class="btn gold" data-act="close-sheet">יאללה, ממשיכים</button>');
   }
 
@@ -1278,6 +1350,7 @@
   }
   function step() { return session.steps[session.idx]; }
 
+  var startFrom = null; // where a lesson was started from, when it was not the path (0.10: 'tool_locked')
   function startLesson(id, restart) {
     var l = BY_ID[id];
     if (!shown(l)) return;
@@ -1286,7 +1359,7 @@
       if (s) {
         session = s;
         var rs = s.resumed, ago = rs.savedAt ? daysBetween(dayKey(new Date(rs.savedAt)), dayKey()) : 0;
-        track('lesson_resumed', { lesson_id: l.id, step_index: s.idx, step_count: s.steps.length, answered_before: rs.answered, jumped: rs.jumped, days_since: ago });
+        track('lesson_resumed', { lesson_id: l.id, step_index: s.idx, step_count: s.steps.length, answered_before: rs.answered, jumped: rs.jumped, days_since: ago, from: startFrom });
         setView('lesson');
         if (rs.jumped || ago > 0) resumeToast(rs.answered, ago, rs.savedAt);
         return;
@@ -1304,7 +1377,7 @@
       steps.push(buildQuestionStep(pool[0], { review: true }));
     }
     session = newSession('lesson', l, steps);
-    track('lesson_started', { lesson_id: l.id, unit_id: l.unit.id, lesson_title: l.title, replay: isDone(l.id), restart: !!restart });
+    track('lesson_started', { lesson_id: l.id, unit_id: l.unit.id, lesson_title: l.title, replay: isDone(l.id), restart: !!restart, from: startFrom });
     setView('lesson');
   }
 
@@ -1748,7 +1821,8 @@
     s.levelGrant = awardXp(s.xp);
     s.perfect = perfect;
     s.levelUp = levelIndex(S.xp) > before.i;
-    if (s.levelUp) s.pctBefore = 0;
+    s.levelFrom = before.i;
+    if (s.levelUp) { s.pctBefore = 0; toolsUnlocked(toolsCrossed(before.i, levelIndex(S.xp)), 'level_up'); }
     s.goalHit = !goalBefore && todayXp() >= S.goalXp;
     s.streakUp = currentStreak() > streakBefore;
     save();
@@ -1756,6 +1830,8 @@
     if (s.mode === 'lesson') {
       props.lesson_id = l.id; props.unit_id = l.unit.id; props.perfect = perfect;
       props.speed_bonus = !!s.speedBonus; props.first_time = s.firstTime;
+      var ntl = nextTool();
+      if (toolList().length) { props.next_tool = ntl ? ntl.id : null; props.to_next_band = ntl ? pointsBand(toolPointsTo(ntl)) : null; }
       track('lesson_completed', props);
     } else if (s.mode === 'repair') {
       props.passed = s.passed;
@@ -1766,7 +1842,7 @@
     confetti(s.perfect || s.levelUp);
     countUp();
     if (s.streakUp) setTimeout(sfx.streak, 900);
-    if (s.levelUp) setTimeout(function () { if (view === 'done' && !sheetOpen) levelUpSheet(s.levelGrant); }, 1500);
+    if (s.levelUp) setTimeout(function () { if (view === 'done' && !sheetOpen) levelUpSheet(s.levelGrant, s.levelFrom); }, 1500);
   }
 
   function countUp() {
@@ -1828,6 +1904,7 @@
       : s.goalHit ? 'עמדת ביעד היומי.' : s.streakUp ? 'רצף של ' + plural(currentStreak(), 'יום אחד', 'ימים') + '.' : 'עוד צעד בדרך.';
     var art = CFG.images && CFG.images.done;
     var correctPts = s.xp - s.bonus - s.perfectBonus - s.speedBonus;
+    var nextAt = r.last ? null : toolsAtLevel(r.n + 1)[0] || null;
     var rows = '<li><span>תשובות נכונות</span><b>' + plus(correctPts) + '</b></li>';
     if (s.giftGiven > 0) rows = '<li class="gift"><span>' + ICON.dayoff + 'מתנה מחבר</span><b>' + daysOffText(s.giftGiven) + '</b></li>' + rows;
     if (s.mode === 'lesson') {
@@ -1844,12 +1921,12 @@
         '<div class="tile time"><div class="t-label">זמן</div><div class="t-val">' + ltr(clock(s.time)) + '</div></div>' +
       '</div>' +
       '<div class="card tight"><ul class="rules">' + rows + '</ul>' +
-        '<div class="progress-row"><span>שלב ' + r.n + '</span><span class="bar gold"><i data-w="' + Math.round(r.pct * 100) + '" style="width:' + Math.round(s.pctBefore * 100) + '%"></i></span><span>' + (r.last ? '' : 'שלב ' + (r.n + 1)) + '</span></div>' +
-        '<p class="fine">' + (r.last ? '' : 'עוד ' + fmt(r.toNext) + ' נקודות לשלב הבא' + (DO.enabled && S.daysOff < DO.maxHeld ? ', ואיתו יום חופש לרצף. ' : '. ')) +
+        '<div class="progress-row"><span>שלב ' + r.n + '</span><span class="bar gold"><i data-w="' + Math.round(r.pct * 100) + '" style="width:' + Math.round(s.pctBefore * 100) + '%"></i></span><span>' + (r.last ? '' : 'שלב ' + (r.n + 1)) +
+          (nextAt ? '<i class="pr-tool t-' + nextAt.id + '" aria-hidden="true">' + toolIcon(nextAt.id) + '</i>' : '') + '</span></div>' +
+        '<p class="fine">' + (r.last ? '' : doneNextLine(r, s, l, nextAt) + ' ') +
           'היעד היומי: ' + fmt(todayXp()) + ' מתוך ' + fmt(S.goalXp) + '. <button class="link" data-act="explain" data-what="points">בשביל מה הנקודות?</button></p>' +
       '</div>' +
-      (DO.enabled && s.mode === 'lesson' && s.firstTime && doneCount() === 1
-        ? '<p class="fine first-explainer">' + ICON.dayoff + '<span>הנקודות מעלות שלב, וכל שלב חדש נותן יום חופש לרצף: יום בלי שיעור שהרצף לא נשבר בו' + minStreakNote() + '.</span></p>' : '');
+      (s.mode === 'lesson' && s.firstTime && doneCount() === 1 ? firstExplainer() : '');
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
@@ -2130,13 +2207,18 @@
   }
 
   function setStatus(v, source) {
-    var changed = S.status !== v;
+    var changed = S.status !== v, had = S.status;
+    var openBefore = toolList().filter(function (t) { return t.open; }).map(function (t) { return t.id; });
     S.status = v;
+    // the plan's amount means "what is left of the grant" for soldiers and "money on the side" for civ: never carry one into the other
+    if (changed && had && (had === 'civ') !== (v === 'civ') && S.tools && S.tools.plan) S.tools.plan.g = null;
     S.startUnit = (CFG.startUnit && CFG.startUnit[v] != null) ? CFG.startUnit[v] : null;
     indexContent();
     if (S.inProgress && !shown(BY_ID[S.inProgress.lessonId])) S.inProgress = null;
     save();
     if (changed) track('status_set', { status: v, start_unit_id: S.startUnit, source: source || 'profile', $set: { status: v, start_unit_id: S.startUnit } });
+    // 0.10: a new status can open a tool (civ has the time machine at level 2): no level-up sheet, the tab badge shows it
+    if (changed && had) toolsUnlocked(toolList().filter(function (t) { return t.open && t.level > 1 && openBefore.indexOf(t.id) < 0; }), 'status_change');
   }
 
   // ---------- Confetti ----------
@@ -2330,12 +2412,12 @@
   var askTimer = null, lastTouchAt = 0, askOpenedAt = 0;
   function maybeAsk() {
     clearTimeout(askTimer);
-    if (openAsked || view !== 'home' || sheetOpen || !(installAskState() || notifAskState())) return;
+    if (openAsked || view !== 'home' || sheetOpen || !(toolsIntroDue() || installAskState() || notifAskState())) return;
     askTimer = setTimeout(function tick() {
       var quiet = Date.now() - lastTouchAt;
       if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
       if (openAsked || view !== 'home' || sheetOpen || document.visibilityState === 'hidden') return;
-      if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
+      if (toolsIntroDue()) { openAsked = true; toolsIntro(); } else if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
     }, 700);
   }
   function installAskSheet(stage) {
@@ -2688,8 +2770,11 @@
       '<p class="fine">הערכה לפי הסכומים של משרד הביטחון לחודש שירות, נכון ל' + esc(CALC.asOf || '') + ' (נבדקו ב-' + esc(CALC.checked || '') + '). ' +
         'צריך לפחות ' + M.min + ' חודשי שירות, ונספרים עד ' + M.max + ' חודשים לחייל ועד 24 לחיילת. במסלולי הביניים והמפוצל של שירות לאומי-אזרחי הסכומים נמוכים יותר. ' +
         'הסכומים צמודים למדד. גם המחשבון הרשמי נותן הערכה, והסכום המדויק מופיע באזור האישי באתר האגף.</p>' +
+      (ctx === 'sheet' && est ? calcToolLinks() : '') +
       (CALC.officialUrl ? '<a class="btn ghost" href="' + esc(CALC.officialUrl) + '" target="_blank" rel="noopener" data-act="calc-official">למחשבון הרשמי</a>' : '') +
-      (ctx === 'sheet' ? '<button class="btn" data-act="close-sheet">סגירה</button>' : '') + '</div>';
+      (ctx === 'sheet' && calcBack && toolInfo(calcBack)
+        ? '<button class="btn" data-act="tool" data-id="' + calcBack + '" data-from="calc"' + (calcBack === 'time_machine' || calcBack === 'fees' ? ' data-src="grant" data-amt="0"' : '') + '>חזרה ' + esc(toolTo(calcBack)) + '</button>'
+        : ctx === 'sheet' ? '<button class="btn" data-act="close-sheet">סגירה</button>' : '') + '</div>';
   }
   // the profile card (on home until 0.9.2; moved by Jonathan, 18.10): for soldiers, after the pikadon lesson; shows the last estimate
   function calcCard() {
@@ -2703,8 +2788,11 @@
   function calcSheetInner() {
     return '<h3>כמה יהיה לך בשחרור?</h3><p class="lead">פיקדון ומענק משוערים לפי סוג השירות והחודשים. האפליקציה מחשבת, לא אתם.</p>' + calcWidget('sheet');
   }
-  function calcSheet(from) {
+  // back: a tool that sent here for the estimate (0.10); the sheet's main button returns to it
+  var calcBack = null;
+  function calcSheet(from, back) {
     if (!calcEnabled()) return;
+    calcBack = back || null;
     track('calculator_opened', { from: from || view, has_estimate: !!(S.calc && S.calc.type) });
     openSheet(calcSheetInner(), 'tall');
   }
@@ -2729,6 +2817,7 @@
     // the profile card under the sheet shows the new estimate when the sheet closes
     var card = root && root.querySelector('.calc-card');
     if (card) card.outerHTML = calcCard();
+    if (view === 'tools') render(); // the calculator's card in the tools tab shows the new estimate
     clearTimeout(calcTimer);
     calcTimer = setTimeout(function () {
       var est = calcEstimate(S.calc && calcState());
@@ -2736,6 +2825,630 @@
       track('calculator_used', { from: calcCtx, service_type: S.calc.type, months_band: monthsBand(est.months), training_set: est.training > 0, training_edited: !!S.calc.trainingEdited, lone: !!S.calc.lone,
         pikadon_band: calcBand(est.pikadon), grant_band: calcBand(est.grant), total_band: calcBand(est.total), $set: { calc_total_band: calcBand(est.total) } });
     }, 2500);
+  }
+
+  // ---------- Tools that open by level (config.tools, 0.10) ----------
+  // Jonathan (21.10, "בלי תעודה לשיתוף תעשה את 1"): points open real money tools in a "כלים" tab. Which tools are open
+  // is derived from the points and the status, never stored. A tool only adds up what the person picks: no product,
+  // company or partner on its screens, and no exact amount leaves the phone (analytics get bands).
+  var TG = TOOLS.growth || {}, TF = TOOLS.fees || {}, TP = TOOLS.plan || {};
+  function toolsOn() { return !!(TOOLS.enabled && TOOLS.list && TOOLS.list.length); }
+  function toolLevelOf(t) { var lf = t.levelFor && t.levelFor[S.status]; return Math.max(1, Math.round(+(lf != null ? lf : t.level) || 1)); }
+  function toolShows(t) {
+    return !!t && TOOL_IDS.indexOf(t.id) >= 0 && (!t.audience || t.audience.indexOf(S.status) >= 0) &&
+      (t.id !== 'discharge' || calcEnabled()) && toolLevelOf(t) <= CFG.levels.length;
+  }
+  // the tools this status sees, by level: { id, level, open }
+  function toolList() {
+    if (!toolsOn()) return [];
+    var n = levelIndex(S.xp) + 1, ids = [];
+    return TOOLS.list.filter(function (t) { var ok = toolShows(t) && ids.indexOf(t.id) < 0; if (ok) ids.push(t.id); return ok; })
+      .map(function (t, k) { var lv = toolLevelOf(t); return { id: t.id, level: lv, open: lv <= n, k: k }; })
+      .sort(function (a, b) { return a.level - b.level || a.k - b.k; });
+  }
+  function toolsTab() { return toolList().length > 0; }
+  function toolInfo(id) { return toolList().filter(function (t) { return t.id === id; })[0] || null; }
+  function toolsAtLevel(n) { return toolList().filter(function (t) { return t.level === n; }); }
+  function nextTool() { return toolList().filter(function (t) { return !t.open; })[0] || null; }
+  // the discharge calculator counts as seen for anyone who already used it (it was in the profile before 0.10)
+  function toolSeen(id) { return S.tools.seen.indexOf(id) >= 0 || (id === 'discharge' && !!(S.calc && S.calc.at)); }
+  function newToolsCount() { return toolList().filter(function (t) { return t.open && !toolSeen(t.id); }).length; }
+  // the tools a level-up from level index a to level index b opened
+  function toolsCrossed(a, b) { return toolList().filter(function (t) { return t.level > a + 1 && t.level <= b + 1; }); }
+  function toolPointsTo(t) { var L = CFG.levels[t.level - 1]; return L ? Math.max(0, L.min - S.xp) : 0; }
+  function pointsBand(n) { return n < 50 ? '<50' : n < 150 ? '50-149' : n < 400 ? '150-399' : '400+'; }
+  var unlockSent = {}; // status switches back and forth report each tool once per open
+  function toolsUnlocked(list, source) {
+    if (source === 'status_change') list = (list || []).filter(function (t) { var dup = unlockSent[t.id]; unlockSent[t.id] = 1; return !dup; });
+    if (!list || !list.length) return;
+    var openN = toolList().filter(function (t) { return t.open; }).length;
+    list.forEach(function (t) {
+      track('tool_unlocked', { tool_id: t.id, level: t.level, source: source, lessons_done: doneCount(), days_since_first: daysBetween(S.firstDay, dayKey()), $set: { tools_open: openN } });
+    });
+  }
+  // analytics get ranges, never the amount: '<5k', '5-10k' ... '200k+'
+  function toolBand(v) {
+    var B = TOOLS.bands || [], k = function (x) { return x >= 1000 ? Math.round(x / 1000) + 'k' : String(x); };
+    if (!B.length) return 'all';
+    if (v < B[0]) return '<' + k(B[0]);
+    for (var i = 1; i < B.length; i++) if (v < B[i]) return k(B[i - 1]).replace('k', '') + '-' + k(B[i]);
+    return k(B[B.length - 1]) + '+';
+  }
+
+  // ----- names and words -----
+  var TOOL_SHORT = { discharge: 'מחשבון השחרור', pikadon_check: 'בודק הפיקדון', time_machine: 'מכונת הזמן', fees: 'מחשבון דמי הניהול', my_plan: 'התוכנית שלי' };
+  var TOOL_FEM = { time_machine: true, my_plan: true }; // "נפתחת מכונת הזמן"
+  function toolShort(id) { return TOOL_SHORT[id] || ''; }
+  // "חזרה לתוכנית שלי": ל merges with the article, so each name has its own form
+  function toolTo(id) { return { discharge: 'למחשבון השחרור', pikadon_check: 'לבודק הפיקדון', time_machine: 'למכונת הזמן', fees: 'למחשבון דמי הניהול', my_plan: 'לתוכנית שלי' }[id] || ''; }
+  function toolName(id) {
+    return { discharge: 'כמה יהיה לך בשחרור?', pikadon_check: 'מה מותר לעשות עם הפיקדון?', time_machine: 'מכונת הזמן', fees: 'כמה עולים דמי ניהול?',
+      my_plan: S.status === 'civ' ? 'התוכנית שלי לכסף שבצד' : 'התוכנית שלי לכסף מהצבא' }[id] || '';
+  }
+  function toolTeaser(id) {
+    var civ = S.status === 'civ';
+    return { discharge: 'פיקדון ומענק לפי סוג השירות והחודשים. האפליקציה מחשבת, לא אתם.',
+      pikadon_check: 'טיול? שכר דירה? שיעורי נהיגה? בוחרים, ורואים מיד אם מותר לממן את זה מהפיקדון, ומתי.',
+      time_machine: civ ? 'מה 10 שנים עושות לסכום שבוחרים, ומה קורה לו כשהוא רק יושב בעו״ש.' : 'מה 10 שנים עושות למענק שלך, ומה קורה לו כשהוא רק יושב בעו״ש.',
+      fees: 'חצי אחוז נשמע כמו כלום. כאן רואים כמה שקלים הוא שווה אחרי 30 שנה.',
+      my_plan: civ ? 'הכסף שבצד וקרן חירום בעמוד אחד: לכל שקל תפקיד.' : 'פיקדון, מענק וקרן חירום בעמוד אחד: לכל שקל תפקיד, עוד לפני שהכסף נכנס.' }[id] || '';
+  }
+  function toolIcon(id) { return { discharge: ICON.coins, pikadon_check: ICON.shieldCheck, time_machine: ICON.hourglass, fees: ICON.percent, my_plan: ICON.jars }[id] || ICON.toolbox; }
+  function yearsText(y) { return y + (y > 10 ? ' שנה' : ' שנים'); }
+  function pctText(x) { return ltr(String(+(+x).toFixed(2)) + '%'); }
+  function money0(v) { return 'כ-' + fmt(v) + ' ₪'; } // plain text, for the notes copy
+  function monthsText(n) { return n === 1 ? 'כחודש' : 'כ-' + n + ' חודשים'; }
+
+  // the pikadon in its first 5 years: six goals (lesson 2.1, mod01/mod03), anything else after 5 years (mod02)
+  var WISHES = {
+    studies: { label: 'לימודים אקדמיים או פסיכומטרי', ok: true, src: 'mod03', how: 'מגישים בקשה באזור האישי באתר האגף, והתשלום עובר ישירות למוסד, לפי שובר.' },
+    training: { label: 'הכשרה מקצועית', ok: true, src: 'mod01', how: 'מגישים בקשה באזור האישי באתר האגף לחיילים משוחררים ומילואים.' },
+    driving: { label: 'שיעורי נהיגה', ok: true, src: 'mod01', how: 'מגישים בקשה באזור האישי ומצרפים חשבוניות. הכסף נכנס לחשבון הבנק אחרי שהבקשה אושרה.' },
+    business: { label: 'הקמת עסק', ok: true, src: 'mod01', how: 'מגישים בקשה באזור האישי ומצרפים חשבוניות. הכסף נכנס לחשבון הבנק אחרי שהבקשה אושרה.' },
+    marriage: { label: 'נישואין', ok: true, src: 'mod01', how: 'מגישים בקשה באזור האישי, והכסף נכנס לחשבון הבנק אחרי שהבקשה אושרה.' },
+    home: { label: 'קניית דירה', ok: true, src: 'mod01', how: 'רק קנייה: דירה, בית או קרקע לבניית בית. התשלום עובר ישירות למוכר או לקבלן.' },
+    rent: { label: 'שכר דירה', ok: false, src: 'mod01', how: 'בדירה מדובר רק בקנייה. שכר דירה לא נכלל.' },
+    car: { label: 'קניית רכב', ok: false, src: 'mod01', how: 'רכב פרטי לא ברשימה של שש המטרות.' },
+    trip: { label: 'טיול', ok: false, src: 'mod01', how: 'טיול לא ברשימה של שש המטרות.' },
+    other: { label: 'משהו אחר', ok: false, src: 'mod01', how: 'בחמש השנים הראשונות מותרות רק שש מטרות: לימודים אקדמיים או פסיכומטרי, הכשרה מקצועית, שיעורי נהיגה, הקמת עסק, נישואין וקניית דירה.' }
+  };
+  function wishById(id) { return WISH_IDS.indexOf(id) >= 0 ? WISHES[id] : null; }
+  function goalLabel(g) { return g === 'wait5' ? 'מחכים 5 שנים' : g === 'unsure' || !g ? 'עוד לא יודע/ת' : (WISHES[g] || {}).label || ''; }
+
+  // ----- the tools tab -----
+  function lessonsToGo(pts) {
+    if (pts <= P.mission && openMissions().length) return 'משימה אחת שמחכה לך מספיקה.';
+    var n = Math.max(1, Math.ceil(pts / (TOOLS.typicalLessonPoints || 75)));
+    return (n === 1 ? 'בערך שיעור אחד' : 'בערך ' + n + ' שיעורים') + '.';
+  }
+  function toolSummary(id) {
+    if (id === 'discharge') {
+      var e = calcEstimate(S.calc && calcState());
+      return e ? 'ההערכה שלך: ' + money(e.pikadon) + ' פיקדון + ' + money(e.grant) + ' מענק' : '';
+    }
+    if (id === 'pikadon_check') {
+      var w = wishById(S.tools.check && S.tools.check.wish);
+      return w ? 'בדקת: ' + esc(w.label) + '. ' + (w.ok ? 'מותר מהיום ה-14 אחרי השחרור' : 'לא בחמש השנים הראשונות') : '';
+    }
+    if (id === 'time_machine' && S.tools.growth) { var g = growthState(); return 'בדקת: ' + money(g.amount) + ' ל-' + yearsText(g.years); }
+    if (id === 'fees' && S.tools.fees) { var f = feesState(); return 'בדקת: פער של ' + pctText(f.gap) + ' ל-' + yearsText(f.years); }
+    if (id === 'my_plan') {
+      var c = planCalc(), st = planState();
+      if (!c || !c.complete) return '';
+      if (st.savedAt && Date.now() - st.savedAt > planCfg().revisit * 864e5) return '<b class="revisit">עברה חצי שנה. לבדוק את התוכנית שוב?</b>';
+      return 'קרן חירום ' + money(c.toEF) + ' · פינוק ' + (c.T ? money(c.T) : 'בלי') + ' · טווח ארוך ' + money(c.L);
+    }
+    return '';
+  }
+  function toolCard(t, from) {
+    var seen = toolSeen(t.id), nt = nextTool();
+    var chip = t.open ? (seen ? '<span class="chip ok">פתוח</span>' : '<span class="chip gold">חדש</span>') : '<span class="chip lvl">' + ICON.lock + 'שלב ' + t.level + '</span>';
+    var sub = t.open ? toolSummary(t.id) || esc(toolTeaser(t.id)) : esc(toolTeaser(t.id));
+    return '<button class="tool-card t-' + t.id + (t.open ? ' open' : ' locked' + (nt && nt.id === t.id ? ' next' : '')) + '" data-act="tool" data-id="' + t.id + '" data-from="' + from + '"' +
+      (t.open ? '' : ' aria-label="' + esc(toolName(t.id).replace(/\?$/, '')) + (TOOL_FEM[t.id] ? ', נעולה, נפתחת בשלב ' : ', נעול, נפתח בשלב ') + t.level + '. ' + esc(toolTeaser(t.id)) + '"') + '>' +
+      '<span class="tc-ic">' + toolIcon(t.id) + (t.open ? '' : '<i class="tc-lock">' + ICON.lock + '</i>') + '</span>' +
+      '<span class="tc-txt"><span class="tc-top"><b>' + esc(toolName(t.id)) + '</b>' + chip + '</span><span class="tc-sub">' + sub + '</span></span>' +
+      ICON.chevron + '</button>';
+  }
+  function toolLadder(tl, from) {
+    return '<ul class="tool-ladder">' + tl.map(function (t) {
+      return '<li><button class="' + (t.open ? 'open' : 'locked') + ' t-' + t.id + '" data-act="tool" data-id="' + t.id + '" data-from="' + from + '">' + toolIcon(t.id) +
+        '<span class="tl-n">שלב ' + t.level + ' · ' + esc(toolShort(t.id)) + '</span><span class="tl-s">' + (t.open ? 'פתוח' : 'עוד ' + plural(toolPointsTo(t), 'נקודה', 'נק׳')) + '</span></button></li>';
+    }).join('') + '</ul>';
+  }
+  function renderTools() {
+    var tl = toolList(), open = tl.filter(function (t) { return t.open; }), locked = tl.filter(function (t) { return !t.open; }), nt = locked[0];
+    var html = '<div class="page tools-page"><h1>הכלים שלך</h1><p class="sub">' + (locked.length ? 'כל כמה שלבים נפתח כלי חדש. ' : '') + 'בוחרים, והאפליקציה מחשבת.</p>';
+    if (nt) {
+      var pts = toolPointsTo(nt), r = levelInfo(S.xp), base = CFG.levels[r.i].min, goal = CFG.levels[nt.level - 1].min;
+      html += '<button class="tools-next" data-act="tool" data-id="' + nt.id + '" data-from="tools">' +
+        '<span class="rank-badge">' + toolIcon(nt.id) + '</span>' +
+        '<span class="rank-txt"><b>הכלי הבא: ' + esc(toolShort(nt.id)) + ' · עוד ' + plural(pts, 'נקודה אחת', 'נקודות') + '</b><span>' + lessonsToGo(pts) + '</span></span>' +
+        '<span class="bar gold"><i style="width:' + (goal > base ? Math.round((S.xp - base) / (goal - base) * 100) : 0) + '%"></i></span></button>';
+    }
+    html += '<div class="tool-list">' + open.concat(locked).map(function (t) { return toolCard(t, 'tools'); }).join('') + '</div>';
+    if (!locked.length) html += '<p class="fine center">פתחת את כל הכלים.' + (DO.enabled ? ' כל שלב נוסף עדיין נותן יום חופש לרצף.' : '') + '</p>';
+    html += '<p class="fine center">' + esc(CFG.disclaimer) + '. הסכומים שלך נשארים בטלפון.</p>';
+    if (CFG.about) html += '<p class="fine center about-link"><button class="legal-line" data-act="about" data-from="tools">' + ICON.user + esc(CFG.about.link) + '</button></p>';
+    return html + '</div>';
+  }
+  function toolsViewed(from) {
+    var tl = toolList(), nt = nextTool();
+    track('tools_viewed', { from: from || 'nav', open_count: tl.filter(function (t) { return t.open; }).length, locked_count: tl.filter(function (t) { return !t.open; }).length,
+      level: levelInfo(S.xp).n, status: S.status, next_tool: nt ? nt.id : null, to_next_band: nt ? pointsBand(toolPointsTo(nt)) : null });
+  }
+  // the badge and the cards under an open sheet follow what was just opened or changed
+  function refreshUnder() {
+    if (view === 'tools') { render(); return; }
+    var n = root && root.querySelector('.nav');
+    if (n) n.outerHTML = renderNav();
+  }
+  // a link from one tool (or the calculator) to another: a locked tool shows its level and opens its preview
+  function toolLink(id, label, from, src, amt) {
+    var t = toolInfo(id);
+    if (!t) return '';
+    return '<button class="link tool-link" data-act="tool" data-id="' + id + '" data-from="' + (from || 'tool_link') + '"' +
+      (src ? ' data-src="' + src + '" data-amt="' + (Math.round(amt) || 0) + '"' : '') + '><span class="u">' + label + '</span>' +
+      (t.open ? '' : ' <span class="chip lvl">' + ICON.lock + 'שלב ' + t.level + '</span>') + '</button>';
+  }
+  function calcToolLinks() {
+    var a = toolLink('pikadon_check', 'מה מותר לעשות עם הפיקדון?', 'calc'), b = toolLink('time_machine', 'מה הזמן עושה למענק? מכונת הזמן', 'calc', 'grant', 0);
+    if (!a && !b) return '';
+    return '<div class="tool-links">' + a + b + '</div><p class="fine">הכלי מחשב לפי מה שבחרת. ' + esc(CFG.disclaimer) + '.</p>';
+  }
+
+  // ----- opening a tool -----
+  function openTool(id, from, src, amt) {
+    var t = toolInfo(id);
+    if (!t) return;
+    if (!t.open) { toolLockedSheet(t, from); return; }
+    var first = !toolSeen(id);
+    if (S.tools.seen.indexOf(id) < 0) { S.tools.seen.push(id); save(); }
+    track('tool_opened', { tool_id: id, from: from || 'tools', first_open: first, level: levelInfo(S.xp).n });
+    // a link that carries an amount (the plan's long-term money, the time machine's amount to the fees tool)
+    if ((id === 'time_machine' || id === 'fees') && (src === 'grant' || amt > 0)) {
+      var key = id === 'fees' ? 'fees' : 'growth', cur = key === 'fees' ? feesState() : growthState(), a = readAmount({ src: src || 'custom', amount: amt });
+      if (a) { cur.src = a.src; cur.amount = a.amount; S.tools[key] = cur; S.tools = cleanTools(S.tools); save(); }
+    }
+    if (first) refreshUnder();
+    if (id === 'discharge') { calcSheet('tools'); return; }
+    openSheet('<div class="tool" data-tool="' + id + '">' + toolBody(id) + '</div><p id="tool-live" class="sr-only" aria-live="polite"></p>', 'tall tool-sheet');
+    // focus starts at the title, not on "סגירה" at the end of the sheet
+    var h = document.querySelector('#sheet .tool > h3');
+    if (h) { h.setAttribute('tabindex', '-1'); try { h.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+  }
+  // what a screen reader hears after a change (the result is redrawn in place)
+  function toolAnnounce(key) {
+    if (key === 'check') { var x = wishById(S.tools.check && S.tools.check.wish); return x ? x.label + ': ' + (x.ok ? 'מותר, מהיום ה-14 אחרי השחרור' : 'לא בחמש השנים הראשונות') : ''; }
+    if (key === 'growth') {
+      var g = growthState(), rows = growthRows(g), top = rows[rows.length - 1];
+      return fmt(g.amount) + ' ₪ ל-' + yearsText(g.years) + ': בעו״ש כ-' + fmt(rows[0].v) + ' ₪, ב-' + top.r + '% בשנה כ-' + fmt(top.v) + ' ₪';
+    }
+    if (key === 'fees') { var f = feesCalc(feesState()); return 'הפער עלה כ-' + fmt(f.cost) + ' ₪'; }
+    var c = planCalc();
+    return c ? 'קרן חירום ' + fmt(c.toEF) + ' ₪, פינוק ' + (c.T ? fmt(c.T) + ' ₪' : 'בלי') + ', טווח ארוך ' + fmt(c.L) + ' ₪' + (c.complete ? '. לכל שקל יש תפקיד' : '') : '';
+  }
+  function toolLockedSheet(t, from) {
+    var pts = toolPointsTo(t), cur = currentLesson();
+    track('tool_locked_tapped', { tool_id: t.id, level_needed: t.level, to_next_band: pointsBand(pts), from: from || 'tools' });
+    var go = cur ? '<button class="btn" data-act="tool-lesson" data-id="' + esc(cur.id) + '">' + (S.inProgress && S.inProgress.lessonId === cur.id ? 'להמשיך בשיעור' : 'לשיעור הבא') + '</button>'
+      : openMissions().length ? '<button class="btn" data-act="nav" data-to="missions">למשימות</button>'
+      : doneCount() ? '<button class="btn" data-act="practice">לתרגול</button>' : '';
+    openSheet('<div class="eyebrow">' + ICON.lock + 'נפתח בשלב ' + t.level + '</div><h3>' + esc(toolName(t.id)) + '</h3>' +
+      '<p class="lead">' + esc(toolTeaser(t.id)) + '</p>' +
+      '<p class="fine">' + (t.id === 'time_machine' ? 'ככה זה נראה, עם סכום לדוגמה:' : t.id === 'my_plan' ? 'ככה זה נראה:' : 'ככה זה נראה, עם הדוגמה מהשיעור:') + '</p>' +
+      '<div class="tool-sample t-' + t.id + '">' + toolSample(t.id) + '<i class="ts-lock" aria-hidden="true">' + ICON.lock + '</i></div>' +
+      '<p class="lock-note">' + ICON.coins + '<span>עוד ' + plural(pts, 'נקודה אחת', 'נקודות') + ' לשלב ' + t.level + '. ' + lessonsToGo(pts) + '</span></p>' +
+      go + '<button class="btn text" data-act="close-sheet">הבנתי</button>', 'tall');
+  }
+  // a fixed example from the lessons behind the lock (nothing personal)
+  function toolSample(id) {
+    if (id === 'pikadon_check') return '<div class="pk-verdict wait still"><h4>' + ICON.clock + 'שכר דירה? לא בחמש השנים הראשונות.</h4><p>בדירה מדובר רק בקנייה. שכר דירה לא נכלל.</p></div>';
+    if (id === 'time_machine') return '<div class="tr-head">' + ltr('10,000 ₪') + ' בעוד 10 שנים, אם הכסף...</div>' + tmBars(growthRows({ amount: 10000, monthly: 0, years: 10 }), true);
+    if (id === 'fees') return '<div class="tr-head">' + ltr('10,000 ₪') + ' ל-30 שנה:</div>' + feesBars(feesCalc({ amount: 10000, monthly: 0, years: 30, gap: 0.5 }), true);
+    if (id === 'my_plan') return '<div class="plan-bar blank"><i></i><i></i><i></i></div>' + planLegend();
+    return '';
+  }
+  function toolBody(id) { return id === 'pikadon_check' ? checkBody() : id === 'time_machine' ? tmBody() : id === 'fees' ? feesBody() : id === 'my_plan' ? planBody() : ''; }
+  // an input change redraws the tool in place (open <details> stay open) and, 2.5 seconds after the last change, records one tool_used
+  function toolRefresh() {
+    var el = document.querySelector('#sheet .tool');
+    if (!el) return;
+    var was = [].map.call(el.querySelectorAll('details'), function (d) { return d.open; });
+    var a = document.activeElement, sel = a && el.contains(a) && a.getAttribute('data-k')
+      ? '[data-act="tool-set"][data-id="' + a.getAttribute('data-id') + '"][data-k="' + a.getAttribute('data-k') + '"]' +
+        (a.getAttribute('data-v') != null ? '[data-v="' + a.getAttribute('data-v') + '"]' : '[data-d="' + a.getAttribute('data-d') + '"]') : null;
+    el.classList.add('redraw'); // bars grow on the first paint only, not on every tap
+    el.innerHTML = toolBody(el.getAttribute('data-tool'));
+    [].forEach.call(el.querySelectorAll('details'), function (d, i) { if (was[i]) d.open = true; });
+    // keyboard and screen readers stay on the button that was just pressed (or its neighbour at a limit, or the chip
+    // that is now picked when its stepper went away)
+    var f = sel && el.querySelector(sel);
+    if (f && f.disabled) f = f.parentNode.querySelector('button:not([disabled])');
+    if (!f && sel && a.getAttribute('data-d') != null) f = el.querySelector('[data-act="tool-set"][data-id="' + a.getAttribute('data-id') + '"][data-k="' + a.getAttribute('data-k') + '"][aria-pressed="true"]');
+    if (f) { try { f.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+  }
+  var toolTimer = null, toolPending = null, planJustDone = false;
+  function toolSet(key, fn) {
+    var c = key === 'check' ? { wish: S.tools.check && S.tools.check.wish } : key === 'growth' ? growthState() : key === 'fees' ? feesState() : planState();
+    fn(c);
+    if (key === 'plan') c.savedAt = Date.now();
+    S.tools[key] = c;
+    S.tools = cleanTools(S.tools);
+    if (key === 'plan') { var pc = planCalc(); if (pc && pc.complete && !S.tools.plan.done) { S.tools.plan.done = true; planJustDone = true; } }
+    save();
+    sfx.tap();
+    toolRefresh();
+    var live = document.getElementById('tool-live');
+    if (live) live.textContent = toolAnnounce(key);
+    if (planJustDone) {
+      planJustDone = false;
+      // the finishing moment is far below the goal chips: bring the banner and the copy button up
+      var pd = document.querySelector('#sheet [data-act="plan-copy"]');
+      if (pd) { try { pd.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); } catch (e) { pd.scrollIntoView(); } }
+      sfx.pair(); confetti(false);
+    }
+    if (view === 'tools') render();
+    if (toolPending && toolPending !== key) toolUsed(toolPending);
+    toolPending = key;
+    clearTimeout(toolTimer);
+    toolTimer = setTimeout(function () { if (toolPending) toolUsed(toolPending); }, 2500);
+  }
+  function toolSetField(key, c, k, v, d) {
+    var A = amountCfg(), C = planCfg();
+    if (k === 'amt') {
+      if (d) { c.src = 'custom'; c.amount = stepAmount(c.amount, d); }
+      else if (v === 'grant') { c.src = 'grant'; c.amount = grantEstimate(); }
+      else if (v === 'custom') { c.src = 'custom'; c.amount = clampAmount(Math.round(c.amount / A.step) * A.step); }
+      else { c.src = 'preset'; c.amount = +v; }
+    } else if (k === 'wish' || k === 'goal') c[k] = v;
+    else if (k === 'g') {
+      var I = planIn();
+      if (I.soldier && I.est) c.g = Math.min(I.est.grant, Math.max(0, Math.min(I.est.grant, c.g != null ? c.g : I.est.grant) + d * 500)); // post: what is left of the grant
+      else c.g = d ? stepAmount(c.g || A.min, d) : clampAmount(+v);
+    } else if (k === 'expenses') c.expenses = Math.min(C.ex.max, Math.max(C.ex.min, d ? (c.expenses || C.ex.presets[0]) + d * C.ex.step : +v));
+    else if (k === 'treat') c.treat = Math.max(0, d ? (c.treat || 0) + d * C.treat.step : +v);
+    else c[k] = +v; // years, monthly, gap, buffer, transfer: clamped to the config lists when read
+  }
+  function toolUsed(key) {
+    toolPending = null;
+    var est = calcEnabled() ? calcEstimate(S.calc && calcState()) : null;
+    if (key === 'check') {
+      var w = S.tools.check && S.tools.check.wish, x = wishById(w);
+      if (x) track('tool_used', { tool_id: 'pikadon_check', wish: w, verdict: x.ok ? 'allowed' : 'after5', has_calc: !!est });
+    } else if (key === 'growth') {
+      var g = growthState();
+      track('tool_used', { tool_id: 'time_machine', amount_source: g.src, amount_band: toolBand(g.amount), years: g.years, monthly_set: g.monthly > 0 });
+    } else if (key === 'fees') {
+      var f = feesState();
+      track('tool_used', { tool_id: 'fees', amount_source: f.src, amount_band: toolBand(f.amount), years: f.years, gap: f.gap, monthly_set: f.monthly > 0 });
+    } else if (key === 'plan') {
+      var c = planCalc(), st = planState(), I = planIn(), ls = c && c.G ? Math.round(c.L / c.G * 100) : 0;
+      track('tool_used', { tool_id: 'my_plan', source: I.soldier ? 'calc' : 'custom',
+        expenses_band: st.expenses == null ? null : st.expenses < 2500 ? '<2.5k' : st.expenses < 3500 ? '2.5-3.5k' : st.expenses < 5000 ? '3.5-5k' : '5k+',
+        buffer: st.buffer, treat_band: !st.treat ? 'none' : st.treat < 1000 ? '<1k' : st.treat < 2000 ? '1-2k' : '2k+',
+        ef: c ? (c.short ? 'short' : 'covered') : null,
+        months_band: c ? (c.months === 0 ? '0' : c.months <= 6 ? '1-6' : c.months <= 12 ? '7-12' : c.months <= 24 ? '13-24' : '25+') : null,
+        long_share_band: c ? (c.L === 0 ? '0' : ls <= 33 ? '1-33' : ls <= 66 ? '34-66' : '67-100') : null,
+        pikadon_goal: I.soldier ? st.goal : null, complete: !!(c && c.complete) });
+    }
+  }
+  // the one-time sheet for people who had points before 0.10 (one popup per open, never with the days-off intro)
+  function toolsIntroDue() { return toolsTab() && S.onboarded && !!S.status && !S.tools.introSeen; }
+  function toolsIntro() {
+    S.tools.introSeen = true; save();
+    var tl = toolList(), open = tl.filter(function (t) { return t.open; });
+    track('tools_intro_seen', { open_count: open.length });
+    toolsUnlocked(open.filter(function (t) { return t.level > 1; }), 'migration');
+    var lead = 'כל כמה שלבים נפתח כלי שמחשב בשבילך. ' + (open.length
+      ? 'לפי הנקודות שכבר צברת, ' + (open.length === 1 ? 'פתוח לך כלי אחד.' : 'פתוחים לך ' + open.length + ' כלים.')
+      : esc(toolShort(tl[0].id)) + ' ' + (TOOL_FEM[tl[0].id] ? 'נפתחת' : 'נפתח') + ' לך בשלב ' + tl[0].level + '.');
+    askOpenedAt = Date.now(); // a tap meant for home as it slides up does not close it
+    openSheet('<div class="eyebrow">חדש ב' + esc(CFG.appName) + '</div><h3>עכשיו הנקודות פותחות כלים</h3><p class="lead">' + lead + '</p>' + toolLadder(tl, 'intro') +
+      '<button class="btn" data-act="tools-go" data-from="intro">לראות את הכלים</button><button class="btn text" data-act="close-sheet">אחר כך</button>', 'tall tools-intro');
+  }
+  // the done screen: what the next level brings, or the mission that gets there
+  function doneNextLine(r, s, l, nt) {
+    var m = s.mode === 'lesson' && l && l.mission && !missionState(l.id).done && r.toNext <= P.mission ? l.mission : null;
+    if (m) return 'המשימה של השיעור, ' + (m.minutes > 2 ? m.minutes + ' דקות' : 'דקה או שתיים') + ', ' + (nt ? 'פותחת לך את ' + esc(toolShort(nt.id)) : 'מעלה אותך לשלב ' + (r.n + 1)) + '.';
+    return 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות') + ' לשלב הבא' + (nt ? ', שפותח את ' + esc(toolShort(nt.id)) + '.' : DO.enabled && S.daysOff < DO.maxHeld ? ', ואיתו יום חופש לרצף.' : '.');
+  }
+  function firstExplainer() {
+    var t2 = toolList().filter(function (t) { return t.level > 1; })[0], fem = t2 && TOOL_FEM[t2.id];
+    if (t2) {
+      return '<p class="fine first-explainer">' + ICON.toolbox + '<span>' + (t2.open
+        ? 'הנקודות פותחות כלים, ו' + esc(toolShort(t2.id)) + ' כבר ' + (fem ? 'נפתחה' : 'נפתח') + ' לך בלשונית "כלים".'
+        : 'הנקודות פותחות כלים: בשלב ' + t2.level + ' ' + (fem ? 'נפתחת ' : 'נפתח ') + esc(toolShort(t2.id)) + '.') +
+        (DO.enabled ? ' וכל שלב חדש נותן גם יום חופש לרצף: יום בלי שיעור שהרצף לא נשבר בו' + minStreakNote() + '.' : '') + '</span></p>';
+    }
+    return DO.enabled ? '<p class="fine first-explainer">' + ICON.dayoff + '<span>הנקודות מעלות שלב, וכל שלב חדש נותן יום חופש לרצף: יום בלי שיעור שהרצף לא נשבר בו' + minStreakNote() + '.</span></p>' : '';
+  }
+
+  // ----- shared inputs: amounts, chips, steppers -----
+  function amountCfg() { return { presets: TG.presets || [5000, 10000, 20000], step: TG.step || 1000, min: TG.min || 1000, max: TG.max || 200000 }; }
+  function clampAmount(v) { var A = amountCfg(); return Math.min(A.max, Math.max(A.min, Math.round(+v || 0))); }
+  // the "סכום אחר" stepper moves faster as the amount grows (1,000 up to 20,000, then 5,000, then 10,000 from 100,000)
+  function stepAmount(v, d) {
+    var A = amountCfg(), x = d > 0 ? v : v - 1, s = x < 20000 ? A.step : x < 100000 ? Math.max(A.step, 5000) : Math.max(A.step, 10000);
+    return clampAmount(d > 0 ? Math.ceil((v + 1) / s) * s : Math.floor((v - 1) / s) * s); // to the next round amount
+  }
+  function grantEstimate() {
+    if (S.status === 'civ' || !calcEnabled()) return 0;
+    var e = calcEstimate(S.calc && calcState());
+    return e ? e.grant : 0;
+  }
+  function readAmount(raw) {
+    if (!isRec(raw)) return null;
+    var g = grantEstimate(), A = amountCfg();
+    if (raw.src === 'grant' && g) return { src: 'grant', amount: g };
+    if (raw.src === 'preset' && A.presets.indexOf(raw.amount) >= 0) return { src: 'preset', amount: raw.amount };
+    if (raw.src === 'custom' && raw.amount > 0) return { src: 'custom', amount: clampAmount(raw.amount) };
+    return null;
+  }
+  function defaultAmount() {
+    var g = grantEstimate(), A = amountCfg();
+    return g ? { src: 'grant', amount: g } : { src: 'preset', amount: A.presets.indexOf(10000) >= 0 ? 10000 : A.presets[0] || 10000 };
+  }
+  function pickIn(list, v, def) { return (list || []).indexOf(v) >= 0 ? v : def; }
+  function chipBtn(attrs, pressed, label) { return '<button class="chip-btn" ' + attrs + ' aria-pressed="' + !!pressed + '">' + label + '</button>'; }
+  function setAttrs(key, k, v) { return 'data-act="tool-set" data-id="' + key + '" data-k="' + k + '" data-v="' + v + '"'; }
+  function moneyStepper(key, k, val, min, max, label) {
+    var sa = function (d) { return 'data-act="tool-set" data-id="' + key + '" data-k="' + k + '" data-d="' + d + '"'; };
+    return '<div class="stepper small money-step" role="group" aria-label="' + label + '"><button ' + sa(-1) + ' aria-label="פחות"' + (val <= min ? ' disabled' : '') + '>&minus;</button>' +
+      '<b>' + ltr(fmt(val) + ' ₪') + '</b><button ' + sa(1) + ' aria-label="עוד"' + (val >= max ? ' disabled' : '') + '>+</button></div>';
+  }
+  var KEY_TOOL = { check: 'pikadon_check', growth: 'time_machine', fees: 'fees', plan: 'my_plan' };
+  function amountPicker(key, st) {
+    var A = amountCfg(), g = grantEstimate();
+    var chips = (g ? chipBtn(setAttrs(key, 'amt', 'grant'), st.src === 'grant', 'המענק שלך<small>' + money(g) + '</small>') : '') +
+      A.presets.map(function (p) { return chipBtn(setAttrs(key, 'amt', p), st.src === 'preset' && st.amount === p, ltr(fmt(p) + ' ₪')); }).join('') +
+      chipBtn(setAttrs(key, 'amt', 'custom'), st.src === 'custom', 'סכום אחר');
+    return '<div class="calc-field"><span class="eyebrow">מאיזה סכום</span><div class="chips">' + chips + '</div>' +
+      (st.src === 'custom' ? moneyStepper(key, 'amt', st.amount, A.min, A.max, 'הסכום') : '') +
+      (!g && S.status !== 'civ' && calcEnabled() ? '<button class="link" data-act="tool-calc" data-id="' + KEY_TOOL[key] + '">לחשב קודם את המענק</button>' : '') + '</div>';
+  }
+  function monthlyPicker(key, st) {
+    var chips = (TG.monthly || [0]).map(function (m) { return chipBtn(setAttrs(key, 'monthly', m), st.monthly === m, m ? ltr(fmt(m) + ' ₪') : 'בלי'); }).join('');
+    return '<details class="calc-more"><summary>הפקדה כל חודש: ' + (st.monthly ? ltr(fmt(st.monthly) + ' ₪') : 'בלי') + '</summary>' +
+      '<div class="chips">' + chips + '</div><p class="fine">כמו מאיה ועומר מהשיעור על ריבית דריבית, שהפקידו ' + ltr('300 ₪') + ' בחודש.</p></details>';
+  }
+  function lessonLink(id, label) { return BY_ID[id] && shown(BY_ID[id]) ? '<button class="link tool-link" data-act="preview" data-id="' + id + '"><span class="u">' + label + '</span></button>' : ''; }
+  function toolFoot(text) { return '<p class="fine tool-foot">' + text + ' ' + esc(CFG.disclaimer) + '.</p><button class="btn" data-act="close-sheet">סגירה</button>'; }
+
+  // ----- the pikadon checker (level 2) -----
+  function checkBody() {
+    var w = S.tools.check && S.tools.check.wish, x = wishById(w), est = calcEnabled() ? calcEstimate(S.calc && calcState()) : null;
+    var chips = WISH_IDS.map(function (id) { return chipBtn(setAttrs('check', 'wish', id), w === id, esc(WISHES[id].label)); }).join('');
+    var verdict = !x ? '<div class="tool-result empty"><p>בוחרים משהו, והתשובה תופיע כאן.</p></div>'
+      : '<div class="pk-verdict ' + (x.ok ? 'ok' : 'wait') + '" role="status"><h4>' + (x.ok ? ICON.check + 'מותר, מהיום ה-14 אחרי השחרור' : ICON.clock + 'לא בחמש השנים הראשונות') + '</h4>' +
+        '<p>' + esc(x.how) + '</p>' +
+        (x.ok
+          ? (est ? '<p>בפיקדון שלך, לפי המחשבון: ' + money(est.pikadon) + '.</p>'
+            : calcEnabled() ? '<p><button class="link" data-act="tool-calc" data-id="pikadon_check">כמה יש לך בפיקדון? לחשב</button></p>' : '')
+          : '<p>מה שלא נוצל בחמש השנים הראשונות עובר אחר כך לבד לחשבון הבנק שרשום באזור האישי, ומותר לכל מטרה. רק לוודא שפרטי הבנק שם מעודכנים.</p>' +
+            '<p>המענק, לעומת זאת, מותר לכל מטרה מהיום הראשון.' + (est ? ' לפי המחשבון: ' + money(est.grant) + '.' : '') + '</p>' +
+            '<p>' + toolLink('my_plan', 'איך מחלקים אותו? התוכנית שלי') + '</p>') +
+        srcLink({ src: x.src, id: 'pikadon_check' }, 'tool', '') + '</div>';
+    return '<h3>מה מותר לעשות עם הפיקדון?</h3><p class="lead">בוחרים מה רוצים לממן, ורואים מיד אם מותר לממן את זה מהפיקדון, ומתי.</p>' +
+      '<div class="chips wishes">' + chips + '</div>' + verdict +
+      toolFoot('את הזכאות המדויקת בודקים באזור האישי באתר האגף.');
+  }
+
+  // ----- the time machine (level 3; civ level 2) -----
+  // the lump sum grows once a year, monthly deposits at the end of each month: the convention of the lessons
+  function fv(A, m, r, y) { return A * Math.pow(1 + r, y) + (r > 0 ? m * (Math.pow(1 + r / 12, 12 * y) - 1) / (r / 12) : 12 * y * m); }
+  function roundShow(v) { return v < 100000 ? Math.round(v / 100) * 100 : Math.round(v / 1000) * 1000; }
+  // what the 0% total would buy then, in today's prices, if prices rise by infl each year
+  function realValue(A, m, y, infl) { return (A + 12 * y * m) / Math.pow(1 + infl, y); }
+  function growthState() {
+    var raw = S.tools.growth, a = readAmount(raw) || defaultAmount();
+    return { src: a.src, amount: a.amount, years: pickIn(TG.years, raw && raw.years, TG.defaultYears || 10), monthly: pickIn(TG.monthly, raw && raw.monthly, 0) };
+  }
+  function growthRows(st) {
+    var dep = roundShow(st.amount + 12 * st.years * st.monthly);
+    return (TG.rates || [0, 2, 4, 6]).map(function (r) { return { r: r, v: r > 0 ? roundShow(fv(st.amount, st.monthly, r / 100, st.years)) : dep, dep: dep }; });
+  }
+  function rateLabel(r) { return r > 0 ? 'גדל ב-' + ltr(r + '%') + ' בשנה' : 'רק יושב בעו״ש'; }
+  // RTL bars that grow from the right: what was put in, and what time added
+  function tmBars(rows, still, notes) {
+    var top = rows[rows.length - 1].v || 1;
+    return '<div class="tm-rows' + (still ? ' still' : '') + '">' + rows.map(function (x, i) {
+      return '<div class="tm-row' + (x.r > 0 ? '' : ' zero') + '"><span>' + rateLabel(x.r) + '</span><b>' + money(x.v) + '</b>' +
+        '<span class="tm-bar"><span class="fill" style="width:' + (x.v / top * 100).toFixed(1) + '%;animation-delay:' + i * 90 + 'ms">' +
+        '<i class="dep" style="width:' + (x.v ? Math.min(100, x.dep / x.v * 100) : 100).toFixed(1) + '%"></i><i class="gain"></i></span></span>' +
+        (notes && notes[i] ? '<small>' + notes[i] + '</small>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
+  function tmBody() {
+    var st = growthState(), rows = growthRows(st), top = rows[rows.length - 1], zero = rows[0], dep = zero.dep, gain = top.v - dep;
+    var infl = TG.inflation || 3, real = roundShow(realValue(st.amount, st.monthly, st.years, infl / 100));
+    var notes = rows.map(function (x, i) {
+      if (x.r === 0) return (st.monthly ? 'בעו״ש יש רק מה שהפקדת, בלי צמיחה. אם המחירים עולים ' + ltr(infl + '%') + ' בשנה, זה יקנה אז' : 'המספר לא זז, אבל אם המחירים עולים ' + ltr(infl + '%') + ' בשנה, הוא יקנה אז') +
+        ' בערך מה ש-' + ltr(fmt(real) + ' ₪') + ' קונים היום.';
+      if (i === rows.length - 1) return 'מהכיס: ' + money(dep) + '. עוד ' + money(gain) + ' הוסיפה הריבית דריבית.';
+      return '';
+    });
+    var years = (TG.years || []).map(function (y) { return chipBtn(setAttrs('growth', 'years', y), st.years === y, yearsText(y)); }).join('');
+    var lines = '<p>ב-' + ltr('6%') + ' בשנה סכום מוכפל בערך כל 12 שנים, וב-' + ltr('4%') + ' בערך כל 18.</p>' +
+      (st.years >= 20 ? '<p>כל עשור מוסיף יותר מהעשור שלפניו: רווח שנשאר בפנים מרוויח בעצמו.</p>' : '') +
+      (gain > dep ? '<p>ב-' + ltr(top.r + '%') + ', רוב הסכום הגיע מהריבית דריבית, לא מהכיס.</p>' : '');
+    return '<h3>מכונת הזמן</h3><p class="lead">בוחרים סכום ומספר שנים, ורואים מה הזמן עושה לו: כשהוא רק יושב בעו״ש, וכשהוא גדל ב-' + ltr('2%') + ', ' + ltr('4%') + ' או ' + ltr('6%') + ' בשנה.</p>' +
+      amountPicker('growth', st) +
+      '<div class="calc-field"><span class="eyebrow">כמה שנים</span><div class="chips">' + years + '</div></div>' +
+      monthlyPicker('growth', st) +
+      '<div class="tool-result"><div class="tr-head">בעוד ' + yearsText(st.years) + ', אם הכסף...</div>' + tmBars(rows, false, notes) +
+        '<div class="tm-legend"><span><i class="dep"></i>מהכיס</span><span><i class="gain"></i>ריבית דריבית</span></div>' + '<div class="tr-lines">' + lines + '</div></div>' +
+      '<p class="tool-note">לפי הסדר מהשיעורים: קודם קרן חירום, ורק אחר כך כסף לטווח ארוך.</p>' +
+      (S.status !== 'civ' ? '<p class="tool-note">את הפיקדון לא מחשבים כאן: בחמש השנים הראשונות הוא נעול לשש מטרות. המענק מותר לכל מטרה מהיום הראשון.</p>' : '') +
+      '<p class="fine caveat">' + ltr('2%') + ', ' + ltr('4%') + ' ו-' + ltr('6%') + ' הם אחוזים לדוגמה מהשיעורים, לא תחזית ולא הבטחה. בשוק ההון התשואה לא קבועה, ויש שנים של ירידות. רק במחשבון הכסף גדל באותו אחוז בכל שנה.</p>' +
+      '<div class="tool-links">' + lessonLink('3.1', 'איך זה עובד? לשיעור על ריבית דריבית') + toolLink('fees', 'וכמה מזה הולך לדמי ניהול?', 'tool_link', st.src, st.amount) + '</div>' +
+      toolFoot('הכלי מחשב לפי מה שבחרת, והוא לא אומר איפה להחזיק את הכסף.');
+  }
+
+  // ----- what management fees cost (level 4) -----
+  function feesState() {
+    var raw = S.tools.fees, a = readAmount(raw) || readAmount(S.tools.growth) || defaultAmount();
+    return { src: a.src, amount: a.amount, years: pickIn(TF.years, raw && raw.years, TF.defaultYears || 30), gap: pickIn(TF.gaps, raw && raw.gap, TF.defaultGap || 0.5),
+      monthly: pickIn(TG.monthly, raw && raw.monthly, 0) };
+  }
+  // both totals are rounded first, so the gap on screen always adds up
+  function feesCalc(st) {
+    var gross = TF.gross || 6, A = roundShow(fv(st.amount, st.monthly, gross / 100, st.years)), B = roundShow(fv(st.amount, st.monthly, (gross - st.gap) / 100, st.years));
+    return { gross: gross, net: +(gross - st.gap).toFixed(2), A: A, B: B, cost: A - B, share: A ? Math.round((A - B) / A * 100) : 0 };
+  }
+  function feesBars(f, still) {
+    var row = function (label, v, cls, i) {
+      return '<div class="tm-row"><span>' + label + '</span><b>' + money(v) + '</b><span class="tm-bar"><span class="fill solid ' + cls + '" style="width:' + (f.A ? v / f.A * 100 : 0).toFixed(1) + '%;animation-delay:' + i * 120 + 'ms"></span></span></div>';
+    };
+    return '<div class="tm-rows' + (still ? ' still' : '') + '">' + row('המסלול הזול', f.A, 'cheap', 0) + row('המסלול היקר', f.B, 'dear', 1) + '</div>';
+  }
+  function feesBody() {
+    var st = feesState(), f = feesCalc(st), l33 = BY_ID['3.3'];
+    var years = (TF.years || []).map(function (y) { return chipBtn(setAttrs('fees', 'years', y), st.years === y, yearsText(y)); }).join('');
+    var gaps = (TF.gaps || []).map(function (g) { return chipBtn(setAttrs('fees', 'gap', g), st.gap === g, pctText(g)); }).join('');
+    return '<h3>כמה עולים דמי ניהול?</h3><p class="lead">דמי ניהול יורדים מהחיסכון בשקט: אחוז ממה שנצבר, בכל שנה, גם בשנים של ירידות.</p>' +
+      amountPicker('fees', st) +
+      '<div class="calc-field"><span class="eyebrow">לכמה שנים</span><div class="chips">' + years + '</div></div>' +
+      '<div class="calc-field"><span class="eyebrow">הפער בדמי הניהול</span><div class="chips">' + gaps + '</div></div>' +
+      monthlyPicker('fees', st) +
+      '<div class="tool-result"><div class="tr-head">אם המסלול הזול גדל ב-' + pctText(f.gross) + ' בשנה אחרי דמי ניהול, והיקר ב-' + pctText(f.net) + ':</div>' + feesBars(f) +
+        '<div class="fees-gap"><b>הפער עלה ' + money(f.cost) + '</b><span>כ-' + ltr(f.share + '%') + ' ממה שהיה נצבר במסלול הזול.</span></div>' +
+        '<div class="tr-lines"><p>אותן השקעות בדיוק, רק מחיר אחר.</p>' +
+        (st.gap === 1 && f.gross === 6 ? '<p>פער של ' + ltr('1%') + ' בשנה, כשהתשואה ' + ltr('6%') + ', הוא שישית מהרווח השנתי.</p>' : '') + '</div></div>' +
+      (l33 && l33.remember ? '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l33.remember) + '</p></div>' : '') +
+      '<p class="tool-note">החוק קובע רק תקרה, ומתחתיה אפשר להתמקח. משווים מסלולים דומים באתרים של רשות שוק ההון: גמל נט ופנסיה נט. מה שנגבה בפועל מופיע בדוח השנתי.</p>' +
+      '<p class="fine">' + pctText(f.gross) + ' הם תשואה לדוגמה מהשיעור, לא תחזית. התשואה האמיתית לא ידועה מראש, והפער בדמי הניהול נגבה בכל שנה.</p>' +
+      '<p class="fine">כאן רק דמי ניהול מהצבירה. בחלק מהמוצרים, כמו קרן פנסיה, נגבים גם דמי ניהול מכל הפקדה.</p>' +
+      srcLink({ src: 'kz07', id: 'fees' }, 'tool', '') +
+      '<div class="tool-links">' + lessonLink('3.3', 'לשיעור על דמי ניהול') + toolLink('time_machine', 'מה הזמן עושה לסכום הזה?', 'tool_link', st.src, st.amount) + '</div>' +
+      toolFoot('הכלי לא משווה בין גופים ולא ממליץ על אף אחד.');
+  }
+
+  // ----- my plan for the army money (level 6) -----
+  function planCfg() {
+    var E = TP.expenses || {}, T = TP.treat || {};
+    return { ex: { presets: E.presets || [2000, 3000, 4000], step: E.step || 250, min: E.min || 1000, max: E.max || 10000 },
+      buffer: TP.buffer || [3, 6], treat: { presets: T.presets || [500, 1000, 1500], step: T.step || 500 },
+      transfer: TP.transfer || [250, 500, 1000], transferDefault: TP.transferDefault || 500, revisit: TP.revisitDays || 180 };
+  }
+  // what the plan splits: the calculator's grant (and the locked pikadon) for soldiers, an amount picked here otherwise
+  function planIn() {
+    var p = S.tools.plan || {};
+    if (S.status !== 'civ' && calcEnabled()) {
+      var est = calcEstimate(S.calc && calcState());
+      if (!est) return { soldier: true, est: null, G: null, P: 0 };
+      var G = S.status === 'post' && p.g != null ? Math.min(est.grant, Math.max(0, Math.round(p.g))) : est.grant;
+      return { soldier: true, est: est, G: G, P: est.pikadon };
+    }
+    return { soldier: false, est: null, G: p.g > 0 ? clampAmount(p.g) : null, P: 0 };
+  }
+  function planState() {
+    var C = planCfg(), p = S.tools.plan || {};
+    return { g: p.g != null ? p.g : null,
+      expenses: p.expenses > 0 ? Math.min(C.ex.max, Math.max(C.ex.min, Math.round(p.expenses))) : null,
+      buffer: pickIn(C.buffer, p.buffer, C.buffer[0]), treat: p.treat > 0 ? Math.round(p.treat) : 0,
+      goal: GOAL_IDS.indexOf(p.goal) >= 0 ? p.goal : null, transfer: pickIn(C.transfer, p.transfer, C.transferDefault),
+      savedAt: num0(p.savedAt), done: p.done === true };
+  }
+  // E = X·B; the treat is capped at G; what is left fills the emergency fund first, the rest is long term. The pikadon never
+  // goes into the emergency fund (it is locked).
+  function planCalc() {
+    var I = planIn(), st = planState();
+    if (I.G == null || st.expenses == null) return null;
+    var G = I.G, X = st.expenses, B = st.buffer, E = X * B, T = Math.min(st.treat, G), free = G - T, toEF = Math.min(free, E);
+    var short = E - toEF;
+    return { G: G, P: I.P, X: X, B: B, E: E, T: T, toEF: toEF, L: free - toEF, short: short, M: st.transfer, months: short > 0 ? Math.ceil(short / st.transfer) : 0,
+      goal: st.goal, soldier: I.soldier, complete: !I.soldier || !!st.goal };
+  }
+  function planLegend() { return '<div class="tm-legend plan-legend"><span><i class="ef"></i>קרן חירום</span><span><i class="tr"></i>פינוק</span><span><i class="lg"></i>טווח ארוך</span></div>'; }
+  function planGoalLines(goal) {
+    var w = WISHES[goal];
+    if (goal === 'wait5') return '<span>מחכים 5 שנים: מה שלא נוצל עובר אז לבד לחשבון הבנק שרשום באזור האישי. עוברים בנק? מעדכנים שם.</span>';
+    return (w && w.ok ? '<span>' + esc(w.how) + '</span>' : '') +
+      '<span>נעול לשש מטרות בחמש השנים הראשונות, ולכן הוא לא קרן חירום.</span>' +
+      (w ? '' : '<span>עוד לא החלטת, ויש זמן. כל מטרה אפשר לבדוק בכלי ״מה מותר לעשות עם הפיקדון?״. ' + toolLink('pikadon_check', 'לבדוק') + '</span>');
+  }
+  function planResult(c, glint) {
+    var w = function (v) { return 'flex:' + v + ' 1 0'; }; // shares of the amount; the gaps between them always fit
+    var A = amountCfg(), carry = c.L >= A.min;
+    var transfers = planCfg().transfer.map(function (m) { return chipBtn(setAttrs('plan', 'transfer', m), c.M === m, ltr(fmt(m) + ' ₪')); }).join('');
+    return '<div class="tool-result plan-result"><h4 class="tr-head">התוכנית</h4>' +
+      '<div class="plan-bar" role="img" aria-label="קרן חירום ' + fmt(c.toEF) + ' ₪, פינוק ' + fmt(c.T) + ' ₪, טווח ארוך ' + fmt(c.L) + ' ₪">' +
+        (c.toEF ? '<i class="ef" style="' + w(c.toEF) + '"></i>' : '') + (c.T ? '<i class="tr" style="' + w(c.T) + '"></i>' : '') +
+        (c.L ? '<i class="lg" style="' + w(c.L) + '"></i>' : '') + '</div>' + planLegend() +
+      (c.soldier && c.P ? '<div class="plan-lockbar">' + ICON.lock + '<span>הפיקדון ' + money(c.P) + ' · נעול לשש מטרות</span></div>' : '') +
+      '<ol class="plan-rows">' +
+        '<li class="ef"><b>קרן חירום · ' + money(c.toEF) + (c.soldier ? ' מהמענק' : '') + '</b>' +
+          (c.short === 0 ? '<span>היעד: ' + c.B + ' חודשים של ' + money(c.X) + '. מכוסה.</span>'
+            : '<span>היעד: ' + money(c.E) + '. חסרים עוד ' + money(c.short) + '.</span><span class="fine">ואם מעבירים כל חודש</span><div class="chips">' + transfers + '</div>' +
+              '<span>מגיעים ליעד בעוד ' + monthsText(c.months) + '.</span>') +
+          '<span class="fine">איפה מחזיקים אותה: נזילה, בסיכון נמוך מאוד ונפרדת מהעו״ש.</span></li>' +
+        '<li class="tr"><b>פינוק · ' + (c.T ? money(c.T) : 'בלי') + '</b></li>' +
+        '<li class="lg"><b>מטרה גדולה או טווח ארוך · ' + money(c.L) + '</b>' +
+          (c.L ? '<span>למטרה גדולה, כמו לימודים או טיול, או לכסף שלא צריך בשנים הקרובות. רק כסף שלא צריך שנים מתאים לטווח ארוך.</span><span class="tool-links">' +
+              toolLink('time_machine', 'מה הזמן יכול לעשות לו?', 'tool_link', carry ? 'custom' : '', c.L) + toolLink('fees', 'ובדמי ניהול?', 'tool_link', carry ? 'custom' : '', c.L) + '</span>'
+            : '<span>הפעם הכול הולך לקרן החירום ולפינוק. גם זו תוכנית.</span>') + '</li>' +
+        (c.soldier ? '<li class="pk"><b>הפיקדון · ' + money(c.P) + ' · ' + esc(goalLabel(c.goal)) + '</b>' + planGoalLines(c.goal) + '</li>' : '') +
+      '</ol>' +
+      '<p class="plan-dont"><b>מה לא עושים:</b> מינוס קבוע · תשלומים על מותרות · ״הזדמנויות״ מטלגרם</p></div>' +
+      (c.complete ? '<div class="plan-done' + (glint ? ' glint' : '') + '">' + ICON.check + '<b>לכל שקל יש תפקיד</b></div>' +
+        '<button class="btn gold" data-act="plan-copy">להעתיק לפתקים</button>' : '');
+  }
+  function planBody() {
+    var I = planIn(), st = planState(), C = planCfg(), A = amountCfg(), c = planCalc(), glint = planJustDone;
+    var html = '<h3>' + esc(toolName('my_plan')) + '</h3><p class="lead">' + (S.status === 'sadir' || S.status === 'pre' ? 'לכל שקל תפקיד, עוד לפני שהכסף נכנס לחשבון. ' : 'לכל שקל תפקיד. ') + 'אתם מחליטים, והאפליקציה מחשבת.</p>';
+    html += '<div class="plan-sec"><div class="eyebrow">מה נכנס</div>';
+    if (I.soldier && I.est) {
+      html += '<p class="plan-in">לפי מחשבון השחרור: פיקדון ' + money(I.est.pikadon) + ' · מענק ' + money(I.est.grant) + ' <span class="fine">(סכומי ' + esc(CALC.asOf || '') + ')</span></p>' +
+        '<button class="link" data-act="tool-calc" data-id="my_plan">לעדכן</button>' +
+        (S.status === 'post' ? '<span class="fine">כמה נשאר מהמענק?</span>' + moneyStepper('plan', 'g', I.G, 0, I.est.grant, 'כמה נשאר מהמענק') : '');
+    } else if (I.soldier) {
+      html += '<p class="plan-in">קודם מחשבים כמה יהיה לך בשחרור.</p><button class="btn ghost" data-act="tool-calc" data-id="my_plan">לחשב בדקה</button>';
+    } else {
+      html += '<span class="fine">כמה כסף יש לך בצד, או ייכנס בקרוב?</span><div class="chips">' +
+        A.presets.map(function (p) { return chipBtn(setAttrs('plan', 'g', p), I.G === p, ltr(fmt(p) + ' ₪')); }).join('') + '</div>' +
+        (I.G != null ? moneyStepper('plan', 'g', I.G, A.min, A.max, 'הסכום') : '');
+    }
+    html += '</div><div class="plan-sec"><div class="eyebrow">כמה עולה חודש, רק ההכרחי?</div><p class="fine">אוכל, תחבורה, טלפון, ושכירות אם יש. בלי בילויים וקניות.</p>' +
+      '<div class="chips">' + C.ex.presets.map(function (x) { return chipBtn(setAttrs('plan', 'expenses', x), st.expenses === x, ltr(fmt(x) + ' ₪')); }).join('') + '</div>' +
+      (st.expenses != null ? moneyStepper('plan', 'expenses', st.expenses, C.ex.min, C.ex.max, 'הוצאות הכרחיות בחודש') : '') +
+      '<span class="fine">קרן חירום של</span><div class="chips">' + C.buffer.map(function (b) { return chipBtn(setAttrs('plan', 'buffer', b), st.buffer === b, b + ' חודשים'); }).join('') + '</div>' +
+      '<p class="fine">כלל האצבע מהשיעור: בין 3 ל-6 חודשים של הוצאות הכרחיות. מתחילים מ-3.</p></div>' +
+      '<div class="plan-sec"><div class="eyebrow">פינוק, בלי רגשות אשם</div><div class="chips">' + chipBtn(setAttrs('plan', 'treat', 0), !st.treat, 'בלי') +
+        C.treat.presets.map(function (x) { return chipBtn(setAttrs('plan', 'treat', x), st.treat === x, ltr(fmt(x) + ' ₪')); }).join('') + '</div>' +
+        (st.treat > 0 ? moneyStepper('plan', 'treat', st.treat, 0, I.G != null ? Math.max(I.G, st.treat) : 50000, 'פינוק') : '') + '</div>';
+    if (I.soldier) {
+      html += '<div class="plan-sec"><div class="eyebrow">הפיקדון ישמש ל...</div><div class="chips">' +
+        GOAL_IDS.map(function (g) { return chipBtn(setAttrs('plan', 'goal', g), st.goal === g, esc(goalLabel(g))); }).join('') + '</div></div>';
+    }
+    html += c ? planResult(c, glint)
+      : '<div class="tool-result empty"><p>' + (I.G == null ? (I.soldier ? 'מחשבים קודם את המענק, והתוכנית תופיע כאן.' : 'בוחרים סכום, והתוכנית תופיע כאן.') : 'בוחרים כמה עולה חודש, והתוכנית תופיע כאן.') + '</p></div>';
+    return html + toolFoot('התוכנית בנויה רק ממה שבחרת. היא לא בודקת את המצב האישי שלך ולא ממליצה על מוצר או על גוף.');
+  }
+  // copying failed: the text shows above the button, to select by hand
+  function planManualCopy(text) {
+    var b = document.querySelector('#sheet [data-act="plan-copy"]');
+    if (!b || b.parentNode.querySelector('.copy-box')) return;
+    var p = document.createElement('p'); p.className = 'fine'; p.textContent = 'לא הצלחנו להעתיק אוטומטית. מסמנים את הטקסט ומעתיקים ידנית:';
+    var ta = document.createElement('textarea'); ta.className = 'copy-box'; ta.setAttribute('readonly', ''); ta.rows = 8; ta.value = text;
+    b.parentNode.insertBefore(p, b); b.parentNode.insertBefore(ta, b);
+    try { ta.focus(); ta.select(); } catch (e) { /* ignore */ }
+  }
+  // plain text for the phone's notes app (no link, no image: Jonathan asked for no shareable certificate)
+  function planText(c) {
+    var d = new Date(), L = [];
+    L.push(toolName('my_plan') + ' · ' + d.getDate() + '.' + (d.getMonth() + 1) + '.' + d.getFullYear());
+    L.push(c.soldier ? 'מענק: ' + money0(c.G) + ' · פיקדון: ' + money0(c.P) : 'סכום: ' + money0(c.G));
+    L.push('קרן חירום: ' + money0(c.toEF) + (c.short
+      ? ' מתוך יעד של ' + money0(c.E) + ' (' + c.B + ' חודשים של ' + money0(c.X) + '). חסרים ' + money0(c.short) + ': ' + fmt(c.M) + ' ₪ בחודש, ' + monthsText(c.months)
+      : ' (' + c.B + ' חודשים של ' + money0(c.X) + ')'));
+    L.push('פינוק: ' + (c.T ? money0(c.T) : 'בלי'));
+    L.push('מטרה גדולה או טווח ארוך: ' + money0(c.L));
+    if (c.soldier) L.push('הפיקדון: ' + goalLabel(c.goal));
+    L.push('לא עושים: מינוס קבוע, תשלומים על מותרות, ״הזדמנויות״ מטלגרם');
+    L.push('חוזרים לתוכנית בעוד חצי שנה');
+    L.push(CFG.disclaimer);
+    return L.join('\n');
   }
 
   function registerSW() {
@@ -2765,13 +3478,40 @@
   // ---------- Events ----------
   function onClick(e) {
     // the notifications popup ignores taps in its first moment (a tap meant for home that landed as it slid up)
-    if (Date.now() - askOpenedAt < 450 && e.target.closest('#sheet') && document.querySelector('#sheet .ask-ic, #sheet .ask-welcome')) return;
+    if (Date.now() - askOpenedAt < 450 && e.target.closest('#sheet') && document.querySelector('#sheet .ask-ic, #sheet .ask-welcome, #sheet .tools-intro')) return;
     if (e.target.closest('a[target="_blank"]')) markStepOut(); // a link out (the official calculator, WhatsApp)
     var el = e.target.closest('[data-act]');
     if (!el) return;
     var act = el.getAttribute('data-act'), id = el.getAttribute('data-id');
     switch (act) {
-      case 'nav': setView(el.getAttribute('data-to')); break;
+      case 'nav': {
+        var navTo = el.getAttribute('data-to');
+        setView(navTo);
+        if (navTo === 'tools' && view === 'tools') toolsViewed(el.getAttribute('data-from') || 'nav');
+        break;
+      }
+      case 'tool': openTool(id, el.getAttribute('data-from') || 'tools', el.getAttribute('data-src'), +el.getAttribute('data-amt') || 0); break;
+      case 'tools-go': setView('tools'); toolsViewed(el.getAttribute('data-from') || 'intro'); break;
+      case 'tool-lesson': sfx.tap(); startFrom = 'tool_locked'; startLesson(id); startFrom = null; break;
+      case 'tool-calc': if (toolInfo(id)) calcSheet(id, id); break;
+      case 'tool-set': {
+        var tk = id, tf = el.getAttribute('data-k');
+        if (['check', 'growth', 'fees', 'plan'].indexOf(tk) < 0 || !tf) break;
+        var tv = el.getAttribute('data-v'), td = +el.getAttribute('data-d') || 0;
+        toolSet(tk, function (c) { toolSetField(tk, c, tf, tv, td); });
+        break;
+      }
+      case 'plan-copy': {
+        var pc = planCalc();
+        if (!pc || !pc.complete) break;
+        var ptxt = planText(pc);
+        copyText(ptxt, function (ok) {
+          if (ok) toast(ICON.check + '<b>הועתק.</b><span>מדביקים בפתקים בטלפון, וחוזרים לתוכנית בעוד חצי שנה.</span>', 'info', 3200);
+          else planManualCopy(ptxt);
+          track('plan_copied', ok ? { ok: true, method: 'copy', $set: { plan_saved: true } } : { ok: false, method: 'manual' });
+        });
+        break;
+      }
       case 'preview': sfx.tap(); previewSheet(id); break;
       case 'unit': unitSheet(id); break;
       case 'explain': explainSheet(el.getAttribute('data-what')); break;
@@ -2854,7 +3594,7 @@
         track('mission_completed', { lesson_id: id });
         closeSheet(true);
         render();
-        if (levelIndex(S.xp) > before) { levelUpSheet(grant); break; }
+        if (levelIndex(S.xp) > before) { toolsUnlocked(toolsCrossed(before, levelIndex(S.xp)), 'level_up'); levelUpSheet(grant, before); break; }
         sfx.done();
         confetti();
         openSheet('<h3>משימה בוצעה</h3><p class="lead">' + plus(P.mission) + ' נקודות. זה החלק שבאמת משנה את המצב הכלכלי.</p>' +
