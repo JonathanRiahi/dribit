@@ -1184,3 +1184,13 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 .plan-bar.blank { gap: 4px; background: none; border-radius: 0; }
 .plan-bar.blank i { flex: 1; border-radius: 999px; background: var(--surface-2); border: 2px dashed var(--line); animation: none; }
 .tool-sample { padding-inline-end: 48px; }
+
+/* ---------- 0.11: the streak multiplies points, the points hint ---------- */
+.rules li.streak-x span svg, .streak-bonus > b svg { color: var(--flame); }
+.rules li.streak-x b i { color: var(--ink-2); font-weight: 600; }
+.streak-bonus { margin: 10px 0 12px; }
+.streak-bonus > b { display: flex; align-items: center; gap: 6px; font-size: 17px; }
+.streak-bonus > b svg { width: 20px; height: 20px; flex: none; }
+.streak-bonus .fine { margin: 8px 0 0; }
+.streak-bonus .chain { margin: 6px 0 0; font-size: 15px; }
+.points-now .pn-next { color: var(--ink-2); font-size: 15px; }

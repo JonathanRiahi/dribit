@@ -356,12 +356,41 @@
     };
   }
   function levelLabel(r) { return 'שלב ' + r.n + ' מתוך ' + r.total + (r.name ? ' · ' + r.name : ''); }
-  // the line under a level: how far the next one is, and what it brings (nothing to promise when the days off are full)
+  // the line under a level: what the next level brings, first (tester interviews 20.10: "what do points give me?").
+  // Every new level pays a day off, unless the days off are full; a level that opens a tool says which (0.10).
   function nextLevelLine(r) {
     if (r.last) return 'השלב האחרון. כל הכבוד';
-    var nt = toolsAtLevel(r.n + 1)[0]; // 0.10: a level that opens a tool says which
-    if (nt) return 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות') + ' לשלב ' + (r.n + 1) + ', שפותח את ' + toolShort(nt.id);
-    return 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות') + ' לשלב ' + (r.n + 1) + (DO.enabled && S.daysOff < DO.maxHeld ? ', ואיתו יום חופש לרצף' : '');
+    var nt = toolsAtLevel(r.n + 1)[0], pts = 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות');
+    if (nextLevelDayOff()) return pts + ' ליום חופש לרצף' + (nt ? ' ו' + toolTo(nt.id) : '');
+    return pts + ' לשלב ' + (r.n + 1) + (nt ? ', שפותח את ' + toolShort(nt.id) : '');
+  }
+  function nextLevelDayOff() { return DO.enabled && DO.perLevel > 0 && S.daysOff < DO.maxHeld; }
+
+  // 0.11: the streak multiplies points: x1.5 from a 3-day streak, x2 from 7 (config streakBonus). The streak counts today,
+  // so the lesson that makes it 3 days already pays x1.5. Lessons and practice only (not the rescue test, not missions).
+  var SB = CFG.streakBonus || {};
+  function sbTiers() { return SB.enabled ? (SB.tiers || []).filter(function (t) { return t.days > 0 && t.times > 1; }).sort(function (a, b) { return a.days - b.days; }) : []; }
+  function streakTimes(days) {
+    var x = 1;
+    sbTiers().forEach(function (t) { if (days >= t.days && t.times > x) x = t.times; });
+    return x;
+  }
+  // the streak a lesson or practice finished now would make (today included)
+  function streakIfLearnToday() {
+    var today = dayKey(), yday = dayKey(addDays(new Date(), -1));
+    if (S.lastDay === today) return S.streak || 1;
+    return S.lastDay === yday && S.streak ? S.streak + 1 : 1;
+  }
+  function nextTier(days) { return sbTiers().filter(function (t) { return t.days > days; })[0] || null; }
+  function timesText(x) { return 'פי ' + x; }
+  // the streak sheet's line: what the next lesson pays, or how far the multiplier is
+  function streakBonusLine() {
+    var d = streakIfLearnToday(), x = streakTimes(d), nt = nextTier(d), learned = S.lastDay === dayKey();
+    if (x > 1) return (learned ? 'כל שיעור ותרגול היום שווים ' : 'השיעור של היום שווה ') + timesText(x) + ' נקודות.' +
+      (nt ? ' מרצף של ' + nt.days + ' ימים: ' + timesText(nt.times) + '.' : '');
+    if (!nt) return '';
+    var wait = nt.days - d;
+    return (learned ? 'עוד ' : 'השיעור של היום ועוד ') + plural(wait, 'יום אחד', 'ימים') + ' ברצף, ומשם כל שיעור שווה ' + timesText(nt.times) + ' נקודות.';
   }
   // "יום חופש אחד" / "2 ימי חופש"
   function daysOffText(n) { return n === 1 ? 'יום חופש אחד לרצף' : fmt(n) + ' ימי חופש לרצף'; }
@@ -454,8 +483,29 @@
     // question) starts over. 2.1 also gained a screen for soldiers, so its saved screen numbers point elsewhere.
     if ((S.contentV || 0) < 11 && v >= 11 && S.inProgress && (S.inProgress.lessonId === '2.1' ||
         (S.inProgress.steps || []).some(function (x) { return x && x.k === 'q' && x.id === 'Q10'; }))) S.inProgress = null;
+    // v13 (21.10, a friend who did not get going): the first lessons of each path got one simple explanation screen.
+    // A saved session in one of them gets the new screen slotted in, so the person resumes where they were.
+    if ((S.contentV || 0) < 13 && v >= 13 && S.inProgress) addScreenV13(S.inProgress);
     S.contentV = v;
     save();
+  }
+  var NEW_SCREEN_V13 = { '2.1': 'הכסף יוצא בשתי דרכים', '2.2': 'קרן חירום מחוץ לעו"ש', '2.3': 'מה זה מס, תלוש וביטוח לאומי',
+    '3.1': 'על מה מחשבים את הריבית?', '3.2': 'הפקדות מול רווח', '1.3': 'שקלים מול כוח קנייה' };
+  function addScreenV13(ip) {
+    var l = BY_ID[ip.lessonId], title = NEW_SCREEN_V13[ip.lessonId];
+    if (!title || !shown(l) || !Array.isArray(ip.steps)) return;
+    var at = -1;
+    l.vScreens.forEach(function (sc, i) { if (sc.title === title) at = i; });
+    var saved = ip.steps.filter(function (x) { return x && x.k === 's'; });
+    if (at < 0 || saved.length !== l.vScreens.length - 1) return; // anything unexpected: restoreSession starts the lesson over
+    var pos = -1;
+    ip.steps.forEach(function (x, i) {
+      if (x && x.k === 's' && x.n >= at) { if (pos < 0) pos = i; x.n++; }
+    });
+    if (pos < 0) ip.steps.forEach(function (x, i) { if (x && x.k === 's') pos = i + 1; }); // after the last saved screen
+    if (pos < 0) return;
+    ip.steps.splice(pos, 0, { k: 's', n: at });
+    if ((ip.idx || 0) >= pos) ip.idx = (ip.idx || 0) + 1;
   }
   function isDone(id) { return !!(S.lessons[id] && S.lessons[id].done); }
   function currentLesson() {
@@ -470,7 +520,11 @@
   function missionState(id) { return S.missions[id] || { steps: [], done: false }; }
   function openMissions() { return LESSONS.filter(function (l) { return isDone(l.id) && !missionState(l.id).done; }); }
   function maxLessonPoints(l) {
-    return l.vQuestions.length * P.correct + P.lessonDone + P.perfect + P.speed;
+    return l.vQuestions.length * P.correct + (hasReviewQuestion(l) ? P.review : 0) + P.lessonDone + P.perfect + P.speed;
+  }
+  // startLesson adds one review question from an earlier finished lesson (not a match question): the same test
+  function hasReviewQuestion(l) {
+    return LESSONS.some(function (x) { return x.order < l.order && isDone(x.id) && x.vQuestions.some(function (q) { return q.type !== 'match'; }); });
   }
   function lessonMinutes(l) {
     return Math.max(3, Math.round((l.vScreens.length * 45 + l.vQuestions.length * 30) / 60));
@@ -790,9 +844,10 @@
   function installCard(placement) {
     if (!canInstall() || S.installHidden || doneCount() < INSTALL.afterLessons) return '';
     var text = placement === 'done'
-      ? 'סיימת שיעור ראשון. עכשיו הזמן: אייקון במסך הבית, מסך מלא, ועובד גם בלי אינטרנט.'
-      : 'אייקון במסך הבית, נפתח במסך מלא ועובד גם בלי אינטרנט.';
-    if (IS_IOS) text += ' באייפון, מה שעשית בספארי לא עובר לבד לאפליקציה. בהוראות יש קוד העברה.';
+      ? 'סיימת שיעור ראשון. עכשיו הזמן: אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.'
+      : 'אייקון במסך הבית, נפתח במסך מלא ועובד גם בלי קליטה.';
+    // iPhone: Safari keeps a site's data separate from the home-screen app, and can clear it after days without a visit
+    if (IS_IOS) text += ' באייפון ההתקדמות נשמרת בבטחה רק במסך הבית. מה שעשית בספארי עובר לשם בקוד העברה שבהוראות.';
     return '<div class="card install-card"><div class="rc-head"><span class="rc-ic">' + ICON.phone + '</span><div>' +
       '<b>להתקין את ' + esc(CFG.appName) + ' בטלפון</b><span>' + text + '</span></div></div>' +
       '<div class="row"><button class="btn" data-act="install" data-placement="' + placement + '">להתקנה</button>' +
@@ -854,7 +909,9 @@
       '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span></button>';
     var st = currentStreak(), today = todayXp();
     if (cur && st > 0 && today === 0) {
-      html += '<p class="nudge warn">' + ICON.flame + '<span>הרצף של ' + plural(st, 'יום אחד', 'ימים') + ' מחכה לשיעור של היום.</span></p>';
+      var tx = streakTimes(streakIfLearnToday());
+      html += '<p class="nudge warn">' + ICON.flame + '<span>הרצף של ' + plural(st, 'יום אחד', 'ימים') + ' מחכה לשיעור של היום' +
+        (tx > 1 ? ', ששווה ' + timesText(tx) + ' נקודות.' : '.') + '</span></p>';
     } else if (cur && today > 0 && today < S.goalXp) {
       html += '<p class="nudge">' + ICON.target + '<span>עוד ' + fmt(S.goalXp - today) + ' נקודות ליעד היומי.</span></p>';
     }
@@ -907,12 +964,13 @@
     if (was && !keepEntry && topIsSheet) { topIsSheet = false; histBack(1); }
   }
 
-  function pointsList(l) {
+  function pointsList(l, bx) {
     return '<ul class="rules compact">' +
       '<li><span>כל תשובה נכונה</span><b>' + plus(P.correct) + '</b></li>' +
       '<li><span>סיום השיעור</span><b>' + plus(P.lessonDone) + '</b></li>' +
       '<li><span>שיעור בלי אף טעות</span><b>' + plus(P.perfect) + '</b></li>' +
-      '<li><span>' + ICON.bolt + 'מסיימים תוך ' + lessonMinutes(l) + ' דקות, עם 80% נכונות</span><b>' + plus(P.speed) + '</b></li></ul>';
+      '<li><span>' + ICON.bolt + 'מסיימים תוך ' + lessonMinutes(l) + ' דקות, עם 80% נכונות</span><b>' + plus(P.speed) + '</b></li>' +
+      (bx > 1 ? '<li class="streak-x"><span>' + ICON.flame + 'בזכות הרצף, על הכול</span><b>' + timesText(bx) + '</b></li>' : '') + '</ul>';
   }
 
   function previewSheet(id) {
@@ -927,7 +985,7 @@
         '<button class="btn ghost" data-act="close-sheet">הבנתי</button>');
       return;
     }
-    var replay = isDone(l.id), rec = S.lessons[l.id];
+    var replay = isDone(l.id), rec = S.lessons[l.id], bx = streakTimes(streakIfLearnToday());
     var ip = S.inProgress && S.inProgress.lessonId === l.id ? S.inProgress : null;
     var main = ip
       ? '<button class="btn" data-act="start" data-id="' + esc(l.id) + '">להמשיך (מסך ' + (resumeAt(ip) + 1) + ' מתוך ' + ip.steps.length + ')</button>' +
@@ -939,7 +997,7 @@
       '<div class="chips"><span class="chip">' + ICON.clock + 'כ-' + lessonMinutes(l) + ' דקות</span>' +
       '<span class="chip">' + l.vScreens.length + ' הסברים · ' + l.vQuestions.length + ' שאלות</span>' +
       (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + '</div>' +
-      '<div class="pts-box"><div class="pts-head">' + ICON.coin + '<b>נקודות בשיעור הזה</b><span>עד ' + maxLessonPoints(l) + '</span></div>' + pointsList(l) + '</div>' +
+      '<div class="pts-box"><div class="pts-head">' + ICON.coin + '<b>נקודות בשיעור הזה</b><span>עד ' + Math.round(maxLessonPoints(l) * bx) + '</span></div>' + pointsList(l, bx) + '</div>' +
       main +
       (replay ? '<button class="btn text" data-act="notes" data-id="' + esc(l.id) + '">לקרוא שוב את ההסברים</button>' : ''), 'tall');
   }
@@ -966,16 +1024,18 @@
           '<li><span>שיעור בלי אף טעות</span><b>' + plus(P.perfect) + '</b></li>' +
           '<li><span>מסיימים בזמן שכתוב בתחילת השיעור</span><b>' + plus(P.speed) + '</b></li>' +
           '<li><span>משימה מחוץ לאפליקציה</span><b>' + plus(P.mission) + '</b></li>' +
+          sbTiers().map(function (t) { return '<li class="streak-x"><span>' + ICON.flame + 'רצף של ' + t.days + ' ימים ומעלה, על שיעור ותרגול</span><b>' + timesText(t.times) + '</b></li>'; }).join('') +
         '</ul>';
       var tl = toolList();
       openSheet('<h3>בשביל מה הנקודות?</h3>' +
         (DO.enabled || tl.length
-          ? '<p class="chain">נקודות ← ' + (tl.length ? 'שלבים' : 'שלב חדש') + ' ← ' + (tl.length ? (DO.enabled ? 'ימי חופש לרצף וכלים חדשים' : 'כלים חדשים') : 'יום חופש לרצף') + '</p>' +
+          ? '<p class="chain">' + (sbTiers().length ? 'רצף ← ' : '') + 'נקודות ← ' + (tl.length ? 'שלבים' : 'שלב חדש') + ' ← ' + (tl.length ? (DO.enabled ? 'ימי חופש לרצף וכלים חדשים' : 'כלים חדשים') : 'יום חופש לרצף') + '</p>' +
             (tl.length ? '<p class="lead">כל כמה שלבים נפתח כלי שמחשב בשבילך: בוחרים, והאפליקציה מחשבת.</p>' : '') +
             (DO.enabled ? '<p class="lead">כל שלב חדש נותן יום חופש לרצף. ' + (S.status === 'civ' ? 'מבחן, משמרת, טיול?' : 'שמירה, שטח, בסיס סגור?') +
               ' ביום בלי שיעור, יום חופש נכנס לבד והרצף לא נשבר' + minStreakNote() + '.</p>' : '')
           : '<p class="lead">הנקודות מעלות אותך שלב וממלאות את היעד היומי.</p>') +
-        '<div class="card tight points-now"><b>' + (r.last ? 'שלב ' + r.total + ' מתוך ' + r.total + ', השלב האחרון' : esc(levelLabel(r)) + ' · עוד ' + fmt(r.toNext) + ' נקודות לשלב הבא') + '</b>' +
+        '<div class="card tight points-now"><b>' + (r.last ? 'שלב ' + r.total + ' מתוך ' + r.total + ', השלב האחרון' : esc(levelLabel(r))) + '</b>' +
+          (r.last ? '' : '<span class="pn-next">' + nextLevelLine(r) + '</span>') +
           '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
           (DO.enabled ? '<p class="fine off-line">' + ICON.dayoff + '<span>ימי חופש לרצף: ' + S.daysOff + ' (אפשר לשמור עד ' + DO.maxHeld + ')</span></p>' : '') + '</div>' +
         (tl.length ? '<div class="eyebrow">הכלים שנפתחים בשלבים</div>' + toolLadder(tl, 'points_sheet') : '') +
@@ -989,6 +1049,10 @@
       var repairLine = 'רצף של ' + R.minStreak + ' ימים ומעלה שנשבר אפשר להציל עד ' + R.withinDays + ' ימים אחרי, במבחן של ' + R.questions + ' שאלות (' + R.toPass + ' נכונות לפחות).';
       openSheet('<h3>' + (st ? 'רצף של ' + plural(st, 'יום אחד', 'ימים') : 'אין רצף כרגע') + '</h3>' +
         '<p class="lead">כל יום שבו עושים לפחות שיעור אחד או תרגול מוסיף יום לרצף. יום בלי למידה שובר אותו' + (DO.enabled ? ', אלא אם יש לך יום חופש לרצף.' : '.') + '</p>' +
+        (sbTiers().length ? '<div class="card tight streak-bonus"><b>' + ICON.flame + 'הרצף מכפיל נקודות</b><ul class="rules compact">' +
+          sbTiers().map(function (t) { return '<li><span>מרצף של ' + t.days + ' ימים, כל שיעור ותרגול</span><b>' + timesText(t.times) + '</b></li>'; }).join('') + '</ul>' +
+          '<p class="fine">' + streakBonusLine() + '</p>' +
+          '<p class="chain">רצף ← יותר נקודות ← שלב חדש ← ' + (DO.enabled ? 'יום חופש לרצף' : 'כלים חדשים') + '</p></div>' : '') +
         (DO.enabled
           ? (S.daysOff > 0
             ? '<p class="lead off-line">' + ICON.dayoff + '<span>ימי חופש לרצף: ' + S.daysOff + ' מתוך ' + DO.maxHeld + '. ביום בלי שיעור אחד מהם נכנס לבד, מרצף של ' + DO.minStreak +
@@ -1114,7 +1178,7 @@
       : '';
     return warn +
       '<ol class="install-steps">' + steps.map(function (s, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + s + '</span></li>'; }).join('') + '</ol>' + code +
-      '<p class="fine">' + (IS_IOS ? 'אחרי ההתקנה פותחים את ' + name + ' רק מהאייקון. ההתקדמות נשמרת בטלפון, לא בענן.'
+      '<p class="fine">' + (IS_IOS ? 'אחרי ההתקנה פותחים את ' + name + ' רק מהאייקון: שם ההתקדמות נשמרת בבטחה, וספארי עלול למחוק אותה אחרי כמה ימים בלי כניסה. היא נשמרת בטלפון, לא בענן.'
         : 'מתקינים מכרום, וההתקדמות מכרום נשארת. אחרי ההתקנה פותחים את ' + name + ' מהאייקון.') + '</p>';
   }
   function installSheet() {
@@ -1813,10 +1877,20 @@
       s.passed = s.firstTryRight >= s.need;
       if (s.passed && S.lostStreak) {
         var lost = S.lostStreak.value, today = dayKey();
+        // days learned after the break count too, whether they were today or ended yesterday (review, 21.10)
+        var yday = dayKey(addDays(new Date(), -1));
         if (S.lastDay === today) S.streak = lost + S.streak;
-        else { S.streak = lost; S.lastDay = dayKey(addDays(new Date(), -1)); }
+        else { S.streak = lost + (S.lastDay === yday ? S.streak : 0); S.lastDay = yday; }
+        S.bestStreak = Math.max(S.bestStreak, S.streak);
         S.lostStreak = null;
       }
+    }
+    // the streak bonus (0.11): on everything this lesson or practice earned, by the streak it keeps (today included)
+    s.streakBonus = 0; s.streakTimes = 1; s.streakDays = 0;
+    if (s.mode === 'lesson' || s.mode === 'practice') {
+      s.streakDays = streakIfLearnToday();
+      s.streakTimes = streakTimes(s.streakDays);
+      if (s.streakTimes > 1) { s.streakBonus = Math.round(s.xp * (s.streakTimes - 1)); s.xp += s.streakBonus; }
     }
     s.levelGrant = awardXp(s.xp);
     s.perfect = perfect;
@@ -1827,6 +1901,7 @@
     s.streakUp = currentStreak() > streakBefore;
     save();
     var props = { mode: s.mode, duration_sec: Math.round(s.time / 1000), accuracy: acc, points: s.xp, max_combo: s.maxCombo };
+    if (s.mode !== 'repair' && sbTiers().length) { props.streak_times = s.streakTimes; props.streak_bonus = s.streakBonus; }
     if (s.mode === 'lesson') {
       props.lesson_id = l.id; props.unit_id = l.unit.id; props.perfect = perfect;
       props.speed_bonus = !!s.speedBonus; props.first_time = s.firstTime;
@@ -1903,7 +1978,7 @@
       ? (s.passed ? 'רצף של ' + plural(currentStreak(), 'יום אחד', 'ימים') + '. ממשיכים מחר.' : s.firstTryRight + ' נכונות מתוך ' + stepCount() + '. צריך ' + s.need + '. אפשר לנסות שוב.')
       : s.goalHit ? 'עמדת ביעד היומי.' : s.streakUp ? 'רצף של ' + plural(currentStreak(), 'יום אחד', 'ימים') + '.' : 'עוד צעד בדרך.';
     var art = CFG.images && CFG.images.done;
-    var correctPts = s.xp - s.bonus - s.perfectBonus - s.speedBonus;
+    var correctPts = s.xp - s.bonus - s.perfectBonus - s.speedBonus - (s.streakBonus || 0);
     var nextAt = r.last ? null : toolsAtLevel(r.n + 1)[0] || null;
     var rows = '<li><span>תשובות נכונות</span><b>' + plus(correctPts) + '</b></li>';
     if (s.giftGiven > 0) rows = '<li class="gift"><span>' + ICON.dayoff + 'מתנה מחבר</span><b>' + daysOffText(s.giftGiven) + '</b></li>' + rows;
@@ -1911,6 +1986,16 @@
       rows += '<li><span>סיום שיעור</span><b>' + plus(s.bonus) + '</b></li>' +
         '<li><span>בלי אף טעות</span><b>' + (s.perfectBonus ? plus(s.perfectBonus) : '<i>לא הפעם</i>') + '</b></li>' +
         '<li><span>' + ICON.bolt + 'מהירות: ' + ltr(clock(s.time)) + ' מתוך ' + ltr(clock(s.target)) + '</span><b>' + (s.speedBonus ? plus(s.speedBonus) : '<i>לא הפעם</i>') + '</b></li>';
+    }
+    // the streak bonus, or how far it is (so the chain streak, points, level, day off shows where points are given)
+    if (s.mode === 'lesson' || s.mode === 'practice') {
+      var ntr = nextTier(s.streakDays);
+      if (s.streakBonus > 0) {
+        rows += '<li class="streak-x"><span>' + ICON.flame + timesText(s.streakTimes) + ' בזכות הרצף (' + plural(s.streakDays, 'יום אחד', 'ימים') + ')</span><b>' + plus(s.streakBonus) + '</b></li>';
+      } else if (ntr) {
+        var wait = ntr.days - s.streakDays;
+        rows += '<li class="streak-x"><span>' + ICON.flame + 'רצף של ' + ntr.days + ' ימים: ' + timesText(ntr.times) + ' נקודות</span><b><i>' + (wait === 1 ? 'מחר' : wait === 2 ? 'בעוד יומיים' : 'בעוד ' + wait + ' ימים') + '</i></b></li>';
+      }
     }
     var html = '<div class="done-wrap gutter' + (l ? ' u' + l.unit.id : '') + '">' +
       '<div class="done-hero">' + (art ? '<div class="done-art"><img src="' + esc(art) + '" alt=""></div>' : '') +
@@ -2144,7 +2229,7 @@
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
-      (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי אינטרנט.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
+      (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
       '<div class="card transfer-card"><h2>להעביר התקדמות</h2><p>עוברים לאפליקציה המותקנת או לטלפון אחר? מעתיקים קוד, ומדביקים אותו שם במסך הפתיחה.</p>' +
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="profile">להעתיק קוד</button><button class="btn ghost" data-act="import" data-source="profile">יש לי קוד</button></div></div>' +
       (CFG.pilot ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
@@ -2432,8 +2517,12 @@
     openSheet((welcome ? '<div class="eyebrow">לפני שמתחילים</div>' : '<div class="ask-ic">' + ICON.addHome + '</div>') +
       '<h3>להוסיף את ' + name + ' למסך הבית</h3>' +
       '<p class="lead">' + (welcome && IS_IOS
-        ? 'באייפון מה שעושים בספארי לא עובר לאפליקציה שבמסך הבית, אז כדאי להוסיף עכשיו ולהתחיל ישר משם.'
-        : 'ככה ' + name + ' נפתחת מהאייקון, במסך מלא, כמו כל אפליקציה' + (RCFG.enabled ? ', ושולחת תזכורת יומית ששומרת על הרצף' : '') + '.') + '</p>' +
+        ? 'באייפון ההתקדמות נשמרת בבטחה רק במסך הבית. מה שעושים בספארי לא עובר לשם לבד, אז כדאי להוסיף עכשיו ולהתחיל משם.'
+        : IS_IOS
+          // with progress the transfer box follows, so the lead stays short and the buttons stay in sight on a small iPhone
+          ? '<b>רק במסך הבית ההתקדמות שלך נשמרת בבטחה.</b> ספארי עלול למחוק אותה אחרי כמה ימים בלי כניסה.' +
+            (hasProgress() ? '' : ' במסך הבית ' + name + ' עובדת גם בלי קליטה' + (RCFG.enabled ? ' ושולחת תזכורת יומית ששומרת על הרצף' : '') + '.')
+          : 'ככה ' + name + ' נפתחת מהאייקון, במסך מלא, עובדת גם בלי קליטה' + (RCFG.enabled ? ', ושולחת תזכורת יומית ששומרת על הרצף' : '') + '.') + '</p>' +
       (st === 'prompt' ? '<button class="btn gold" data-act="install-popup-go' + tag + '>להוסיף למסך הבית</button>'
         : installAskBody() + '<button class="btn gold" data-act="install-popup-go' + tag + '>מוסיפים עכשיו</button>') +
       '<button class="btn text" data-act="install-popup-later' + tag + '>' + (welcome ? 'להמשיך בדפדפן' : 'אחר כך') + '</button>' +
@@ -2918,7 +3007,7 @@
   // ----- the tools tab -----
   function lessonsToGo(pts) {
     if (pts <= P.mission && openMissions().length) return 'משימה אחת שמחכה לך מספיקה.';
-    var n = Math.max(1, Math.ceil(pts / (TOOLS.typicalLessonPoints || 75)));
+    var n = Math.max(1, Math.ceil(pts / ((TOOLS.typicalLessonPoints || 75) * streakTimes(streakIfLearnToday()))));
     return (n === 1 ? 'בערך שיעור אחד' : 'בערך ' + n + ' שיעורים') + '.';
   }
   function toolSummary(id) {
@@ -3150,8 +3239,8 @@
   // the done screen: what the next level brings, or the mission that gets there
   function doneNextLine(r, s, l, nt) {
     var m = s.mode === 'lesson' && l && l.mission && !missionState(l.id).done && r.toNext <= P.mission ? l.mission : null;
-    if (m) return 'המשימה של השיעור, ' + (m.minutes > 2 ? m.minutes + ' דקות' : 'דקה או שתיים') + ', ' + (nt ? 'פותחת לך את ' + esc(toolShort(nt.id)) : 'מעלה אותך לשלב ' + (r.n + 1)) + '.';
-    return 'עוד ' + plural(r.toNext, 'נקודה אחת', 'נקודות') + ' לשלב הבא' + (nt ? ', שפותח את ' + esc(toolShort(nt.id)) + '.' : DO.enabled && S.daysOff < DO.maxHeld ? ', ואיתו יום חופש לרצף.' : '.');
+    if (m) return 'המשימה של השיעור, ' + (m.minutes > 2 ? m.minutes + ' דקות' : 'דקה או שתיים') + ', ' + (nt ? 'פותחת לך את ' + esc(toolShort(nt.id)) : nextLevelDayOff() ? 'מביאה לך יום חופש לרצף' : 'מעלה אותך לשלב ' + (r.n + 1)) + '.';
+    return nextLevelLine(r) + '.';
   }
   function firstExplainer() {
     var t2 = toolList().filter(function (t) { return t.level > 1; })[0], fem = t2 && TOOL_FEM[t2.id];
