@@ -997,3 +997,5 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 .sheet.ask-welcome { gap: 12px; }
 .sheet.ask-welcome .eyebrow { color: var(--flame); text-align: center; margin-bottom: -6px; }
 .sheet.ask-welcome h3, .sheet.ask-welcome .lead { text-align: center; }
+/* v0.9.8: the "ממשיכים מאיפה שעצרת" toast: the detail on its own line */
+.toast.resume span { display: block; margin-top: 2px; }

@@ -12,6 +12,7 @@
   var QUEUE_KEY = 'dribit.events.v1';
   var HEB_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
   var RESUME_DAYS = 14;
+  var RESUME_EXACT_MS = 3 * 3600e3; // a lesson left less than this ago reopens on the exact screen (a pause, not a new visit)
   var AWAY_HOME_MS = 15 * 1000;  // back after longer than this in the background, and the app starts on home again (Jonathan, 18.10)
   var OPEN_AWAY_MS = 10 * 60 * 1000;  // back after this long counts as a new open for the install and notifications popups (19.10)
   var AWAY_KEEP_MS = 10 * 60 * 1000;  // ...but a trip out and back (a sheet, a practice run, a link or share the app opened) keeps its screen this long
@@ -758,7 +759,7 @@
     var html = '';
     var ip = S.inProgress, l = ip && BY_ID[ip.lessonId];
     if (l && shown(l)) {
-      var pct = Math.round(ip.idx / Math.max(1, ip.steps.length) * 100);
+      var pct = Math.round(resumeAt(ip) / Math.max(1, ip.steps.length) * 100);
       html += '<button class="resume-card u' + l.unit.id + '" data-act="start" data-id="' + esc(l.id) + '">' +
         '<span class="r-ic">' + ICON.play + '</span>' +
         '<span class="r-txt"><span class="eyebrow">להמשיך מאיפה שהפסקת</span><b>' + esc(l.title) + '</b>' +
@@ -885,7 +886,7 @@
     var replay = isDone(l.id), rec = S.lessons[l.id];
     var ip = S.inProgress && S.inProgress.lessonId === l.id ? S.inProgress : null;
     var main = ip
-      ? '<button class="btn" data-act="start" data-id="' + esc(l.id) + '">להמשיך (מסך ' + (ip.idx + 1) + ' מתוך ' + ip.steps.length + ')</button>' +
+      ? '<button class="btn" data-act="start" data-id="' + esc(l.id) + '">להמשיך (מסך ' + (resumeAt(ip) + 1) + ' מתוך ' + ip.steps.length + ')</button>' +
         '<button class="btn ghost" data-act="restart" data-id="' + esc(l.id) + '">להתחיל מההתחלה</button>'
       : '<button class="btn' + (replay ? ' gold' : '') + '" data-act="start" data-id="' + esc(l.id) + '">' + (replay ? 'לעשות שוב' : 'התחל שיעור') + '</button>';
     openSheet('<div class="eyebrow">יחידה ' + l.unit.n + ' · שיעור ' + l.n + '</div>' +
@@ -1284,8 +1285,10 @@
       var s = restoreSession(S.inProgress);
       if (s) {
         session = s;
-        track('lesson_resumed', { lesson_id: l.id, step_index: s.idx, step_count: s.steps.length });
+        var rs = s.resumed, ago = rs.savedAt ? daysBetween(dayKey(new Date(rs.savedAt)), dayKey()) : 0;
+        track('lesson_resumed', { lesson_id: l.id, step_index: s.idx, step_count: s.steps.length, answered_before: rs.answered, jumped: rs.jumped, days_since: ago });
         setView('lesson');
+        if (rs.jumped || ago > 0) resumeToast(rs.answered, ago, rs.savedAt);
         return;
       }
     }
@@ -1332,6 +1335,14 @@
     setView('lesson');
   }
 
+  // a resumed lesson says where it picks up, so answers from an earlier visit are not a surprise
+  function resumeToast(answered, ago, savedAt) {
+    var d = new Date(savedAt), when = ago === 1 ? ' מאתמול' : ago > 1 ? ' ב-' + d.getDate() + '.' + (d.getMonth() + 1) : '';
+    toast(ICON.play + '<b>ממשיכים מאיפה שעצרת' + when + '</b><span>' +
+      (answered ? (answered === 1 ? 'ענית כבר על שאלה אחת בשיעור הזה.' : 'ענית כבר על ' + answered + ' שאלות בשיעור הזה.') : '') +
+      '</span>', 'info resume', 3400);
+  }
+
   // time counts only while the lesson is on screen
   function clockStart() { if (session && !session.tick) session.tick = Date.now(); }
   function clockStop() { if (session && session.tick) { session.activeMs += Date.now() - session.tick; session.tick = null; } }
@@ -1355,6 +1366,17 @@
     };
     save();
   }
+  // where a saved lesson picks up. After a short pause: the exact screen (an answer's explanation, or a screen someone
+  // went back to reread). On a later visit: the step after the last answered question, if that is later, so old answers
+  // never greet people as if the app had answered by itself (Jonathan, 21.10: answers from two days before, after he
+  // had gone back to the first screen).
+  function resumeAt(ip) {
+    var n = ip.steps.length, saved = Math.max(0, Math.min(ip.idx || 0, n - 1)), last = -1;
+    if (ip.savedAt && Date.now() - ip.savedAt < RESUME_EXACT_MS) return saved;
+    ip.steps.forEach(function (x, i) { if (x && x.k === 'q' && x.checked) last = i; });
+    return Math.max(saved, Math.min(last + 1, n - 1));
+  }
+  function answeredIn(ip) { return ip.steps.filter(function (x) { return x && x.k === 'q' && x.checked && !x.retry; }).length; }
   function restoreSession(ip) {
     var l = BY_ID[ip.lessonId];
     if (!shown(l) || !ip.steps || Date.now() - ip.savedAt > RESUME_DAYS * 864e5) return null;
@@ -1378,11 +1400,16 @@
     });
     if (!ok || !steps.length) return null;
     var s = newSession('lesson', l, steps);
-    s.idx = Math.min(ip.idx || 0, steps.length - 1);
+    // resume where the lesson is up to, not where the person last looked: someone who answered questions and then went
+    // back (or left right after checking an answer) lands on the first step after the last answered question, so old
+    // answers never greet them as if the app had answered by itself (Jonathan, 21.10)
+    var saved = Math.min(ip.idx || 0, steps.length - 1), answered = answeredIn(ip);
+    s.idx = resumeAt(ip);
     s.combo = ip.combo || 0; s.maxCombo = ip.maxCombo || 0;
     s.firstTry = ip.firstTry || 0; s.firstTryRight = ip.firstTryRight || 0; s.reviewRight = ip.reviewRight || 0;
     s.xp = ip.xp || 0; s.activeMs = ip.activeMs || 0;
-    s.trackedIdx = s.idx; // step_viewed was sent when this screen was first shown
+    s.trackedIdx = s.idx === saved ? s.idx : -1; // step_viewed was sent when the saved screen was first shown
+    s.resumed = { jumped: s.idx !== saved, answered: answered, savedAt: ip.savedAt };
     return s;
   }
 
