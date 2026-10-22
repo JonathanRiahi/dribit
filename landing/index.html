@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07503F">
+<title>דריבית: כסף אחרי הצבא, בכמה דקות ביום</title>
+<meta name="description" content="בשחרור יכולים לחכות לכם כ-52,800 ₪. דריבית מלמדת פיקדון, מענק, מס והשקעות בשיעורים של כמה דקות. בחינם, בעברית, מהטלפון.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="he_IL">
+<meta property="og:title" content="דריבית: יודעים מה מותר לעשות עם כסף השחרור?">
+<meta property="og:description" content="שיעורים של כמה דקות על פיקדון, מענק, מס והשקעות. בחינם, בעברית, מהטלפון.">
+<meta property="og:image" content="https://jonathanriahi.github.io/dribit/landing/img/og.jpg">
+<meta property="og:url" content="https://jonathanriahi.github.io/dribit/landing/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="../icons/icon.svg">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Rubik:wght@600;700;800&display=swap">
+<style>
+:root {
+  --bg: #F2F6F1;
+  --surface: #FFFFFF;
+  --surface-2: #E6EEE5;
+  --ink: #12302A;
+  --ink-2: #4E655E;
+  --ink-3: #6E837B;
+  --line: #D3DFD4;
+  --brand: #0E6E58;
+  --brand-deep: #07503F;
+  --brand-soft: #D7EDE5;
+  --gold: #F2B630;
+  --gold-deep: #C98D12;
+  --gold-ink: #8C6107;
+  --bad: #C2372F;
+  --hero-1: #07503F; --hero-2: #095E4B; --hero-3: #0C6D56;
+  --shadow: 0 1px 2px rgba(18,48,42,.06), 0 10px 28px rgba(18,48,42,.10);
+  --display: 'Rubik', 'Arial Hebrew', system-ui, sans-serif;
+  --body: 'Assistant', 'Arial Hebrew', system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1714; --surface: #14221E; --surface-2: #1C2E29;
+    --ink: #E7F1EC; --ink-2: #A9BDB5; --ink-3: #8A9E96; --line: #26392F;
+    --brand: #2FB58F; --brand-deep: #157A5F; --brand-soft: #112E27;
+    --gold-ink: #F5C04A; --bad: #EE6A61;
+    --hero-1: #052F26; --hero-2: #07402F; --hero-3: #0A5240;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1714; --surface: #14221E; --surface-2: #1C2E29;
+  --ink: #E7F1EC; --ink-2: #A9BDB5; --ink-3: #8A9E96; --line: #26392F;
+  --brand: #2FB58F; --brand-deep: #157A5F; --brand-soft: #112E27;
+  --gold-ink: #F5C04A; --bad: #EE6A61;
+  --hero-1: #052F26; --hero-2: #07402F; --hero-3: #0A5240;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; overflow-x: hidden; }
+a { color: inherit; }
+img { display: block; max-width: 100%; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 0 16px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.15; letter-spacing: -.01em; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ---------- hero ---------- */
+.hero { background: linear-gradient(180deg, var(--hero-1) 0%, var(--hero-2) 55%, var(--hero-3) 100%); color: #fff; padding: calc(14px + env(safe-area-inset-top)) 0 0; position: relative; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 22px; }
+.brand img { width: 34px; height: 34px; border-radius: 9px; }
+.eyebrow { margin: 30px 0 10px; display: inline-block; font-weight: 700; font-size: 14px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); padding: 4px 12px; border-radius: 99px; }
+.hero h1 { font-size: 22px; font-weight: 700; opacity: .92; }
+.big { display: block; font-size: clamp(52px, 15vw, 72px); font-weight: 800; color: var(--gold); line-height: 1.05; margin: 4px 0 6px; letter-spacing: -.02em; }
+.hero h1 .q { display: block; font-size: 26px; font-weight: 800; opacity: 1; }
+.lead { font-size: 18px; margin: 16px 0 22px; color: rgba(255,255,255,.9); }
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 56px; border: 0; border-radius: 16px; font: 800 19px/1.2 var(--body); cursor: pointer; text-decoration: none; padding: 14px 20px; transition: transform .08s ease; -webkit-tap-highlight-color: transparent; }
+.btn:active { transform: translateY(2px); }
+.btn-gold { background: var(--gold); color: #1B1B1B; box-shadow: 0 4px 0 var(--gold-deep), 0 12px 30px rgba(0,0,0,.25); }
+.btn-gold:active { box-shadow: 0 2px 0 var(--gold-deep); }
+.btn-line { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,.45); margin-top: 12px; font-size: 17px; min-height: 52px; }
+.btn-brand { background: var(--brand); color: #fff; box-shadow: 0 4px 0 var(--brand-deep); }
+:root:not([data-theme="light"]) .btn-brand { color: #04120E; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn-brand { color: #fff; } }
+:root[data-theme="light"] .btn-brand { color: #fff; }
+.btn:focus-visible, .chip:focus-within, input:focus-visible, summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.inapp { display: none; margin: 10px 2px 0; font-size: 14px; color: rgba(255,255,255,.85); }
+.inapp.on { display: block; }
+.foot-note { font-size: 13px; color: rgba(255,255,255,.72); margin: 14px 0 0; }
+.phone { position: relative; z-index: 1; width: 230px; margin: 34px auto -230px; border-radius: 32px; border: 6px solid #1D3A31; background: #0D1714; box-shadow: 0 30px 70px rgba(0,0,0,.45); overflow: hidden; transform: rotate(-3deg); }
+.phone img, .phone video { display: block; width: 100%; height: auto; aspect-ratio: 540 / 1170; }
+.vids { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+.vid { margin: 0; }
+.vid .frame { border-radius: 24px; border: 5px solid #1D3A31; overflow: hidden; background: #0D1714; box-shadow: var(--shadow); }
+.vid video { display: block; width: 100%; height: auto; aspect-ratio: 540 / 1170; }
+.vid figcaption { font-weight: 700; font-size: 15px; margin-top: 8px; color: var(--ink-2); text-align: center; }
+.hero-spacer { height: 250px; background: var(--bg); }
+
+/* ---------- sections ---------- */
+section { padding: 34px 0; }
+section.wrap { padding: 34px 16px; }
+.kicker { font-weight: 800; color: var(--brand); font-size: 14px; margin-bottom: 6px; }
+h2 { font-size: 28px; font-weight: 800; }
+.sub { color: var(--ink-2); margin: 8px 0 0; }
+.facts { display: grid; gap: 12px; margin-top: 20px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px 18px 16px; box-shadow: var(--shadow); }
+.fact .num { font-family: var(--display); font-weight: 800; font-size: 30px; color: var(--brand); line-height: 1.1; }
+.fact h3 { font-size: 18px; font-weight: 700; margin: 6px 0 4px; }
+.fact p { margin: 0; color: var(--ink-2); font-size: 16px; }
+.fine { font-size: 13px; color: var(--ink-3); margin-top: 12px; }
+
+.shots { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 20px 16px 18px; margin: 0 -16px; scrollbar-width: none; }
+.shots::-webkit-scrollbar { display: none; }
+.shot { flex: 0 0 68%; max-width: 250px; scroll-snap-align: center; }
+.shot .frame { border-radius: 26px; border: 5px solid #1D3A31; overflow: hidden; background: #0D1714; box-shadow: var(--shadow); }
+.shot .frame img { width: 100%; height: auto; aspect-ratio: 600 / 1298; }
+.shot b { display: block; font-family: var(--display); font-size: 18px; margin: 12px 2px 2px; }
+.shot span { display: block; font-size: 15px; color: var(--ink-2); padding: 0 2px; }
+.swipe { font-size: 13px; color: var(--ink-3); text-align: center; margin: 0; }
+
+/* ---------- waitlist ---------- */
+.join { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 22px 18px; box-shadow: var(--shadow); margin-top: 18px; }
+.field { margin-top: 18px; }
+.label { display: block; font-weight: 800; font-size: 16px; margin-bottom: 8px; }
+input[type="tel"], input[type="email"] { width: 100%; min-height: 54px; border-radius: 14px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); font: 700 19px var(--body); padding: 10px 14px; unicode-bidi: plaintext; text-align: right; }
+input::placeholder { color: var(--ink-3); font-weight: 600; }
+input[aria-invalid="true"] { border-color: var(--bad); }
+.swap { background: none; border: 0; padding: 8px 2px 0; color: var(--brand); font: 700 15px var(--body); text-decoration: underline; cursor: pointer; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.chip span { display: inline-flex; align-items: center; min-height: 46px; padding: 8px 16px; border-radius: 99px; border: 2px solid var(--line); background: var(--bg); font-weight: 700; font-size: 16px; }
+.chip input:checked + span { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.consent { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; font-size: 15px; color: var(--ink-2); cursor: pointer; }
+.consent input { width: 22px; height: 22px; flex: none; margin: 2px 0 0; accent-color: var(--brand); }
+.err { color: var(--bad); font-weight: 700; font-size: 15px; margin: 8px 2px 0; min-height: 0; }
+.err:empty { display: none; }
+.privacy { font-size: 13px; color: var(--ink-3); margin: 14px 0 0; }
+#joinForm .btn { margin-top: 20px; }
+.done { display: none; text-align: center; padding: 6px 0; }
+.done .ok { width: 64px; height: 64px; border-radius: 50%; background: var(--gold); color: #1B1B1B; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font: 800 34px var(--display); box-shadow: 0 4px 0 var(--gold-deep); }
+.done h3 { font-size: 24px; }
+.done p { color: var(--ink-2); margin: 8px 0 16px; }
+.done .btn + .btn { margin-top: 10px; }
+.btn-soft { background: var(--surface-2); color: var(--ink); }
+.join.is-done #joinForm { display: none; }
+.join.is-done .done { display: block; }
+.fallback { display: none; margin-top: 12px; }
+.fallback.on { display: block; }
+
+/* ---------- faq ---------- */
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; margin-top: 10px; }
+summary { list-style: none; cursor: pointer; padding: 16px 18px; font-weight: 800; font-size: 17px; display: flex; justify-content: space-between; gap: 12px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: '+'; color: var(--brand); font: 800 22px/1 var(--display); }
+details[open] summary::after { content: '−'; }
+details p { margin: 0; padding: 0 18px 16px; color: var(--ink-2); }
+
+footer { padding: 26px 0 calc(110px + env(safe-area-inset-bottom)); font-size: 14px; color: var(--ink-3); text-align: center; }
+footer strong { color: var(--ink-2); }
+footer a { color: var(--ink-2); }
+
+/* ---------- sticky bar ---------- */
+.bar { position: fixed; inset: auto 0 0 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-top: 1px solid var(--line); transform: translateY(110%); transition: transform .25s ease; z-index: 10; }
+.bar.on { transform: none; }
+.bar .btn { max-width: 528px; margin: 0 auto; min-height: 52px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .bar, .btn { transition: none; } }
+@media (min-width: 700px) { .phone { width: 260px; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand"><img src="../icons/icon.svg" alt="" width="34" height="34">דריבית</div>
+    <span class="eyebrow">לחיילים, למשתחררים ולמי שרק התחיל לעבוד</span>
+    <h1>בשחרור יכולים לחכות לכם <span class="big">כ-52,800 ₪</span><span class="q">יודעים מה מותר לעשות איתם?</span></h1>
+    <p class="lead">דריבית מלמדת כסף בכמה דקות ביום: פיקדון ומענק, מס, חיסכון והשקעות. שיעורים קצרים עם סיפורים ושאלות, בעברית ומהטלפון. בחינם.</p>
+    <a class="btn btn-gold" href="#join" data-cta="hero_join">להצטרף לרשימת ההמתנה</a>
+    <a class="btn btn-line" href="../?source=landing" data-cta="hero_try" data-app>או להתחיל כבר עכשיו בדפדפן</a>
+    <p class="inapp" id="inappHint">פתחתם מטיקטוק או מאינסטגרם? כדי שההתקדמות תישמר, פתחו את הקישור בדפדפן: שלוש הנקודות למעלה, ואז "פתיחה בדפדפן".</p>
+    <p class="foot-note">הערכה ללוחם/ת אחרי 32 חודשי שירות: פיקדון ומענק יחד, לפי סכומי משרד הביטחון לספטמבר 2026.</p>
+    <div class="phone"><video class="clip" poster="video/calc.webp" muted loop playsinline autoplay preload="metadata" width="540" height="1170" aria-label="סרטון מהאפליקציה: בוחרים לוחם/ת ו-32 חודשים, והמחשבון מראה פיקדון כ-31,200 ₪ ומענק כ-21,600 ₪, ביחד כ-52,800 ₪"><source src="video/calc.mp4" type="video/mp4"><source src="video/calc.webm" type="video/webm"></video></div>
+  </div>
+</header>
+<div class="hero-spacer" aria-hidden="true"></div>
+
+<main>
+  <section class="wrap" aria-labelledby="factsTitle">
+    <div class="kicker">מה לא מספרים לכם בשחרור</div>
+    <h2 id="factsTitle">חמישה דברים ששווים כסף</h2>
+    <div class="facts">
+      <article class="fact">
+        <div class="num">כ-31,200 ₪</div>
+        <h3>הפיקדון נעול לשש מטרות</h3>
+        <p>בחמש השנים הראשונות מותר רק ללימודים, הכשרה מקצועית, שיעורי נהיגה, עסק, נישואין או דירה. לא טיול, לא רכב ולא שכר דירה.</p>
+      </article>
+      <article class="fact">
+        <div class="num">כ-17,000 ₪</div>
+        <h3>פחות מס, אם מסמנים את זה</h3>
+        <p>משוחררים מקבלים עד שתי נקודות זיכוי לשלוש שנים. ממלאים טופס 101 בכל עבודה חדשה. פספסתם? אפשר לבקש החזר עד שש שנים אחורה.</p>
+      </article>
+      <article class="fact">
+        <div class="num">11,461 ₪</div>
+        <h3>מענק על חצי שנה של עבודה</h3>
+        <p>עבודה מועדפת: שישה חודשים מלאים בענף מזכה, בתוך שנתיים מהשחרור. מגישים לבד לביטוח לאומי, והמענק חייב במס.</p>
+      </article>
+      <article class="fact">
+        <div class="num">559 אלף מול 208 אלף</div>
+        <h3>ההבדל: מתי מתחילים</h3>
+        <p>מאיה ועומר חסכו אותו סכום בחודש. מאיה פשוט התחילה 14 שנים קודם. זו ריבית דריבית, ועל זה נקראת האפליקציה.</p>
+      </article>
+      <article class="fact">
+        <div class="num">0.5% = כ-7,600 ₪</div>
+        <h3>דמי ניהול שנשמעים כמו כלום</h3>
+        <p>10,000 ₪ לשלושים שנה: כ-57 אלף במסלול זול, וכ-49 אלף במסלול יקר בחצי אחוז. בודקים בדוח השנתי ומתמקחים.</p>
+      </article>
+    </div>
+    <p class="fine">הסכומים הם הערכה לפי סכומי ספטמבר 2026 ושווי נקודת זיכוי של 2026. בתשואה של 6% בשנה לדוגמה, לא הבטחה.</p>
+  </section>
+
+  <section aria-labelledby="howTitle">
+    <div class="wrap">
+      <div class="kicker">איך זה עובד</div>
+      <h2 id="howTitle">כמה דקות ביום, והידע מצטבר</h2>
+      <p class="sub">33 שיעורים ב-8 יחידות, לפי השלב שלכם. רצף יומי, נקודות ושלבים, כמו באפליקציה ללימוד שפות.</p>
+      <div class="vids">
+        <figure class="vid"><div class="frame"><video class="clip" poster="video/quiz.webp" muted loop playsinline preload="none" width="540" height="1170" aria-label="סרטון מהאפליקציה: עונים על שאלה על הפיקדון ומקבלים 10 נקודות"><source src="video/quiz.mp4" type="video/mp4"><source src="video/quiz.webm" type="video/webm"></video></div><figcaption>עונים, ומקבלים נקודות</figcaption></figure>
+        <figure class="vid"><div class="frame"><video class="clip" poster="video/tool.webp" muted loop playsinline preload="none" width="540" height="1170" aria-label="סרטון מהאפליקציה: בודקים בכלי אם מותר לטוס עם הפיקדון, ואם מותר ללמוד איתו"><source src="video/tool.mp4" type="video/mp4"><source src="video/tool.webm" type="video/webm"></video></div><figcaption>טיול עם הפיקדון? בודקים בשנייה</figcaption></figure>
+      </div>
+      <div class="shots" id="shots">
+        <figure class="shot" style="margin:0"><div class="frame"><img src="img/story.webp" alt="שיעור שמתחיל בסיפור של מאיה ועומר" width="600" height="1298" loading="lazy"></div><b>שיעור עם סיפור</b><span>מסך או שניים, בלי הרצאות.</span></figure>
+        <figure class="shot" style="margin:0"><div class="frame"><img src="img/question.webp" alt="שאלה על הפיקדון עם ארבע תשובות" width="600" height="1298" loading="lazy"></div><b>שאלות שמבלבלות</b><span>תשובות שנשמעות נכונות, והסבר אחרי כל אחת.</span></figure>
+        <figure class="shot" style="margin:0"><div class="frame"><img src="img/home.webp" alt="מסך הבית: רצף של 6 ימים, 640 נקודות, שלב 4 מתוך 11" width="600" height="1298" loading="lazy"></div><b>רצף, נקודות ושלבים</b><span>כל יום של שיעור מאריך את הרצף, וכל שלב פותח כלי חדש.</span></figure>
+        <figure class="shot" style="margin:0"><div class="frame"><img src="img/status.webp" alt="בחירת שלב: בשירות סדיר, לפני שחרור, אחרי שחרור" width="600" height="1298" loading="lazy"></div><b>לפי השלב שלכם</b><span>בסדיר, לפני שחרור או אחרי. רואים מה רלוונטי עכשיו.</span></figure>
+      </div>
+      <p class="swipe">החליקו לעוד ←</p>
+    </div>
+  </section>
+
+  <section class="wrap" id="join" aria-labelledby="joinTitle">
+    <div class="kicker">רשימת ההמתנה</div>
+    <h2 id="joinTitle">האפליקציה לאנדרואיד ולאייפון בדרך</h2>
+    <p class="sub">השאירו מספר, ונשלח לכם הודעה כשהיא בחנות. בינתיים אפשר להתחיל בדפדפן.</p>
+
+    <div class="join" id="joinBox">
+      <form id="joinForm" novalidate>
+        <div class="field" style="margin-top:0" id="phoneField">
+          <label class="label" for="phone">מספר וואטסאפ</label>
+          <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="050-1234567" aria-describedby="phoneErr">
+          <button type="button" class="swap" id="toEmail">מעדיפים אימייל?</button>
+        </div>
+        <div class="field" style="margin-top:0;display:none" id="emailField">
+          <label class="label" for="email">אימייל</label>
+          <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="name@gmail.com" aria-describedby="phoneErr">
+          <button type="button" class="swap" id="toPhone">מעדיפים וואטסאפ?</button>
+        </div>
+        <p class="err" id="phoneErr" role="alert"></p>
+
+        <fieldset class="field" style="border:0;padding:0;margin-inline:0">
+          <legend class="label">איזה טלפון יש לכם?</legend>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="device" value="android"><span>אנדרואיד</span></label>
+            <label class="chip"><input type="radio" name="device" value="iphone"><span>אייפון</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="field" style="border:0;padding:0;margin-inline:0">
+          <legend class="label">איפה אתם עכשיו?</legend>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="status" value="sadir"><span>בשירות סדיר</span></label>
+            <label class="chip"><input type="radio" name="status" value="pre"><span>לפני שחרור</span></label>
+            <label class="chip"><input type="radio" name="status" value="post"><span>אחרי שחרור</span></label>
+            <label class="chip"><input type="radio" name="status" value="none"><span>לא בצבא</span></label>
+          </div>
+        </fieldset>
+
+        <label class="consent"><input type="checkbox" id="consent"><span>אני מאשר/ת לקבל מדריבית הודעה כשהאפליקציה בחנות, ועדכונים מדי פעם. אפשר לבקש הסרה בכל רגע.</span></label>
+        <p class="err" id="consentErr" role="alert"></p>
+
+        <button class="btn btn-brand" type="submit" id="joinBtn">שמרו לי מקום</button>
+        <p class="privacy">הפרטים משמשים רק לעדכונים מדריבית ולא מועברים לאף גוף אחר. הם נשמרים בשירות PostHog בשרתים באיחוד האירופי. מגיל 18.</p>
+        <div class="fallback" id="fallback">
+          <p class="err">לא הצלחנו לשמור את הפרטים מהדפדפן הזה. אפשר להצטרף בהודעת וואטסאפ קצרה:</p>
+          <a class="btn btn-soft" id="waJoin" href="#" target="_blank" rel="noopener" data-cta="fallback_whatsapp">להצטרף בוואטסאפ</a>
+        </div>
+      </form>
+
+      <div class="done" aria-live="polite">
+        <div class="ok" aria-hidden="true">✓</div>
+        <h3>שמרנו לכם מקום</h3>
+        <p>נשלח הודעה כשהאפליקציה בחנות. בינתיים, השיעור הראשון לוקח שלוש דקות.</p>
+        <a class="btn btn-gold" href="../?source=landing_joined" data-cta="joined_try" data-app>להתחיל שיעור ראשון</a>
+        <button class="btn btn-soft" type="button" id="shareBtn" data-cta="joined_share">לשלוח לחבר שמשתחרר</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" aria-labelledby="faqTitle">
+    <h2 id="faqTitle">שאלות</h2>
+    <details><summary>כמה זה עולה?</summary><p>כלום. דריבית בחינם.</p></details>
+    <details><summary>זה ייעוץ השקעות?</summary><p>לא. זה מידע כללי לחינוך פיננסי. אנחנו לא אומרים לאף אחד מה לקנות, ולא ממליצים על מוצר או מסלול מסוים.</p></details>
+    <details><summary>צריך להירשם כדי להתחיל?</summary><p>לא. פותחים ומתחילים, בלי שם ובלי סיסמה. ההתקדמות נשמרת בטלפון שלכם. רשימת ההמתנה היא רק בשביל ההודעה כשהאפליקציה בחנות.</p></details>
+    <details><summary>למי זה מתאים?</summary><p>בעיקר לגילאי 18 עד 22: חיילים בסדיר, מי שעומד להשתחרר, ומי שכבר השתחרר ומתחיל לעבוד.</p></details>
+    <details><summary>מאיפה המספרים?</summary><p>מהאתרים של משרד הביטחון, רשות המסים וביטוח לאומי. כל שיעור באפליקציה מקשר למקור הרשמי, כדי שתוכלו לבדוק בעצמכם.</p></details>
+    <details><summary>איך מוחקים את הפרטים שלי?</summary><p>שולחים לנו הודעה בוואטסאפ דרך כפתור המשוב באפליקציה, ונמחק אותם מהרשימה.</p></details>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p><strong>דריבית</strong>. מידע כללי לחינוך פיננסי, לא ייעוץ השקעות. הסכומים הם הערכה ועשויים להשתנות.</p>
+  <p><a href="../?source=landing_footer" data-cta="footer_try" data-app>לאפליקציה</a></p>
+</footer>
+
+<div class="bar" id="bar" aria-hidden="true"><a class="btn btn-gold" href="#join" data-cta="bar_join" tabindex="-1">להצטרף לרשימת ההמתנה</a></div>
+
+<script src="../config.js" onerror="void 0"></script>
+<script>
+(function () {
+  'use strict';
+  var CFG = window.DRIBIT_CONFIG || {};
+  var A = CFG.analytics || {};
+  var KEY = A.posthogKey || '', HOST = (A.host || '').replace(/\/$/, '');
+  var WA = (CFG.feedback && CFG.feedback.whatsapp) || '';
+  var VERSION = 'landing-1';
+  var UID_KEY = 'dribit.landing.uid', JOINED_KEY = 'dribit.landing.joined';
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+  }
+  var uid = store(UID_KEY);
+  if (!uid || !/^[A-Za-z0-9-]{8,64}$/.test(uid)) { uid = 'lp-' + uuid(); store(UID_KEY, uid); }
+
+  // where the visitor came from: ?source=tiktok, ?utm_source=..., or the referrer
+  var qs = new URLSearchParams(location.search);
+  var ua = navigator.userAgent || '';
+  var inApp = /musical_ly|BytedanceWebview|TikTok|trill/i.test(ua) ? 'tiktok' : /Instagram/i.test(ua) ? 'instagram' : /FBAN|FBAV/i.test(ua) ? 'facebook' : '';
+  var source = qs.get('source') || qs.get('utm_source') || inApp || (document.referrer ? (function () { try { return new URL(document.referrer).hostname; } catch (e) { return 'referrer'; } })() : 'direct');
+  var platform = /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : 'other';
+  var base = { source: source, in_app: inApp || null, platform: platform, landing_version: VERSION, utm_campaign: qs.get('utm_campaign') || null, utm_content: qs.get('utm_content') || null };
+
+  // events go straight to PostHog with the public key (the same way the app sends them)
+  function send(event, props, keepalive) {
+    if (!KEY && window.LANDING_PREVIEW) return Promise.resolve(); // claude.ai preview: nothing is sent
+    if (!KEY || !HOST) return Promise.reject(new Error('no-key'));
+    var p = { distinct_id: uid, $current_url: location.href.split('#')[0] };
+    for (var k in base) p[k] = base[k];
+    for (var j in props || {}) p[j] = props[j];
+    var body = JSON.stringify({ api_key: KEY, batch: [{ uuid: uuid(), event: event, properties: p, timestamp: new Date().toISOString() }] });
+    return fetch(HOST + '/batch/', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: body, keepalive: !!keepalive })
+      .then(function (r) { if (!r.ok) throw new Error('http-' + r.status); return r; });
+  }
+  function track(event, props, keepalive) { send(event, props, keepalive).catch(function () { /* analytics only */ }); }
+
+  track('landing_view', { $set_once: { first_source: source }, referrer: document.referrer || null });
+
+  // the app link keeps the source, so the app's data shows who came from the landing page
+  document.querySelectorAll('[data-app]').forEach(function (a) {
+    var u = new URL(a.getAttribute('href'), location.href);
+    if (source && source !== 'direct') u.searchParams.set('ref', ('lp_' + source).replace(/[^\w-]/g, '_').slice(0, 40));
+    a.href = u.href;
+  });
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest && e.target.closest('[data-cta]');
+    if (el) track('landing_cta', { cta: el.getAttribute('data-cta') }, true);
+  });
+  if (inApp) document.getElementById('inappHint').classList.add('on');
+
+  // ---------- waitlist ----------
+  var box = document.getElementById('joinBox'), form = document.getElementById('joinForm');
+  var phone = document.getElementById('phone'), email = document.getElementById('email');
+  var phoneField = document.getElementById('phoneField'), emailField = document.getElementById('emailField');
+  var errEl = document.getElementById('phoneErr'), consentErr = document.getElementById('consentErr');
+  var btn = document.getElementById('joinBtn'), fallback = document.getElementById('fallback');
+  var mode = 'phone';
+
+  if (store(JOINED_KEY)) box.classList.add('is-done');
+
+  function setMode(m) {
+    mode = m;
+    phoneField.style.display = m === 'phone' ? '' : 'none';
+    emailField.style.display = m === 'email' ? '' : 'none';
+    errEl.textContent = '';
+    (m === 'phone' ? phone : email).focus();
+  }
+  document.getElementById('toEmail').onclick = function () { setMode('email'); };
+  document.getElementById('toPhone').onclick = function () { setMode('phone'); };
+
+  // Israeli mobile numbers: 05X-XXXXXXX, +972 5X..., 9725X... → 05XXXXXXXX
+  function normPhone(v) {
+    var d = String(v || '').replace(/[^\d+]/g, '');
+    if (d.indexOf('+972') === 0) d = '0' + d.slice(4);
+    else if (d.indexOf('972') === 0) d = '0' + d.slice(3);
+    return /^05\d{8}$/.test(d) ? d : '';
+  }
+  function normEmail(v) {
+    var s = String(v || '').trim().toLowerCase();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 120 ? s : '';
+  }
+  function picked(name) { var r = form.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : null; }
+
+  function waLink(text) { return WA ? 'https://wa.me/' + WA + '?text=' + encodeURIComponent(text) : ''; }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    errEl.textContent = ''; consentErr.textContent = '';
+    phone.removeAttribute('aria-invalid'); email.removeAttribute('aria-invalid');
+    var contact = mode === 'phone' ? normPhone(phone.value) : normEmail(email.value);
+    if (!contact) {
+      errEl.textContent = mode === 'phone' ? 'צריך מספר נייד ישראלי, למשל 050-1234567.' : 'האימייל לא נראה תקין.';
+      (mode === 'phone' ? phone : email).setAttribute('aria-invalid', 'true');
+      (mode === 'phone' ? phone : email).focus();
+      return;
+    }
+    if (!document.getElementById('consent').checked) { consentErr.textContent = 'צריך לסמן את האישור כדי שנוכל לשלוח לכם הודעה.'; return; }
+
+    var device = picked('device'), status = picked('status');
+    var props = {
+      contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null,
+      device: device, status: status, consent: true, consent_text: 'הודעה כשהאפליקציה בחנות ועדכונים מדי פעם, אפשר לבקש הסרה',
+      $set: { waitlist: true, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_status: status, waitlist_at: new Date().toISOString(), waitlist_source: source }
+    };
+    btn.disabled = true; btn.textContent = 'שומרים...';
+    send('waitlist_signup', props).then(function () {
+      store(JOINED_KEY, new Date().toISOString());
+      box.classList.add('is-done');
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }).catch(function (err) {
+      // blocked by an ad blocker, offline, or no key (preview): offer WhatsApp so the signup is not lost
+      btn.disabled = false; btn.textContent = 'שמרו לי מקום';
+      var link = waLink('היי, אשמח להצטרף לרשימת ההמתנה של דריבית' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : ''));
+      if (link) { document.getElementById('waJoin').href = link; fallback.classList.add('on'); }
+      else errEl.textContent = 'לא הצלחנו לשמור כרגע. נסו שוב בעוד רגע.';
+    });
+  });
+
+  // ---------- share with a friend ----------
+  document.getElementById('shareBtn').addEventListener('click', function () {
+    var url = 'https://jonathanriahi.github.io/dribit/landing/?source=friend';
+    var text = 'יודע/ת מה מותר לעשות עם הפיקדון? מצאתי אפליקציה שמסבירה את זה בכמה דקות:';
+    if (navigator.share) { navigator.share({ title: 'דריבית', text: text, url: url }).catch(function () {}); }
+    else location.href = 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url);
+  });
+
+  // ---------- clips play only while on screen (battery, data) ----------
+  var clips = document.querySelectorAll('video.clip');
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if ('IntersectionObserver' in window && !reduce) {
+    var vo = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        var v = e.target;
+        if (e.isIntersecting) { if (v.preload === 'none') v.preload = 'auto'; var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
+        else v.pause();
+      });
+    }, { threshold: 0.35 });
+    clips.forEach(function (v) { vo.observe(v); });
+  } else if (reduce) clips.forEach(function (v) { v.removeAttribute('autoplay'); v.pause(); v.controls = true; });
+
+  // ---------- sticky button: after the hero, hidden while the form is on screen ----------
+  var bar = document.getElementById('bar'), hero = document.querySelector('.hero'), join = document.getElementById('join');
+  if ('IntersectionObserver' in window) {
+    var heroOut = false, joinIn = false;
+    var upd = function () { var on = heroOut && !joinIn && !box.classList.contains('is-done'); bar.classList.toggle('on', on); bar.setAttribute('aria-hidden', on ? 'false' : 'true'); bar.querySelector('a').tabIndex = on ? 0 : -1; };
+    new IntersectionObserver(function (es) { heroOut = !es[0].isIntersecting; upd(); }).observe(hero);
+    new IntersectionObserver(function (es) { joinIn = es[0].isIntersecting; upd(); }, { rootMargin: '0px 0px -20% 0px' }).observe(join);
+  }
+})();
+</script>
+</body>
+</html>
