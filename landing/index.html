@@ -337,7 +337,8 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .boost .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
 .boost .friends { margin-top: 12px; font-size: 15px; font-weight: 700; color: var(--green-ink); }
 .try { display: inline-block; margin-top: 18px; font: 800 17px var(--text); color: var(--green-ink); }
-.big-stamp { position: absolute; top: 20px; left: 14px; z-index: 4; color: var(--green); font-size: 30px; padding: 8px 16px 10px; border-width: 4px; opacity: 0; pointer-events: none; }
+.done { position: relative; }
+.big-stamp { position: absolute; top: 46px; left: 4px; z-index: 4; color: var(--green); font-size: 30px; padding: 8px 16px 10px; border-width: 4px; opacity: 0; pointer-events: none; }
 .paper.signed .big-stamp { opacity: .92; animation: thunk .5s cubic-bezier(.2,.8,.3,1.2) both; }
 .paper.thump { animation: thump .32s ease; }
 @keyframes thump { 30% { transform: translateY(3px) scale(.995); } 100% { transform: none; } }
@@ -540,7 +541,6 @@ footer a { color: var(--ink-2); font-weight: 700; }
       </div>
       <div>
         <div class="paper" id="paper">
-          <span class="stamp big-stamp" aria-hidden="true">אושר</span>
           <div class="p-head"><b>טופס טיולים</b><span>לכסף שלכם · שפת הכסף</span></div>
           <ul class="p-lines" aria-label="התחנות שעברתם בדף">
             <li><a href="#st-pikadon">פיקדון</a><span class="slot" data-slot="pikadon"><span class="empty">עוד לא</span></span></li>
@@ -592,6 +592,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
           </form>
 
           <div class="done" id="done" aria-live="polite" tabindex="-1">
+            <span class="stamp big-stamp" aria-hidden="true">אושר</span>
             <div class="ticket-no" id="ticketNo" hidden><small>המקום שלכם ברשימה</small><span></span></div>
             <h3 id="doneTitle">שריינו לכם מקום.</h3>
             <p class="d-sub" id="doneSub">כשהאפליקציה מוכנה, תקבלו הודעה ראשונים.</p>
@@ -599,7 +600,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
               <b>רוצים לעלות בתור?</b>
               <p id="boostTxt">כל חבר שנרשם מהקישור שלכם מקדם אתכם 5 מקומות.</p>
               <div class="row">
-                <a class="btn2 wa" id="shareWa" href="#" target="_blank" rel="noopener" data-cta="share_whatsapp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>לשלוח בוואטסאפ</a>
+                <a class="btn2 wa" id="shareWa" href="#" target="_blank" rel="noopener" data-cta="share_whatsapp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>לשלוח לחבר</a>
                 <button class="btn2" type="button" id="copyLink" data-cta="share_copy">להעתיק קישור</button>
               </div>
               <p class="friends" id="friends" hidden></p>
