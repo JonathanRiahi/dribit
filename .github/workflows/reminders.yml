@@ -1,4 +1,4 @@
-# Daily reminder for Dribit: one Web Push message in the evening (from 18:00 Israel time) to everyone who turned reminders on
+# Daily reminder for Sfat HaKesef: one Web Push message in the evening (from 18:00 Israel time) to everyone who turned reminders on
 # and has not finished a lesson today. The sending logic is in tools/send-reminders.js.
 # Needs two repository secrets (Settings > Secrets and variables > Actions):
 #   POSTHOG_API_KEY    a PostHog personal API key with the query:read scope (reads the subscriptions and today's lessons)
