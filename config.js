@@ -129,6 +129,12 @@ window.DRIBIT_CONFIG = {
   // contactName: שם פרטי שמופיע בהסבר ("המשוב נשלח בוואטסאפ ליהונתן"). לא חובה.
   feedback: { whatsapp: '972547679158', contactName: 'יהונתן' },
 
+  // רשימת ההמתנה בדף הנחיתה (landing/). כל הרשמה נשלחת ל-PostHog (אירוע waitlist_signup), וגם לגיליון Google Sheets
+  // כשיש sheetUrl: כתובת ה-Web App של Apps Script (הוראות ב-landing/waitlist/README.md). הכתובת אינה סוד.
+  // ריק = רק PostHog, והדף לא מציג מקום בתור. boostPerFriend: כמה מקומות מקדם כל חבר שנרשם מהקישור (חייב להיות זהה ל-BOOST בסקריפט).
+  // showCountFrom: מאיזה מספר נרשמים מציגים "כבר N ברשימה" (מספר אמיתי מהגיליון; מתחתיו לא מציגים כלום).
+  waitlist: { sheetUrl: '', boostPerFriend: 5, showCountFrom: 50 },
+
   // הזמנת חברים: פס בפרופיל (מתחת ל"השבוע שלי") וכפתור במסך הסיום, אחרי afterLessons שיעורים. url = הקישור שנשלח (ריק = כתובת האפליקציה).
   // image = לצרף תמונת רצף כשהטלפון יודע לשתף קבצים. הקישור מקבל ref=share: כך רואים במדידה מי הגיע מהזמנה,
   // ומי שפותח ממנו בפעם הראשונה מקבל את המתנה של daysOff.friendGift. אין בקישור שום מזהה של השולח.

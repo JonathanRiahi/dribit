@@ -3,351 +3,690 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#07503F">
-<title>שפת הכסף: כסף אחרי הצבא, בכמה דקות ביום</title>
-<meta name="description" content="בשחרור יכולים לחכות לכם כ-52,800 ₪. שפת הכסף מלמדת פיקדון, מענק, מס והשקעות בשיעורים של כמה דקות. בחינם, בעברית, מהטלפון.">
+<meta name="theme-color" content="#062E25">
+<title>שפת הכסף: הכסף מהצבא, לפני שהוא נגמר</title>
+<meta name="description" content="מישהו בגילכם כבר יודע מה לעשות עם הפיקדון, המענק והמשכורת הראשונה. שפת הכסף מלמדת את זה בכמה דקות ביום, בחינם. האפליקציה יוצאת לפי הסדר ברשימה.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="he_IL">
-<meta property="og:title" content="שפת הכסף: יודעים מה מותר לעשות עם כסף השחרור?">
-<meta property="og:description" content="שיעורים של כמה דקות על פיקדון, מענק, מס והשקעות. בחינם, בעברית, מהטלפון.">
-<meta property="og:image" content="https://jonathanriahi.github.io/dribit/landing/img/og.jpg">
+<meta property="og:title" content="מישהו בגילכם כבר יודע מה לעשות עם הכסף מהצבא. אתם?">
+<meta property="og:description" content="פיקדון, מענק, משכורת ראשונה. שפת הכסף מלמדת מה עושים איתם לפני שהם נגמרים. בחינם. האפליקציה יוצאת לפי הסדר ברשימה.">
+<meta property="og:image" content="https://jonathanriahi.github.io/dribit/landing/media/og.jpg">
 <meta property="og:url" content="https://jonathanriahi.github.io/dribit/landing/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="../icons/icon.svg">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Rubik:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&family=Karantina:wght@700&family=Playpen+Sans+Hebrew:wght@500&family=Rubik:wght@700;800;900&family=Suez+One&display=swap">
+<link rel="preload" as="image" href="media/calc.webp">
 <style>
 :root {
-  --bg: #F2F6F1;
-  --surface: #FFFFFF;
-  --surface-2: #E6EEE5;
-  --ink: #12302A;
-  --ink-2: #4E655E;
-  --ink-3: #6E837B;
-  --line: #D3DFD4;
-  --brand: #0E6E58;
-  --brand-deep: #07503F;
-  --brand-soft: #D7EDE5;
-  --gold: #F2B630;
-  --gold-deep: #C98D12;
-  --gold-ink: #8C6107;
-  --bad: #C2372F;
-  --hero-1: #07503F; --hero-2: #095E4B; --hero-3: #0C6D56;
-  --shadow: 0 1px 2px rgba(18,48,42,.06), 0 10px 28px rgba(18,48,42,.10);
+  --night: #062E25; --night-2: #08392E; --night-3: #0C4A3C;
+  --cream: #F6F1E4; --cream-2: rgba(246,241,228,.82); --cream-3: rgba(246,241,228,.64);
+  --paper: #F3EEE2; --paper-2: #E9E2D1; --card: #FFFDF8;
+  --ink: #17261F; --ink-2: #4A5A52; --ink-3: #66746C; --rule: #D6CDB9;
+  --green: #0E6E58; --green-ink: #0B5A48; --green-soft: #D6EADF;
+  --gold: #F2B630; --gold-deep: #C98D12; --gold-ink: #7A5306;
+  --red: #B8322A; --red-soft: #F7DEDA;
+  --shadow: 0 1px 2px rgba(23,38,31,.08), 0 14px 34px rgba(23,38,31,.12);
+  --shadow-dark: 0 2px 4px rgba(0,0,0,.25), 0 24px 60px rgba(0,0,0,.45);
   --display: 'Rubik', 'Arial Hebrew', system-ui, sans-serif;
-  --body: 'Assistant', 'Arial Hebrew', system-ui, sans-serif;
+  --text: 'Assistant', 'Arial Hebrew', system-ui, sans-serif;
+  --num: 'Karantina', 'Rubik', system-ui, sans-serif;
+  --stamp: 'Suez One', 'Rubik', serif;
+  --hand: 'Playpen Sans Hebrew', 'Assistant', cursive;
+  --gutter: 16px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0C1714; --surface: #14221E; --surface-2: #1C2E29;
-    --ink: #E7F1EC; --ink-2: #A9BDB5; --ink-3: #8A9E96; --line: #26392F;
-    --brand: #2FB58F; --brand-deep: #157A5F; --brand-soft: #112E27;
-    --gold-ink: #F5C04A; --bad: #EE6A61;
-    --hero-1: #052F26; --hero-2: #07402F; --hero-3: #0A5240;
-    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+    --paper: #0F1915; --paper-2: #16231E; --card: #1A2823;
+    --ink: #ECE6D7; --ink-2: #B7BFB6; --ink-3: #96A198; --rule: #2B3A33;
+    --green: #3CC39B; --green-ink: #5FD3AE; --green-soft: #133A2F;
+    --gold-ink: #F5C04A; --red: #F07A70; --red-soft: #3A1D1A;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.35);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0C1714; --surface: #14221E; --surface-2: #1C2E29;
-  --ink: #E7F1EC; --ink-2: #A9BDB5; --ink-3: #8A9E96; --line: #26392F;
-  --brand: #2FB58F; --brand-deep: #157A5F; --brand-soft: #112E27;
-  --gold-ink: #F5C04A; --bad: #EE6A61;
-  --hero-1: #052F26; --hero-2: #07402F; --hero-3: #0A5240;
-  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+  --paper: #0F1915; --paper-2: #16231E; --card: #1A2823;
+  --ink: #ECE6D7; --ink-2: #B7BFB6; --ink-3: #96A198; --rule: #2B3A33;
+  --green: #3CC39B; --green-ink: #5FD3AE; --green-soft: #133A2F;
+  --gold-ink: #F5C04A; --red: #F07A70; --red-soft: #3A1D1A;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.35);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; overflow-x: hidden; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 12px; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 18px/1.55 var(--text); overflow-x: clip; -webkit-font-smoothing: antialiased; }
+img, video, svg { display: block; max-width: 100%; }
 a { color: inherit; }
-img { display: block; max-width: 100%; }
-.wrap { max-width: 560px; margin: 0 auto; padding: 0 16px; }
-h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.15; letter-spacing: -.01em; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+h1, h2, h3 { font-family: var(--display); margin: 0; letter-spacing: -.015em; text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+.wrap { width: min(1080px, 100% - 2 * var(--gutter)); margin-inline: auto; }
+.sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; top: -60px; right: 12px; z-index: 50; background: var(--gold); color: #1B1B1B; padding: 10px 16px; border-radius: 12px; font-weight: 800; }
+.skip:focus { top: 12px; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
 
-/* ---------- hero ---------- */
-.hero { background: linear-gradient(180deg, var(--hero-1) 0%, var(--hero-2) 55%, var(--hero-3) 100%); color: #fff; padding: calc(14px + env(safe-area-inset-top)) 0 0; position: relative; }
-.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 22px; }
-.brand img { width: 34px; height: 34px; border-radius: 9px; }
-.eyebrow { margin: 30px 0 10px; display: inline-block; font-weight: 700; font-size: 14px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); padding: 4px 12px; border-radius: 99px; }
-.hero h1 { font-size: 22px; font-weight: 700; opacity: .92; }
-.big { display: block; font-size: clamp(52px, 15vw, 72px); font-weight: 800; color: var(--gold); line-height: 1.05; margin: 4px 0 6px; letter-spacing: -.02em; }
-.hero h1 .q { display: block; font-size: 26px; font-weight: 800; opacity: 1; }
-.lead { font-size: 18px; margin: 16px 0 22px; color: rgba(255,255,255,.9); }
-.btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 56px; border: 0; border-radius: 16px; font: 800 19px/1.2 var(--body); cursor: pointer; text-decoration: none; padding: 14px 20px; transition: transform .08s ease; -webkit-tap-highlight-color: transparent; }
-.btn:active { transform: translateY(2px); }
-.btn-gold { background: var(--gold); color: #1B1B1B; box-shadow: 0 4px 0 var(--gold-deep), 0 12px 30px rgba(0,0,0,.25); }
-.btn-gold:active { box-shadow: 0 2px 0 var(--gold-deep); }
-.btn-line { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,.45); margin-top: 12px; font-size: 17px; min-height: 52px; }
-.btn-brand { background: var(--brand); color: #fff; box-shadow: 0 4px 0 var(--brand-deep); }
-:root:not([data-theme="light"]) .btn-brand { color: #04120E; }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn-brand { color: #fff; } }
-:root[data-theme="light"] .btn-brand { color: #fff; }
-.btn:focus-visible, .chip:focus-within, input:focus-visible, summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
-.inapp { display: none; margin: 10px 2px 0; font-size: 14px; color: rgba(255,255,255,.85); }
+/* the one action, the same label everywhere */
+.cta { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 58px; padding: 14px 28px; border: 0; border-radius: 18px; background: var(--gold); color: #1B1B1B; font: 800 20px/1.15 var(--text); text-decoration: none; cursor: pointer; box-shadow: 0 5px 0 var(--gold-deep), 0 16px 34px rgba(0,0,0,.22); transition: transform .12s ease, box-shadow .12s ease; -webkit-tap-highlight-color: transparent; }
+.cta:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--gold-deep), 0 8px 18px rgba(0,0,0,.2); }
+.cta svg { width: 22px; height: 22px; }
+.cta[disabled] { opacity: .7; cursor: progress; }
+
+/* ink stamp, shared by the page and the form */
+.stamp { display: inline-flex; align-items: center; gap: 6px; font: 400 18px/1 var(--stamp); padding: 6px 12px 7px; border: 3px solid currentColor; border-radius: 9px; transform: rotate(-8deg); letter-spacing: .02em; white-space: nowrap; }
+.stamp.no { color: var(--red); }
+.stamp.yes { color: var(--green); }
+@keyframes thunk {
+  0% { opacity: 0; transform: scale(2.3) rotate(-18deg); }
+  55% { opacity: 1; transform: scale(.9) rotate(-6deg); }
+  75% { transform: scale(1.04) rotate(-9deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-8deg); }
+}
+
+/* =========================== HERO =========================== */
+.hero { position: relative; isolation: isolate; background: var(--night); color: var(--cream); overflow: clip; padding: calc(14px + env(safe-area-inset-top)) 0 0; }
+.hero-plate { position: absolute; inset: 0; z-index: -2; pointer-events: none; }
+.h-glow { position: absolute; width: 130vmax; height: 130vmax; left: 50%; top: 62%; translate: -50% -50%; background: radial-gradient(closest-side, rgba(46,170,130,.30), rgba(46,170,130,.08) 45%, transparent 70%); }
+.h-num { position: absolute; inset-inline: 0; top: clamp(470px, 64vh, 560px); text-align: center; font: 700 clamp(170px, 58vw, 300px)/.8 var(--num); color: #0E5444; letter-spacing: -.01em; white-space: nowrap; direction: ltr; }
+.h-num small { font-size: .42em; vertical-align: .9em; margin-inline-start: .06em; }
+.grain { position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: .09; mix-blend-mode: overlay; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.hero-in { position: relative; display: grid; gap: 0; }
+.brand { display: flex; align-items: center; gap: 10px; font: 800 22px/1 var(--display); color: var(--cream); text-decoration: none; width: max-content; }
+.brand img { width: 34px; height: 34px; border-radius: 10px; }
+.hero-copy { position: relative; z-index: 2; padding-top: clamp(28px, 6vh, 56px); }
+.hero h1 { font-weight: 900; font-size: clamp(36px, 9.6vw, 92px); line-height: 1; letter-spacing: -.03em; }
+.hero h1 span { display: block; text-wrap: wrap; }
+.hero h1 .h1b { color: var(--gold); }
+.lead { margin-top: 18px; font-size: clamp(18px, 4.8vw, 22px); line-height: 1.5; color: var(--cream-2); max-width: 30em; }
+.lead b { color: var(--cream); font-weight: 700; }
+.hero .cta { margin-top: 24px; width: 100%; max-width: 420px; }
+.cta-note { margin-top: 12px; font-size: 15px; color: var(--cream-3); max-width: 28em; }
+.cta-note b { color: var(--cream-2); font-weight: 700; }
+.count { margin-top: 10px; font-size: 15px; color: var(--cream-2); display: flex; align-items: center; gap: 8px; }
+.count i { width: 8px; height: 8px; border-radius: 50%; background: #4ADE9A; box-shadow: 0 0 0 4px rgba(74,222,154,.18); }
+.inapp { display: none; margin-top: 12px; font-size: 14px; color: var(--cream-2); background: rgba(255,255,255,.08); border-radius: 12px; padding: 10px 12px; max-width: 420px; }
 .inapp.on { display: block; }
-.foot-note { font-size: 13px; color: rgba(255,255,255,.72); margin: 14px 0 0; }
-.phone { position: relative; z-index: 1; width: 230px; margin: 34px auto -230px; border-radius: 32px; border: 6px solid #1D3A31; background: #0D1714; box-shadow: 0 30px 70px rgba(0,0,0,.45); overflow: hidden; transform: rotate(-3deg); }
-.phone img, .phone video { display: block; width: 100%; height: auto; aspect-ratio: 540 / 1170; }
-.vids { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
-.vid { margin: 0; }
-.vid .frame { border-radius: 24px; border: 5px solid #1D3A31; overflow: hidden; background: #0D1714; box-shadow: var(--shadow); }
-.vid video { display: block; width: 100%; height: auto; aspect-ratio: 540 / 1170; }
-.vid figcaption { font-weight: 700; font-size: 15px; margin-top: 8px; color: var(--ink-2); text-align: center; }
-.hero-spacer { height: 250px; background: var(--bg); }
 
-/* ---------- sections ---------- */
-section { padding: 34px 0; }
-section.wrap { padding: 34px 16px; }
-.kicker { font-weight: 800; color: var(--brand); font-size: 14px; margin-bottom: 6px; }
-h2 { font-size: 28px; font-weight: 800; }
-.sub { color: var(--ink-2); margin: 8px 0 0; }
-.facts { display: grid; gap: 12px; margin-top: 20px; }
-.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px 18px 16px; box-shadow: var(--shadow); }
-.fact .num { font-family: var(--display); font-weight: 800; font-size: 30px; color: var(--brand); line-height: 1.1; }
-.fact h3 { font-size: 18px; font-weight: 700; margin: 6px 0 4px; }
-.fact p { margin: 0; color: var(--ink-2); font-size: 16px; }
-.fine { font-size: 13px; color: var(--ink-3); margin-top: 12px; }
+.stage { position: relative; z-index: 1; height: clamp(480px, 128vw, 620px); margin-top: 26px; }
+.phone { position: absolute; left: 50%; top: 0; width: clamp(220px, 60vw, 290px); translate: -50% 0; margin: 0; border-radius: 38px; padding: 7px; background: linear-gradient(160deg, #2A4A40, #10241E 60%); box-shadow: var(--shadow-dark), inset 0 0 0 1px rgba(255,255,255,.08); }
+.phone video, .phone img { width: 100%; height: auto; aspect-ratio: 576 / 1246; border-radius: 31px; background: #EFF4EE; }
+.chip { position: absolute; z-index: 2; display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border-radius: 16px; background: #FFFDF8; color: #17261F; font: 800 16px/1.1 var(--text); box-shadow: 0 2px 3px rgba(0,0,0,.18), 0 18px 34px rgba(0,0,0,.32); white-space: nowrap; will-change: transform; }
+.chip svg { width: 22px; height: 22px; flex: none; }
+.chip-streak { top: 46px; right: calc(50% - clamp(220px, 60vw, 290px) / 2 - 26px); rotate: 4deg; }
+.chip-streak svg { color: #F07A2E; }
+.chip-xp { top: 46%; left: calc(50% - clamp(220px, 60vw, 290px) / 2 - 30px); rotate: -5deg; }
+.chip-xp .pts { background: var(--gold); border-radius: 9px; padding: 3px 7px; font-size: 14px; }
+.chip-amt { flex-direction: column; align-items: flex-start; gap: 2px; bottom: 64px; right: calc(50% - clamp(220px, 60vw, 290px) / 2 - 18px); background: #10352B; color: var(--cream); padding: 10px 16px 8px; rotate: -3deg; }
+.chip-amt small { font: 700 13px/1.1 var(--text); color: var(--cream-3); }
+.chip-amt b { font: 700 40px/.9 var(--num); color: var(--gold); letter-spacing: .01em; }
+.hero-fn { position: relative; z-index: 2; font-size: 13px; color: var(--cream-3); padding: 0 0 22px; }
 
-.shots { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 20px 16px 18px; margin: 0 -16px; scrollbar-width: none; }
-.shots::-webkit-scrollbar { display: none; }
-.shot { flex: 0 0 68%; max-width: 250px; scroll-snap-align: center; }
-.shot .frame { border-radius: 26px; border: 5px solid #1D3A31; overflow: hidden; background: #0D1714; box-shadow: var(--shadow); }
-.shot .frame img { width: 100%; height: auto; aspect-ratio: 600 / 1298; }
-.shot b { display: block; font-family: var(--display); font-size: 18px; margin: 12px 2px 2px; }
-.shot span { display: block; font-size: 15px; color: var(--ink-2); padding: 0 2px; }
-.swipe { font-size: 13px; color: var(--ink-3); text-align: center; margin: 0; }
+@media (min-width: 960px) {
+  .hero { min-height: 100svh; padding-top: 26px; }
+  .hero-in { grid-template-columns: 1.3fr .7fr; grid-template-rows: auto 1fr auto; column-gap: 40px; min-height: calc(100svh - 26px); }
+  .brand { grid-column: 1 / -1; }
+  .hero-copy { grid-column: 1; grid-row: 2; align-self: center; padding: 0 0 40px; }
+  .hero h1 { font-size: clamp(52px, 4.6vw, 80px); }
+  .lead { font-size: 21px; }
+  .stage { grid-column: 2; grid-row: 2 / 4; height: auto; min-height: 640px; margin: 0; }
+  .phone { top: 50%; translate: -50% -47%; width: 300px; }
+  .chip-streak { top: 18%; right: calc(50% - 150px - 54px); }
+  .chip-xp { top: 52%; left: calc(50% - 150px - 70px); }
+  .chip-amt { bottom: 14%; right: calc(50% - 150px - 64px); }
+  .h-num { top: auto; bottom: -6vh; inset-inline: auto; left: -2vw; font-size: clamp(260px, 30vw, 460px); text-align: left; }
+  .hero-fn { grid-column: 1; grid-row: 3; align-self: end; }
+}
 
-/* ---------- waitlist ---------- */
-.join { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 22px 18px; box-shadow: var(--shadow); margin-top: 18px; }
-.field { margin-top: 18px; }
-.label { display: block; font-weight: 800; font-size: 16px; margin-bottom: 8px; }
-input[type="tel"], input[type="email"] { width: 100%; min-height: 54px; border-radius: 14px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); font: 700 19px var(--body); padding: 10px 14px; unicode-bidi: plaintext; text-align: right; }
+/* =========================== STATION: PIKADON =========================== */
+.pik { padding: clamp(72px, 12vh, 120px) 0 clamp(56px, 9vh, 96px); }
+.pik h2 { font-weight: 900; font-size: clamp(34px, 8.4vw, 64px); line-height: 1.04; max-width: 15em; }
+.pik h2 .muted, .sign h2 .muted { display: block; color: var(--ink-2); font-weight: 800; font-size: .62em; line-height: 1.2; margin-top: 12px; letter-spacing: -.01em; }
+.pik-grid { display: grid; gap: 36px; }
+.wishes { list-style: none; margin: 30px 0 0; padding: 0; border-top: 2px solid var(--ink); }
+.wish { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 66px; padding: 10px 2px; border-bottom: 1px dashed var(--rule); }
+.wish .w { font: 800 clamp(21px, 5.6vw, 30px)/1.15 var(--display); transition: color .3s ease; }
+.wish .stamp { opacity: 0; font-size: clamp(17px, 4.6vw, 22px); }
+.wish.on .stamp { opacity: 1; animation: thunk .42s cubic-bezier(.2,.8,.3,1.2) both; }
+.wish.no.on .w { color: var(--ink-3); text-decoration: line-through; text-decoration-thickness: 3px; text-decoration-color: var(--red); }
+.pik-after { display: grid; gap: 18px; align-content: start; }
+.pik-after p { font-size: clamp(18px, 4.6vw, 20px); color: var(--ink-2); }
+.pik-after p b { color: var(--ink); }
+.grant { border-inline-start: 4px solid var(--gold); padding: 4px 14px 4px 0; }
+.peek { display: flex; align-items: center; gap: 18px; margin: 6px 0 0; }
+.peek .phone-s { flex: none; width: 132px; border-radius: 24px; padding: 5px; background: #13261F; box-shadow: var(--shadow); }
+.peek video { width: 100%; height: auto; aspect-ratio: 576/1246; border-radius: 19px; background: #EFF4EE; }
+.peek figcaption { font: 800 19px/1.3 var(--display); }
+.peek figcaption span { display: block; font: 400 16px/1.45 var(--text); color: var(--ink-2); margin-top: 6px; }
+@media (min-width: 900px) {
+  .pik-grid { grid-template-columns: 1.15fr .85fr; align-items: start; column-gap: 64px; }
+  .pik h2 { grid-column: 1 / -1; }
+  .pik-after { padding-top: 30px; }
+  .peek .phone-s { width: 170px; }
+}
+
+/* =========================== QUIET =========================== */
+.quiet { min-height: 82vh; display: grid; place-items: center; padding: 60px 0; text-align: center; background: var(--paper); }
+.quiet p { font: 800 clamp(26px, 6.6vw, 46px)/1.2 var(--display); letter-spacing: -.015em; }
+.quiet p + p { margin-top: 18px; }
+.quiet .q-small { font: 600 clamp(18px, 4.6vw, 22px)/1.5 var(--text); color: var(--ink-2); letter-spacing: 0; }
+.quiet .maya { color: var(--green-ink); }
+.quiet .omer { color: var(--gold-ink); }
+
+/* =========================== PEAK: THE RACE =========================== */
+.race { position: relative; height: 360vh; --dark: 0; }
+.race-stage { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px; padding: calc(18px + env(safe-area-inset-top)) 0 calc(96px + env(safe-area-inset-bottom)); background: var(--paper); color: var(--ink); padding-inline: max(var(--gutter), (100vw - 1080px) / 2); }
+.race-bg { position: absolute; inset: 0; background: var(--night); opacity: var(--dark); pointer-events: none; }
+.race-stage > :is(.race-top, .runners, .chart-wrap, .race-end) { position: relative; }
+.race.lit .race-stage { color: var(--cream); }
+.race-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.age-box { display: flex; align-items: baseline; gap: 8px; }
+.age-box span { font: 800 18px/1 var(--display); color: inherit; opacity: .75; }
+.age { font: 700 clamp(88px, 26vw, 170px)/.8 var(--num); font-variant-numeric: tabular-nums; min-width: 1.1em; direction: ltr; }
+.race-cap { font: 800 clamp(18px, 4.8vw, 26px)/1.25 var(--display); max-width: 15em; text-align: end; min-height: 2.5em; }
+.runners { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.runner { border-radius: 16px; padding: 10px 14px 12px; background: var(--card); box-shadow: var(--shadow); color: var(--ink); }
+.race.lit .runner { background: rgba(255,255,255,.07); color: var(--cream); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+.runner .who { display: flex; align-items: center; gap: 8px; font: 800 17px/1 var(--display); }
+.runner .who i { width: 12px; height: 12px; border-radius: 4px; }
+.runner.maya .who i { background: #1FA77F; }
+.runner.omer .who i { background: var(--gold); }
+.runner .val { display: block; margin-top: 6px; font: 700 clamp(38px, 10.4vw, 64px)/.9 var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.runner .val.wait { font: 700 18px/1.3 var(--text); opacity: .65; padding: 12px 0 6px; }
+.runner small { display: block; margin-top: 4px; font-size: 14px; opacity: .78; }
+.chart-wrap { position: relative; min-height: 0; }
+.chart { width: 100%; height: 100%; overflow: visible; }
+.chart .grid line { stroke: currentColor; stroke-opacity: .14; stroke-width: 1; }
+.chart .l-maya { fill: none; stroke: #1FA77F; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.chart .l-omer { fill: none; stroke: var(--gold); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.chart .a-maya { fill: #1FA77F; fill-opacity: .14; }
+.chart .a-omer { fill: var(--gold); fill-opacity: .16; }
+.chart path, .chart line { vector-effect: non-scaling-stroke; }
+.chart-wrap { margin: 6px 4px 26px 0; }
+.rdot { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; border: 3px solid var(--paper); opacity: 0; }
+.race.lit .rdot { border-color: var(--night); }
+.rdot.maya { background: #1FA77F; } .rdot.omer { background: var(--gold); }
+.yl { position: absolute; right: 0; transform: translateY(-120%); font: 700 12px/1 var(--text); opacity: .6; }
+.xl { position: absolute; bottom: -22px; transform: translateX(-50%); font: 700 13px/1 var(--text); opacity: .7; direction: ltr; }
+.race-end { display: grid; gap: 6px; opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+.race.finished .race-end { opacity: 1; transform: none; }
+.race-end .big { font: 900 clamp(24px, 6.2vw, 40px)/1.12 var(--display); }
+.race-end .big em { font-style: normal; color: var(--gold); }
+.race-end .small { font-size: 16px; opacity: .85; }
+.race-end .fine { font-size: 13px; opacity: .65; }
+.race-stamp { position: absolute; top: 40%; left: 7%; z-index: 3; color: var(--gold); font-size: 26px; opacity: 0; pointer-events: none; }
+.race.finished .race-stamp { opacity: 1; animation: thunk .45s cubic-bezier(.2,.8,.3,1.2) both; }
+@media (min-width: 960px) {
+  .race-stage { grid-template-columns: 1fr 1.6fr; grid-template-rows: auto 1fr auto; column-gap: 56px; padding-bottom: 40px; }
+  .race-top { grid-column: 1; grid-row: 1; flex-direction: column; align-items: flex-start; }
+  .race-cap { text-align: start; }
+  .runners { grid-column: 1; grid-row: 2; grid-template-columns: 1fr; align-content: start; }
+  .chart-wrap { grid-column: 2; grid-row: 1 / 3; }
+  .race-end { grid-column: 1 / -1; grid-row: 3; }
+}
+
+/* =========================== STATION: TAX QUIZ =========================== */
+.tax { padding: clamp(80px, 12vh, 130px) 0; background: var(--paper-2); }
+.tax-grid { display: grid; gap: 28px; }
+.tax h2 { font-weight: 900; font-size: clamp(36px, 9vw, 66px); line-height: 1; }
+.tax-head p { margin-top: 16px; color: var(--ink-2); font-size: clamp(18px, 4.6vw, 20px); max-width: 26em; }
+.qcard { background: var(--card); border-radius: 26px; padding: 20px 18px 18px; box-shadow: var(--shadow); position: relative; }
+.q-scn { display: flex; gap: 12px; align-items: flex-start; background: var(--green-soft); border-radius: 16px; padding: 12px 14px; font-size: 16px; line-height: 1.5; border-inline-start: 4px solid var(--green); }
+.q-scn svg { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--green); color: #fff; padding: 6px; }
+.qcard h3 { margin: 18px 2px 14px; font: 800 24px/1.2 var(--display); }
+.opts { display: grid; gap: 10px; }
+.opt { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 12px 14px; border-radius: 16px; border: 2px solid var(--rule); border-bottom-width: 4px; background: var(--card); color: var(--ink); font: 700 17px/1.35 var(--text); text-align: start; cursor: pointer; transition: transform .1s ease, border-color .2s ease, background-color .2s ease; }
+.opt:active { transform: translateY(2px); }
+.opt .k { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; border: 2px solid var(--rule); font: 800 15px/1 var(--display); color: var(--ink-2); }
+.opt[disabled] { cursor: default; }
+.opt.right { border-color: var(--green); background: var(--green-soft); }
+.opt.right .k { border-color: var(--green); background: var(--green); color: #fff; }
+.opt.wrong { border-color: var(--red); background: var(--red-soft); }
+.opt.wrong .k { border-color: var(--red); color: var(--red); }
+.opt.dim { opacity: .55; }
+.q-fb { margin-top: 14px; border-radius: 18px; padding: 14px 16px; display: none; }
+.q-fb.on { display: block; animation: rise .35s ease both; }
+.q-fb.good { background: var(--green-soft); }
+.q-fb.bad { background: var(--red-soft); }
+.q-fb .t { display: flex; align-items: center; gap: 10px; font: 900 22px/1.1 var(--display); }
+.q-fb.good .t { color: var(--green-ink); }
+.q-fb.bad .t { color: var(--red); }
+.q-fb .pts { background: var(--gold); color: #1B1B1B; border-radius: 9px; padding: 3px 8px; font: 800 15px/1.2 var(--text); }
+.q-fb p { margin-top: 8px; font-size: 16px; line-height: 1.55; color: var(--ink); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.burst { position: absolute; pointer-events: none; font: 800 22px/1 var(--text); color: #1B1B1B; background: var(--gold); border-radius: 12px; padding: 6px 10px; box-shadow: 0 10px 24px rgba(0,0,0,.2); animation: burst 1s ease forwards; }
+@keyframes burst { 0% { opacity: 0; transform: translateY(10px) scale(.7); } 25% { opacity: 1; transform: translateY(-10px) scale(1.1); } 70% { opacity: 1; transform: translateY(-34px) scale(1); } 100% { opacity: 0; transform: translateY(-60px) scale(.95); } }
+@media (min-width: 900px) {
+  .tax-grid { grid-template-columns: .9fr 1.1fr; column-gap: 64px; align-items: center; }
+  .qcard { padding: 26px 26px 22px; }
+}
+
+/* =========================== TOUR (pan) =========================== */
+.tour { position: relative; height: 260vh; background: var(--night); color: var(--cream); }
+.tour-stage { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; grid-template-rows: auto 1fr; padding: calc(28px + env(safe-area-inset-top)) 0 calc(86px + env(safe-area-inset-bottom)); }
+.tour h2 { font-weight: 900; font-size: clamp(32px, 8vw, 60px); line-height: 1.02; }
+.tour-head p { margin-top: 10px; color: var(--cream-2); font-size: clamp(16px, 4.2vw, 19px); max-width: 30em; }
+.track-vp { min-height: 0; display: flex; align-items: center; overflow: hidden; padding-block: 40px; margin-block: -40px; }
+.track { display: flex; gap: clamp(18px, 4vw, 36px); padding-inline: var(--gutter); will-change: transform; }
+.card { flex: none; width: clamp(200px, 56vw, 260px); margin: 0; }
+.card .fr { border-radius: 30px; padding: 6px; background: linear-gradient(160deg, #2A4A40, #10241E 60%); box-shadow: var(--shadow-dark); }
+.card img, .card video { width: 100%; height: auto; aspect-ratio: 576/1246; border-radius: 24px; background: #EFF4EE; object-fit: cover; object-position: top; }
+.card figcaption { margin-top: 14px; font: 800 19px/1.25 var(--display); }
+.card figcaption span { display: block; margin-top: 4px; font: 400 15px/1.45 var(--text); color: var(--cream-2); }
+@media (max-height: 760px) and (max-width: 700px) { .card { width: clamp(170px, 42vw, 220px); } .tour-head p { display: none; } }
+@media (min-width: 960px) { .tour-stage { grid-template-columns: calc(max(var(--gutter), (100vw - 1080px) / 2) + 340px) minmax(0, 1fr); grid-template-rows: 1fr; align-items: center; column-gap: 20px; } .tour-head.wrap { width: auto; margin: 0; padding-inline-start: max(var(--gutter), (100vw - 1080px) / 2); } .card { width: 250px; } }
+
+/* =========================== SIGN (waitlist) =========================== */
+.sign { padding: clamp(80px, 12vh, 130px) 0 40px; background: var(--paper); }
+.sign h2 { font-weight: 900; font-size: clamp(40px, 10vw, 76px); line-height: 1; }
+.sign .sub { margin-top: 14px; color: var(--ink-2); font-size: clamp(18px, 4.6vw, 21px); max-width: 28em; }
+.paper { position: relative; margin-top: 30px; max-width: 620px; background: var(--card); border-radius: 6px; padding: 22px 18px 24px; box-shadow: var(--shadow); background-image: repeating-linear-gradient(to bottom, transparent 0 39px, color-mix(in srgb, var(--rule) 55%, transparent) 39px 40px); }
+.paper::before { content: ""; position: absolute; inset: 8px; border: 1.5px solid var(--rule); border-radius: 3px; pointer-events: none; }
+.paper > * { position: relative; }
+.p-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
+.p-head b { font: 400 26px/1 var(--stamp); }
+.p-head span { font-size: 14px; color: var(--ink-3); font-weight: 700; }
+.p-lines { list-style: none; margin: 8px 0 0; padding: 0; }
+.p-lines li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; border-bottom: 1px dashed var(--rule); }
+.p-lines li a { font: 800 18px/1.2 var(--display); text-decoration: none; }
+.p-lines .slot { min-width: 96px; display: flex; justify-content: flex-end; }
+.p-lines .empty { font-size: 14px; color: var(--ink-3); border: 2px dashed var(--rule); border-radius: 9px; padding: 4px 10px; }
+.p-lines .stamp { font-size: 16px; padding: 4px 10px 5px; }
+.p-sign { margin-top: 22px; }
+.p-sign legend, .lbl { display: block; font: 800 17px/1.2 var(--display); margin-bottom: 10px; padding: 0; }
+fieldset { border: 0; padding: 0; margin: 18px 0 0; min-width: 0; }
+.field { margin-top: 4px; }
+input[type="tel"], input[type="email"] { width: 100%; min-height: 56px; border-radius: 14px; border: 2px solid var(--rule); background: var(--paper); color: var(--ink); font: 700 20px var(--text); padding: 10px 14px; unicode-bidi: plaintext; text-align: right; }
 input::placeholder { color: var(--ink-3); font-weight: 600; }
-input[aria-invalid="true"] { border-color: var(--bad); }
-.swap { background: none; border: 0; padding: 8px 2px 0; color: var(--brand); font: 700 15px var(--body); text-decoration: underline; cursor: pointer; }
+input[aria-invalid="true"] { border-color: var(--red); }
+.swap { background: none; border: 0; padding: 10px 2px 0; color: var(--green-ink); font: 700 16px var(--text); text-decoration: underline; cursor: pointer; min-height: 40px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { position: relative; }
-.chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.chip span { display: inline-flex; align-items: center; min-height: 46px; padding: 8px 16px; border-radius: 99px; border: 2px solid var(--line); background: var(--bg); font-weight: 700; font-size: 16px; }
-.chip input:checked + span { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
-.consent { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; font-size: 15px; color: var(--ink-2); cursor: pointer; }
-.consent input { width: 22px; height: 22px; flex: none; margin: 2px 0 0; accent-color: var(--brand); }
-.err { color: var(--bad); font-weight: 700; font-size: 15px; margin: 8px 2px 0; min-height: 0; }
+.pick { position: relative; }
+.pick input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.pick span { display: inline-flex; align-items: center; min-height: 48px; padding: 8px 16px; border-radius: 99px; border: 2px solid var(--rule); background: var(--paper); font: 700 16px var(--text); }
+.pick input:checked + span { border-color: var(--green); background: var(--green-soft); color: var(--green-ink); }
+.pick input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
+.consent { display: flex; gap: 12px; align-items: flex-start; margin-top: 20px; font-size: 15px; color: var(--ink-2); cursor: pointer; }
+.consent input { width: 24px; height: 24px; flex: none; margin: 1px 0 0; accent-color: var(--green); }
+.err { color: var(--red); font-weight: 700; font-size: 15px; margin: 8px 2px 0; }
 .err:empty { display: none; }
-.privacy { font-size: 13px; color: var(--ink-3); margin: 14px 0 0; }
-#joinForm .btn { margin-top: 20px; }
-.done { display: none; text-align: center; padding: 6px 0; }
-.done .ok { width: 64px; height: 64px; border-radius: 50%; background: var(--gold); color: #1B1B1B; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font: 800 34px var(--display); box-shadow: 0 4px 0 var(--gold-deep); }
-.done h3 { font-size: 24px; }
-.done p { color: var(--ink-2); margin: 8px 0 16px; }
-.done .btn + .btn { margin-top: 10px; }
-.btn-soft { background: var(--surface-2); color: var(--ink); }
-.join.is-done #joinForm { display: none; }
-.join.is-done .done { display: block; }
+.sig-line { margin-top: 22px; display: flex; align-items: flex-end; gap: 12px; }
+.sig-line span { font-size: 14px; color: var(--ink-3); font-weight: 700; }
+.sig-line i { flex: 1; border-bottom: 2px solid var(--ink); height: 36px; font: 500 22px/36px var(--hand); font-style: normal; color: var(--green-ink); overflow: hidden; white-space: nowrap; direction: ltr; text-align: right; }
+#joinForm .cta { width: 100%; margin-top: 20px; }
+.privacy { font-size: 13px; color: var(--ink-3); margin-top: 14px; }
 .fallback { display: none; margin-top: 12px; }
 .fallback.on { display: block; }
+.btn2 { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 54px; border-radius: 16px; border: 2px solid var(--rule); background: var(--paper); color: var(--ink); font: 800 18px/1.2 var(--text); text-decoration: none; cursor: pointer; }
+.btn2 svg { width: 22px; height: 22px; }
+.btn2.wa { background: #1FA855; border-color: #1FA855; color: #fff; }
+.hp { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); opacity: 0; }
 
-/* ---------- faq ---------- */
-details { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; margin-top: 10px; }
-summary { list-style: none; cursor: pointer; padding: 16px 18px; font-weight: 800; font-size: 17px; display: flex; justify-content: space-between; gap: 12px; }
-summary::-webkit-details-marker { display: none; }
-summary::after { content: '+'; color: var(--brand); font: 800 22px/1 var(--display); }
-details[open] summary::after { content: '−'; }
-details p { margin: 0; padding: 0 18px 16px; color: var(--ink-2); }
+.done { display: none; padding-top: 18px; }
+.paper.signed #joinForm { display: none; }
+.paper.signed .done { display: block; }
+.ticket-no { font: 700 clamp(84px, 24vw, 128px)/.85 var(--num); color: var(--green-ink); direction: ltr; text-align: right; }
+.ticket-no small { font: 800 18px/1 var(--display); color: var(--ink-2); display: block; direction: rtl; margin-bottom: 8px; }
+.done h3 { font: 900 30px/1.1 var(--display); }
+.done .d-sub { margin-top: 8px; color: var(--ink-2); font-size: 17px; }
+.boost { margin-top: 20px; border-radius: 18px; background: var(--paper-2); padding: 16px; }
+.boost b { display: block; font: 800 19px/1.25 var(--display); }
+.boost p { margin-top: 4px; font-size: 16px; color: var(--ink-2); }
+.boost .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.boost .friends { margin-top: 12px; font-size: 15px; font-weight: 700; color: var(--green-ink); }
+.try { display: inline-block; margin-top: 18px; font: 800 17px var(--text); color: var(--green-ink); }
+.done { position: relative; }
+.big-stamp { position: absolute; top: 46px; left: 4px; z-index: 4; color: var(--green); font-size: 30px; padding: 8px 16px 10px; border-width: 4px; opacity: 0; pointer-events: none; }
+.paper.signed .big-stamp { opacity: .92; animation: thunk .5s cubic-bezier(.2,.8,.3,1.2) both; }
+.paper.thump { animation: thump .32s ease; }
+@keyframes thump { 30% { transform: translateY(3px) scale(.995); } 100% { transform: none; } }
 
-footer { padding: 26px 0 calc(110px + env(safe-area-inset-bottom)); font-size: 14px; color: var(--ink-3); text-align: center; }
-footer strong { color: var(--ink-2); }
-footer a { color: var(--ink-2); }
+.small-print { max-width: 620px; margin-top: 26px; }
+.small-print summary { cursor: pointer; font: 800 17px var(--display); padding: 10px 0; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.small-print summary::-webkit-details-marker { display: none; }
+.small-print summary::after { content: "+"; font: 800 22px/1 var(--display); color: var(--green-ink); }
+.small-print[open] summary::after { content: "−"; }
+.small-print dl { margin: 6px 0 0; }
+.small-print dt { font-weight: 800; margin-top: 14px; }
+.small-print dd { margin: 4px 0 0; color: var(--ink-2); font-size: 16px; }
+footer { padding: 28px 0 calc(120px + env(safe-area-inset-bottom)); font-size: 14px; color: var(--ink-3); }
+footer p + p { margin-top: 6px; }
+footer a { color: var(--ink-2); font-weight: 700; }
+@media (min-width: 900px) { .sign-grid { display: grid; grid-template-columns: .85fr 1.15fr; column-gap: 64px; align-items: start; } .paper { margin-top: 0; padding: 28px 30px; } .sign .sign-grid > div:first-child { position: sticky; top: 80px; } }
 
-/* ---------- sticky bar ---------- */
-.bar { position: fixed; inset: auto 0 0 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-top: 1px solid var(--line); transform: translateY(110%); transition: transform .25s ease; z-index: 10; }
-.bar.on { transform: none; }
-.bar .btn { max-width: 528px; margin: 0 auto; min-height: 52px; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .bar, .btn { transition: none; } }
-@media (min-width: 700px) { .phone { width: 260px; } }
+/* =========================== THE FORM THAT FOLLOWS YOU =========================== */
+.tofes { position: fixed; z-index: 20; inset: auto 0 0 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--card) 92%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-top: 1px solid var(--rule); box-shadow: 0 -10px 30px rgba(0,0,0,.12); transform: translateY(115%); transition: transform .3s ease; color: var(--ink); }
+.tofes.on { transform: none; }
+.tf-head { display: none; }
+.tf-lines { display: flex; gap: 6px; flex: none; }
+.tf-line { width: clamp(48px, 13.5vw, 58px); display: grid; justify-items: center; gap: 3px; text-decoration: none; font: 700 11px/1 var(--text); color: var(--ink-3); }
+.tf-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; border: 2px dashed var(--rule); }
+.tf-mark svg { width: 20px; height: 20px; opacity: 0; }
+.tf-line.on { color: var(--ink); }
+.tf-line.on .tf-mark { border: 3px solid var(--green); color: var(--green); rotate: -10deg; animation: thunk .42s cubic-bezier(.2,.8,.3,1.2) both; }
+.tf-line.on .tf-mark svg { opacity: 1; }
+.tf-line .tf-full { display: none; }
+.tofes .cta { flex: 1; min-height: 52px; padding: 10px 12px; font-size: clamp(15px, 4.2vw, 18px); box-shadow: 0 4px 0 var(--gold-deep); border-radius: 15px; }
+.tofes.thump { animation: thump .32s ease; }
+@media (min-width: 700px) and (max-width: 1599px) {
+  .tofes { inset: auto 0 calc(16px + env(safe-area-inset-bottom)) 0; margin-inline: auto; width: min(600px, 100% - 32px); border-radius: 22px; border: 1px solid var(--rule); padding: 10px 12px; transform: translateY(160%); }
+  .tf-line { width: 64px; font-size: 12px; }
+}
+@media (min-width: 1600px) {
+  .tofes { inset: 50% auto auto 24px; width: 228px; transform: translate(-130%, -50%); flex-direction: column; align-items: stretch; gap: 0; padding: 18px 16px 16px; border-radius: 8px; border: 1px solid var(--rule); box-shadow: var(--shadow); background: var(--card); background-image: repeating-linear-gradient(to bottom, transparent 0 35px, color-mix(in srgb, var(--rule) 50%, transparent) 35px 36px); }
+  .tofes.on { transform: translate(0, -50%); }
+  .tf-head { display: block; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
+  .tf-head b { display: block; font: 400 21px/1 var(--stamp); }
+  .tf-head span { font-size: 13px; color: var(--ink-3); font-weight: 700; }
+  .tf-lines { flex-direction: column; gap: 0; }
+  .tf-line { width: auto; display: flex; justify-content: space-between; align-items: center; min-height: 52px; border-bottom: 1px dashed var(--rule); font: 800 16px/1.2 var(--display); color: var(--ink); }
+  .tf-line .tf-short { display: none; }
+  .tf-line .tf-full { display: inline; }
+  .tf-mark { width: 34px; height: 34px; }
+  .tofes .cta { margin-top: 16px; flex: none; font-size: 16px; min-height: 50px; }
+}
+
+/* =========================== REDUCED MOTION =========================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+}
+.rm .race { height: auto; }
+.rm .race-stage { position: relative; height: auto; min-height: 100svh; }
+.rm .tour { height: auto; }
+.rm .tour-stage { position: relative; height: auto; }
+.rm .track-vp { overflow-x: auto; scroll-snap-type: x mandatory; padding: 24px 0; }
+.rm .card { scroll-snap-align: center; }
 </style>
 </head>
 <body>
+<a class="skip" href="#sign">לדלג לרשימה</a>
 
-<header class="hero">
-  <div class="wrap">
-    <div class="brand"><img src="../icons/icon.svg" alt="" width="34" height="34">שפת הכסף</div>
-    <span class="eyebrow">לחיילים, למשתחררים ולמי שרק התחיל לעבוד</span>
-    <h1>בשחרור יכולים לחכות לכם <span class="big">כ-52,800 ₪</span><span class="q">יודעים מה מותר לעשות איתם?</span></h1>
-    <p class="lead">שפת הכסף מלמדת בכמה דקות ביום את מה שצריך לדעת על פיקדון ומענק, מס, חיסכון והשקעות. שיעורים קצרים עם סיפורים ושאלות, בעברית ומהטלפון. בחינם.</p>
-    <a class="btn btn-gold" href="#join" data-cta="hero_join">להצטרף לרשימת ההמתנה</a>
-    <a class="btn btn-line" href="../?source=landing" data-cta="hero_try" data-app>או להתחיל כבר עכשיו בדפדפן</a>
-    <p class="inapp" id="inappHint">פתחתם מטיקטוק או מאינסטגרם? כדי שההתקדמות תישמר, פתחו את הקישור בדפדפן: שלוש הנקודות למעלה, ואז "פתיחה בדפדפן".</p>
-    <p class="foot-note">הערכה ללוחם/ת אחרי 32 חודשי שירות: פיקדון ומענק יחד, לפי סכומי משרד הביטחון לספטמבר 2026.</p>
-    <div class="phone"><video class="clip" poster="video/calc.webp" muted loop playsinline autoplay preload="metadata" width="540" height="1170" aria-label="סרטון מהאפליקציה: בוחרים לוחם/ת ו-32 חודשים, והמחשבון מראה פיקדון כ-31,200 ₪ ומענק כ-21,600 ₪, ביחד כ-52,800 ₪"><source src="video/calc.mp4" type="video/mp4"><source src="video/calc.webm" type="video/webm"></video></div>
+<header class="hero" id="top">
+  <div class="hero-plate" aria-hidden="true">
+    <div class="h-glow" data-depth=".05"></div>
+    <div class="h-num" data-depth=".16">52,800<small>₪</small></div>
   </div>
+  <div class="wrap hero-in">
+    <a class="brand" href="#top"><img src="../icons/icon.svg" alt="" width="34" height="34">שפת הכסף</a>
+    <div class="hero-copy">
+      <h1><span>מישהו בגילכם כבר יודע</span> <span class="h1b">מה לעשות עם הכסף מהצבא.</span></h1>
+      <p class="lead">ומי שלא, מגלה מאוחר מדי: אחרי שהמענק נגמר, אחרי שנה של מס מיותר, אחרי עשר שנים שהכסף היה יכול לעבוד. <b>שפת הכסף מלמדת את זה בכמה דקות ביום</b>, מהטלפון.</p>
+      <a class="cta" href="#sign" data-cta="hero">לתפוס מקום ברשימה</a>
+      <p class="cta-note">בחינם. <b>האפליקציה יוצאת לפי הסדר ברשימה</b>, וכל מי שנרשם היום נכנס לפני מי שיירשם מחר.</p>
+      <p class="count" id="count" hidden><i aria-hidden="true"></i><span></span></p>
+      <p class="inapp" id="inappHint">פתחתם מטיקטוק או מאינסטגרם? ההרשמה עובדת גם מכאן. כדי לנסות את האפליקציה עצמה, פתחו את הקישור בדפדפן: שלוש הנקודות למעלה, ואז "פתיחה בדפדפן".</p>
+    </div>
+    <div class="stage" aria-hidden="false">
+      <figure class="phone" data-depth="-.05" data-tilt="6">
+        <video class="clip" poster="media/calc.webp" muted loop playsinline autoplay preload="auto" width="576" height="1246" aria-label="סרטון מהאפליקציה: בוחרים לוחם/ת ו-32 חודשי שירות, והמחשבון מראה פיקדון כ-31,200 ₪ ומענק כ-21,600 ₪, ביחד כ-52,800 ₪"><source src="media/calc.mp4" type="video/mp4"></video>
+      </figure>
+      <div class="chip chip-streak" data-depth="-.2" data-tilt="16" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c.6 3.2-1 5-2.4 6.7C8.2 10.4 7 12 7 14.4 7 17.5 9.2 20 12 20s5-2.4 5-5.4c0-1.8-.7-3.2-1.6-4.3-.3 1.3-1 2.2-2 2.6.5-3.5-.4-7.3-1.4-10.9z"/><path d="M12 22c-4 0-7-3.1-7-7.3 0-3.3 1.8-5.5 3.2-7.2C9.5 5.9 10.6 4.6 10.3 2l-.1-.9.9.3C15.7 3 19 7.7 19 14.7 19 18.9 16 22 12 22z" opacity=".35"/></svg>6 ימים ברצף</div>
+      <div class="chip chip-xp" data-depth="-.3" data-tilt="22" aria-hidden="true"><span class="pts">+10</span>בול!</div>
+      <div class="chip chip-amt" data-depth="-.14" data-tilt="12" aria-hidden="true"><small>פיקדון + מענק</small><b>כ-52,800 ₪</b></div>
+    </div>
+    <p class="hero-fn">כ-52,800 ₪: פיקדון ומענק ללוחם או ללוחמת אחרי 32 חודשי שירות, לפי סכומי משרד הביטחון לספטמבר 2026.</p>
+  </div>
+  <div class="grain" aria-hidden="true"></div>
 </header>
-<div class="hero-spacer" aria-hidden="true"></div>
 
 <main>
-  <section class="wrap" aria-labelledby="factsTitle">
-    <div class="kicker">מה לא מספרים לכם בשחרור</div>
-    <h2 id="factsTitle">חמישה דברים ששווים כסף</h2>
-    <div class="facts">
-      <article class="fact">
-        <div class="num">כ-31,200 ₪</div>
-        <h3>הפיקדון נעול לשש מטרות</h3>
-        <p>בחמש השנים הראשונות מותר רק ללימודים, הכשרה מקצועית, שיעורי נהיגה, עסק, נישואין או דירה. לא טיול, לא רכב ולא שכר דירה.</p>
-      </article>
-      <article class="fact">
-        <div class="num">כ-17,000 ₪</div>
-        <h3>פחות מס, אם מסמנים את זה</h3>
-        <p>משוחררים מקבלים עד שתי נקודות זיכוי לשלוש שנים. ממלאים טופס 101 בכל עבודה חדשה. פספסתם? אפשר לבקש החזר עד שש שנים אחורה.</p>
-      </article>
-      <article class="fact">
-        <div class="num">11,461 ₪</div>
-        <h3>מענק על חצי שנה של עבודה</h3>
-        <p>עבודה מועדפת: שישה חודשים מלאים בענף מזכה, בתוך שנתיים מהשחרור. מגישים לבד לביטוח לאומי, והמענק חייב במס.</p>
-      </article>
-      <article class="fact">
-        <div class="num">559 אלף מול 208 אלף</div>
-        <h3>ההבדל: מתי מתחילים</h3>
-        <p>מאיה ועומר חסכו אותו סכום בחודש. מאיה פשוט התחילה 14 שנים קודם. זו ריבית דריבית.</p>
-      </article>
-      <article class="fact">
-        <div class="num">0.5% = כ-7,600 ₪</div>
-        <h3>דמי ניהול שנשמעים כמו כלום</h3>
-        <p>10,000 ₪ לשלושים שנה: כ-57 אלף במסלול זול, וכ-49 אלף במסלול יקר בחצי אחוז. בודקים בדוח השנתי ומתמקחים.</p>
-      </article>
+  <section class="pik" id="st-pikadon" aria-labelledby="pikTitle">
+    <div class="wrap pik-grid">
+      <h2 id="pikTitle">כ-31,200 ₪ יחכו לכם בפיקדון. <span class="muted">נחשו על מה מותר להוציא אותם, לפני שתגלו בדרך הקשה.</span></h2>
+      <ul class="wishes" id="wishes">
+        <li class="wish no"><span class="w">טיסה לתאילנד</span><span class="stamp no">לא</span></li>
+        <li class="wish no"><span class="w">רכב ראשון</span><span class="stamp no">לא</span></li>
+        <li class="wish no"><span class="w">שכר דירה</span><span class="stamp no">לא</span></li>
+        <li class="wish yes"><span class="w">שיעורי נהיגה</span><span class="stamp yes">כן</span></li>
+        <li class="wish yes"><span class="w">לימודים או פסיכומטרי</span><span class="stamp yes">כן</span></li>
+        <li class="wish yes"><span class="w">לפתוח עסק</span><span class="stamp yes">כן</span></li>
+      </ul>
+      <div class="pik-after">
+        <p>בחמש השנים הראשונות הפיקדון נפתח רק לשש מטרות: <b>לימודים, הכשרה מקצועית, נהיגה, עסק, חתונה ודירה</b> (קנייה, לא שכירות). מה שלא נוצל עובר אחר כך לחשבון הבנק, ומותר לכל דבר.</p>
+        <p class="grant">והמענק? מותר לכל מטרה, מהיום הראשון. ולכן הוא גם הכסף הכי קל לבזבז בלי לשים לב.</p>
+        <figure class="peek">
+          <div class="phone-s"><video class="clip" poster="media/check.webp" muted loop playsinline preload="none" width="576" height="1246" aria-label="סרטון מהאפליקציה: בודקים אם מותר לטוס עם הפיקדון (לא בחמש השנים הראשונות) ואם מותר לממן שיעורי נהיגה (מותר, מהיום ה-14 אחרי השחרור)"><source src="media/check.mp4" type="video/mp4"></video></div>
+          <figcaption>יש לכם תוכנית אחרת?<span>באפליקציה בודקים לפני שמתכננים: מותר, אסור, ומתי.</span></figcaption>
+        </figure>
+      </div>
     </div>
-    <p class="fine">הסכומים הם הערכה לפי סכומי ספטמבר 2026 ושווי נקודת זיכוי של 2026. בתשואה של 6% בשנה לדוגמה, לא הבטחה.</p>
   </section>
 
-  <section aria-labelledby="howTitle">
+  <section class="quiet" id="st-intro" aria-labelledby="quietTitle">
     <div class="wrap">
-      <div class="kicker">איך זה עובד</div>
-      <h2 id="howTitle">כמה דקות ביום, והידע מצטבר</h2>
-      <p class="sub">33 שיעורים ב-8 יחידות, לפי השלב שלכם. רצף יומי, נקודות ושלבים, כמו באפליקציה ללימוד שפות.</p>
-      <div class="vids">
-        <figure class="vid"><div class="frame"><video class="clip" poster="video/quiz.webp" muted loop playsinline preload="none" width="540" height="1170" aria-label="סרטון מהאפליקציה: עונים על שאלה על הפיקדון ומקבלים 10 נקודות"><source src="video/quiz.mp4" type="video/mp4"><source src="video/quiz.webm" type="video/webm"></video></div><figcaption>עונים, ומקבלים נקודות</figcaption></figure>
-        <figure class="vid"><div class="frame"><video class="clip" poster="video/tool.webp" muted loop playsinline preload="none" width="540" height="1170" aria-label="סרטון מהאפליקציה: בודקים בכלי אם מותר לטוס עם הפיקדון, ואם מותר ללמוד איתו"><source src="video/tool.mp4" type="video/mp4"><source src="video/tool.webm" type="video/webm"></video></div><figcaption>טיול עם הפיקדון? בודקים בשנייה</figcaption></figure>
-      </div>
-      <div class="shots" id="shots">
-        <figure class="shot" style="margin:0"><div class="frame"><img src="img/story.webp" alt="שיעור שמתחיל בסיפור של מאיה ועומר" width="600" height="1298" loading="lazy"></div><b>שיעור עם סיפור</b><span>מסך או שניים, בלי הרצאות.</span></figure>
-        <figure class="shot" style="margin:0"><div class="frame"><img src="img/question.webp" alt="שאלה על הפיקדון עם ארבע תשובות" width="600" height="1298" loading="lazy"></div><b>שאלות שמבלבלות</b><span>תשובות שנשמעות נכונות, והסבר אחרי כל אחת.</span></figure>
-        <figure class="shot" style="margin:0"><div class="frame"><img src="img/home.webp" alt="מסך הבית: רצף של 6 ימים, 640 נקודות, שלב 4 מתוך 11" width="600" height="1298" loading="lazy"></div><b>רצף, נקודות ושלבים</b><span>כל יום של שיעור מאריך את הרצף, וכל שלב פותח כלי חדש.</span></figure>
-        <figure class="shot" style="margin:0"><div class="frame"><img src="img/status.webp" alt="בחירת שלב: בשירות סדיר, לפני שחרור, אחרי שחרור" width="600" height="1298" loading="lazy"></div><b>לפי השלב שלכם</b><span>בסדיר, לפני שחרור או אחרי. רואים מה רלוונטי עכשיו.</span></figure>
-      </div>
-      <p class="swipe">החליקו לעוד ←</p>
+      <p id="quietTitle"><span class="maya">מאיה</span> ו<span class="omer">עומר</span> חוסכים בדיוק אותו דבר.</p>
+      <p class="q-small">300 ₪ בחודש. 6% בשנה. עד גיל 60.</p>
+      <p>הבדל אחד: מאיה מתחילה בגיל 21. עומר אומר "אחר כך", ומתחיל בגיל 35.</p>
     </div>
   </section>
 
-  <section class="wrap" id="join" aria-labelledby="joinTitle">
-    <div class="kicker">רשימת ההמתנה</div>
-    <h2 id="joinTitle">האפליקציה לאנדרואיד ולאייפון בדרך</h2>
-    <p class="sub">השאירו מספר, ונשלח לכם הודעה כשהיא בחנות. בינתיים אפשר להתחיל בדפדפן.</p>
+  <section class="race" id="st-race" aria-labelledby="raceTitle">
+    <div class="race-stage">
+      <div class="race-bg" aria-hidden="true"></div>
+      <h2 class="sr" id="raceTitle">המירוץ של מאיה ועומר</h2>
+      <p class="sr">בגיל 60 יש למאיה כ-559,000 ₪ ולעומר כ-208,000 ₪. מאיה הפקידה כ-140,000 ₪ ועומר 90,000 ₪.</p>
+      <div class="race-top" aria-hidden="true">
+        <div class="age-box"><span>גיל</span><b class="age" id="age">21</b></div>
+        <p class="race-cap" id="raceCap">מאיה מתחילה. עומר עוד לא.</p>
+      </div>
+      <div class="runners" aria-hidden="true">
+        <div class="runner maya"><span class="who"><i></i>מאיה</span><b class="val" id="vMaya">0 ₪</b><small id="dMaya">הפקידה 0 ₪</small></div>
+        <div class="runner omer"><span class="who"><i></i>עומר</span><b class="val wait" id="vOmer">עוד לא התחיל</b><small id="dOmer">הפקיד 0 ₪</small></div>
+      </div>
+      <div class="chart-wrap" aria-hidden="true">
+        <svg class="chart" id="chart" viewBox="0 0 400 250" preserveAspectRatio="none">
+          <g class="grid"><line x1="0" y1="250" x2="400" y2="250"/><line x1="0" y1="166.7" x2="400" y2="166.7"/><line x1="0" y1="83.3" x2="400" y2="83.3"/><line x1="0" y1="0" x2="400" y2="0"/></g>
+          <path class="a-maya" id="aMaya" d=""/><path class="a-omer" id="aOmer" d=""/>
+          <path class="l-maya" id="lMaya" d=""/><path class="l-omer" id="lOmer" d=""/>
+        </svg>
+        <i class="rdot maya" id="dotMaya"></i><i class="rdot omer" id="dotOmer"></i>
+        <span class="yl" style="top:33.3%">400 אלף</span><span class="yl" style="top:66.7%">200 אלף</span>
+        <span class="xl" style="left:0">21</span><span class="xl" style="left:35.9%">35</span><span class="xl" style="left:100%">60</span>
+      </div>
+      <div class="race-end">
+        <p class="big">מאיה הפקידה רק כ-50,000 ₪ יותר. <em>בסוף יש לה פי 2.7.</em></p>
+        <p class="small">את כל הפער עשה הזמן, וכל "אחר כך" עולה כסף: אם מאיה הייתה מחכה רק שנה, היו לה בגיל 60 כ-36,000 ₪ פחות.</p>
+        <p class="fine">חישוב לדוגמה בתשואה קבועה של 6% בשנה. בשוק אמיתי התשואה משתנה, ואין הבטחה.</p>
+      </div>
+      <span class="stamp race-stamp" aria-hidden="true">הבנתי</span>
+    </div>
+  </section>
 
-    <div class="join" id="joinBox">
-      <form id="joinForm" novalidate>
-        <div class="field" style="margin-top:0" id="phoneField">
-          <label class="label" for="phone">מספר וואטסאפ</label>
-          <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="050-1234567" aria-describedby="phoneErr">
-          <button type="button" class="swap" id="toEmail">מעדיפים אימייל?</button>
+  <section class="tax" id="st-tax" aria-labelledby="taxTitle">
+    <div class="wrap tax-grid">
+      <div class="tax-head">
+        <h2 id="taxTitle">משכורת ראשונה.<br>מס שלא הייתם צריכים לשלם.</h2>
+        <p>שאלה אחת ששווה עד כ-17,400 ₪. ככה נראה כל שיעור בשפת הכסף: סיפור קצר, שאלה שמבלבלת והסבר. נכון בניסיון הראשון? 10 נקודות.</p>
+      </div>
+      <div class="qcard" id="qcard" role="group" aria-labelledby="qPrompt">
+        <p class="q-scn"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg><span>נועה השתחררה אחרי 24 חודשי שירות, והתחילה לעבוד בבית קפה. בתלוש הראשון ירד לה מס כמו לכל אחד.</span></p>
+        <h3 id="qPrompt">מה היא הייתה צריכה לעשות?</h3>
+        <div class="opts">
+          <button class="opt" type="button" data-ok="0"><span class="k">א</span>כלום. ההנחה למשוחררים נכנסת לבד</button>
+          <button class="opt" type="button" data-ok="1"><span class="k">ב</span>לסמן בטופס 101 שהיא משוחררת, ולצרף תעודת שחרור</button>
+          <button class="opt" type="button" data-ok="0"><span class="k">ג</span>לחכות לסוף השנה. ההנחה מגיעה כמענק</button>
+          <button class="opt" type="button" data-ok="0"><span class="k">ד</span>לבקש מביטוח לאומי לעדכן את המעסיק</button>
         </div>
-        <div class="field" style="margin-top:0;display:none" id="emailField">
-          <label class="label" for="email">אימייל</label>
-          <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="name@gmail.com" aria-describedby="phoneErr">
-          <button type="button" class="swap" id="toPhone">מעדיפים וואטסאפ?</button>
-        </div>
-        <p class="err" id="phoneErr" role="alert"></p>
-
-        <fieldset class="field" style="border:0;padding:0;margin-inline:0">
-          <legend class="label">איזה טלפון יש לכם?</legend>
-          <div class="chips">
-            <label class="chip"><input type="radio" name="device" value="android"><span>אנדרואיד</span></label>
-            <label class="chip"><input type="radio" name="device" value="iphone"><span>אייפון</span></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="field" style="border:0;padding:0;margin-inline:0">
-          <legend class="label">איפה אתם עכשיו?</legend>
-          <div class="chips">
-            <label class="chip"><input type="radio" name="status" value="sadir"><span>בשירות סדיר</span></label>
-            <label class="chip"><input type="radio" name="status" value="pre"><span>לפני שחרור</span></label>
-            <label class="chip"><input type="radio" name="status" value="post"><span>אחרי שחרור</span></label>
-            <label class="chip"><input type="radio" name="status" value="none"><span>לא בצבא</span></label>
-          </div>
-        </fieldset>
-
-        <label class="consent"><input type="checkbox" id="consent"><span>אני מאשר/ת לקבל משפת הכסף הודעה כשהאפליקציה בחנות, ועדכונים מדי פעם. אפשר לבקש הסרה בכל רגע.</span></label>
-        <p class="err" id="consentErr" role="alert"></p>
-
-        <button class="btn btn-brand" type="submit" id="joinBtn">שמרו לי מקום</button>
-        <p class="privacy">הפרטים משמשים רק לעדכונים משפת הכסף ולא מועברים לאף גוף אחר. הם נשמרים בשירות PostHog בשרתים באיחוד האירופי. מגיל 18.</p>
-        <div class="fallback" id="fallback">
-          <p class="err">לא הצלחנו לשמור את הפרטים מהדפדפן הזה. אפשר להצטרף בהודעת וואטסאפ קצרה:</p>
-          <a class="btn btn-soft" id="waJoin" href="#" target="_blank" rel="noopener" data-cta="fallback_whatsapp">להצטרף בוואטסאפ</a>
-        </div>
-      </form>
-
-      <div class="done" aria-live="polite">
-        <div class="ok" aria-hidden="true">✓</div>
-        <h3>שמרנו לכם מקום</h3>
-        <p>נשלח הודעה כשהאפליקציה בחנות. בינתיים, השיעור הראשון לוקח שלוש דקות.</p>
-        <a class="btn btn-gold" href="../?source=landing_joined" data-cta="joined_try" data-app>להתחיל שיעור ראשון</a>
-        <button class="btn btn-soft" type="button" id="shareBtn" data-cta="joined_share">לשלוח לחבר שמשתחרר</button>
+        <div class="q-fb" id="qfb" aria-live="polite"><div class="t"></div><p>המעסיק לא יודע לבד. מסמנים בטופס 101, ומקבלים 2 נקודות זיכוי לשלוש שנים: עד כ-17,400 ₪ פחות מס. עד שמסמנים, כל תלוש מוריד יותר מדי. ופספסתם? מבקשים החזר מס, עד שש שנים אחורה.</p></div>
       </div>
     </div>
   </section>
 
-  <section class="wrap" aria-labelledby="faqTitle">
-    <h2 id="faqTitle">שאלות</h2>
-    <details><summary>כמה זה עולה?</summary><p>כלום. שפת הכסף בחינם.</p></details>
-    <details><summary>זה ייעוץ השקעות?</summary><p>לא. זה מידע כללי לחינוך פיננסי. אנחנו לא אומרים לאף אחד מה לקנות, ולא ממליצים על מוצר או מסלול מסוים.</p></details>
-    <details><summary>צריך להירשם כדי להתחיל?</summary><p>לא. פותחים ומתחילים, בלי שם ובלי סיסמה. ההתקדמות נשמרת בטלפון שלכם. רשימת ההמתנה היא רק בשביל ההודעה כשהאפליקציה בחנות.</p></details>
-    <details><summary>למי זה מתאים?</summary><p>בעיקר לגילאי 18 עד 22: חיילים בסדיר, מי שעומד להשתחרר, ומי שכבר השתחרר ומתחיל לעבוד.</p></details>
-    <details><summary>מאיפה המספרים?</summary><p>מהאתרים של משרד הביטחון, רשות המסים וביטוח לאומי. כל שיעור באפליקציה מקשר למקור הרשמי, כדי שתוכלו לבדוק בעצמכם.</p></details>
-    <details><summary>איך מוחקים את הפרטים שלי?</summary><p>שולחים לנו הודעה בוואטסאפ דרך כפתור המשוב באפליקציה, ונמחק אותם מהרשימה.</p></details>
+  <section class="tour" id="st-tour" aria-labelledby="tourTitle">
+    <div class="tour-stage">
+      <div class="wrap tour-head">
+        <h2 id="tourTitle">כמה דקות ביום. פחות מהזמן שהולך על טיקטוק.</h2>
+        <p>33 שיעורים ב-8 יחידות. רצף, נקודות ושלבים, כמו באפליקציה ללימוד שפות. רק שהשפה כאן היא כסף.</p>
+      </div>
+      <div class="track-vp" id="trackVp">
+        <div class="track" id="track">
+          <figure class="card"><div class="fr"><video class="clip" poster="media/quiz.webp" muted loop playsinline preload="none" width="576" height="1246" aria-label="סרטון מהאפליקציה: שאלה על מאיה ועומר, עונים נכון ומקבלים 10 נקודות"><source src="media/quiz.mp4" type="video/mp4"></video></div><figcaption>שאלות שנשמעות קלות.<span>עד שעונים עליהן. והסבר אחרי כל תשובה.</span></figcaption></figure>
+          <figure class="card"><div class="fr"><img src="media/story.webp" alt="מסך שיעור: מאיה ועומר, אותו חיסכון" width="600" height="1298" loading="lazy"></div><figcaption>כל שיעור מתחיל בסיפור.<span>של מישהו בגילכם, עם כסף אמיתי.</span></figcaption></figure>
+          <figure class="card"><div class="fr"><img src="media/home.webp" alt="מסך הבית: רצף של 6 ימים, 640 נקודות, המסלול עם השיעור הבא" width="600" height="1298" loading="lazy"></div><figcaption>רצף שלא תרצו לשבור.<span>יום בלי שיעור והאש נכבית, אלא אם צברתם יום חופש.</span></figcaption></figure>
+          <figure class="card"><div class="fr"><img src="media/tools.webp" alt="מסך הכלים: מחשבון שחרור, מה מותר עם הפיקדון, מכונת הזמן, דמי ניהול, התוכנית שלי" width="600" height="1298" loading="lazy"></div><figcaption>כלים שעושים את החשבון.<span>נפתחים לפי שלב: מחשבון שחרור, דמי ניהול, תוכנית לכסף מהצבא.</span></figcaption></figure>
+          <figure class="card"><div class="fr"><img src="media/skins.webp" alt="מסך ההתקדמות: שלב 4 מתוך 11 וצבעים שנפתחים לפי שלב" width="600" height="1298" loading="lazy"></div><figcaption>שלבים וצבעים.<span>כל כמה שלבים נפתח צבע חדש לאפליקציה.</span></figcaption></figure>
+          <figure class="card"><div class="fr"><img src="media/status.webp" alt="בחירת מצב: בשירות סדיר, לפני שחרור, אחרי שחרור, לא בצבא" width="600" height="1298" loading="lazy"></div><figcaption>לפי איפה שאתם.<span>בסדיר, לפני שחרור או אחרי: מה שרלוונטי עכשיו, קודם.</span></figcaption></figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sign" id="sign" aria-labelledby="signTitle">
+    <div class="wrap sign-grid">
+      <div>
+        <h2 id="signTitle">נשאר רק לחתום. <span class="muted">לפני שהתור מתארך.</span></h2>
+        <p class="sub">האפליקציה לאנדרואיד ולאייפון יוצאת לפי הסדר ברשימה. מי שחותם עכשיו מקבל אותה לפני מי שחותם מחר, בהודעת וואטסאפ. בחינם, בלי ספאם.</p>
+      </div>
+      <div>
+        <div class="paper" id="paper">
+          <div class="p-head"><b>טופס טיולים</b><span>לכסף שלכם · שפת הכסף</span></div>
+          <ul class="p-lines" aria-label="התחנות שעברתם בדף">
+            <li><a href="#st-pikadon">פיקדון</a><span class="slot" data-slot="pikadon"><span class="empty">עוד לא</span></span></li>
+            <li><a href="#st-race">ריבית דריבית</a><span class="slot" data-slot="race"><span class="empty">עוד לא</span></span></li>
+            <li><a href="#st-tax">מס</a><span class="slot" data-slot="tax"><span class="empty">עוד לא</span></span></li>
+          </ul>
+
+          <form id="joinForm" class="p-sign" novalidate>
+            <div class="field" id="phoneField">
+              <label class="lbl" for="phone">מספר וואטסאפ</label>
+              <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="050-1234567" aria-describedby="contactErr">
+              <button type="button" class="swap" id="toEmail">מעדיפים אימייל?</button>
+            </div>
+            <div class="field" id="emailField" hidden>
+              <label class="lbl" for="email">אימייל</label>
+              <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="name@gmail.com" aria-describedby="contactErr">
+              <button type="button" class="swap" id="toPhone">מעדיפים וואטסאפ?</button>
+            </div>
+            <p class="err" id="contactErr" role="alert"></p>
+            <label class="hp" aria-hidden="true">חברה<input type="text" name="company" id="company" tabindex="-1" autocomplete="off"></label>
+
+            <fieldset>
+              <legend class="lbl">איזה טלפון יש לכם?</legend>
+              <div class="chips">
+                <label class="pick"><input type="radio" name="device" value="android"><span>אנדרואיד</span></label>
+                <label class="pick"><input type="radio" name="device" value="iphone"><span>אייפון</span></label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend class="lbl">איפה אתם עכשיו?</legend>
+              <div class="chips">
+                <label class="pick"><input type="radio" name="status" value="sadir"><span>בשירות סדיר</span></label>
+                <label class="pick"><input type="radio" name="status" value="pre"><span>לפני שחרור</span></label>
+                <label class="pick"><input type="radio" name="status" value="post"><span>אחרי שחרור</span></label>
+                <label class="pick"><input type="radio" name="status" value="none"><span>לא בצבא</span></label>
+              </div>
+            </fieldset>
+
+            <label class="consent"><input type="checkbox" id="consent"><span>מאשר/ת לקבל משפת הכסף הודעה כשהאפליקציה מוכנה, ועדכונים מדי פעם. אפשר לבקש הסרה בכל רגע.</span></label>
+            <p class="err" id="consentErr" role="alert"></p>
+
+            <div class="sig-line" aria-hidden="true"><span>חתימה</span><i id="sigInk"></i></div>
+            <button class="cta" type="submit" id="joinBtn" data-cta="sign">לתפוס מקום ברשימה</button>
+            <p class="privacy">הפרטים משמשים רק לעדכונים משפת הכסף, ולא מועברים לאף גוף אחר. מגיל 18.</p>
+            <div class="fallback" id="fallback">
+              <p class="err">לא הצלחנו לשמור מהדפדפן הזה. אפשר להצטרף בהודעת וואטסאפ קצרה:</p>
+              <a class="btn2 wa" id="waJoin" href="#" target="_blank" rel="noopener" data-cta="fallback_whatsapp">להצטרף בוואטסאפ</a>
+            </div>
+          </form>
+
+          <div class="done" id="done" aria-live="polite" tabindex="-1">
+            <span class="stamp big-stamp" aria-hidden="true">אושר</span>
+            <div class="ticket-no" id="ticketNo" hidden><small>המקום שלכם ברשימה</small><span></span></div>
+            <h3 id="doneTitle">תפסתם מקום.</h3>
+            <p class="d-sub" id="doneSub">כשהאפליקציה יוצאת, הסדר ברשימה קובע מי מקבל קודם.</p>
+            <div class="boost">
+              <b>רוצים לעקוף את התור?</b>
+              <p id="boostTxt">כל חבר שנרשם מהקישור שלכם מקדם אתכם 5 מקומות.</p>
+              <div class="row">
+                <a class="btn2 wa" id="shareWa" href="#" target="_blank" rel="noopener" data-cta="share_whatsapp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>לשלוח לחבר</a>
+                <button class="btn2" type="button" id="copyLink" data-cta="share_copy">להעתיק קישור</button>
+              </div>
+              <p class="friends" id="friends" hidden></p>
+            </div>
+            <a class="try" href="../?source=landing_joined" data-app data-cta="joined_try">בינתיים אפשר להתחיל כבר עכשיו בדפדפן ←</a>
+          </div>
+        </div>
+
+        <details class="small-print">
+          <summary>האותיות הקטנות</summary>
+          <dl>
+            <dt>כמה זה עולה?</dt><dd>כלום. שפת הכסף בחינם.</dd>
+            <dt>זה ייעוץ השקעות?</dt><dd>לא. זה מידע כללי לחינוך פיננסי. אנחנו לא אומרים לאף אחד מה לקנות, ולא ממליצים על מוצר או גוף מסוים.</dd>
+            <dt>מאיפה המספרים?</dt><dd>מהאתרים של משרד הביטחון, רשות המסים וביטוח לאומי. כל שיעור באפליקציה מקשר למקור הרשמי, כדי שתוכלו לבדוק בעצמכם.</dd>
+            <dt>איפה נשמרים הפרטים שלי?</dt><dd>בגיליון פרטי של שפת הכסף ב-Google ובשירות המדידה PostHog (שרתים באיחוד האירופי). רק לצורך עדכונים משפת הכסף.</dd>
+            <dt>איך מוחקים אותם?</dt><dd>שולחים הודעה בוואטסאפ לשפת הכסף (הכפתור "משוב" באפליקציה), ונמחק אותם מהרשימה.</dd>
+          </dl>
+        </details>
+      </div>
+    </div>
   </section>
 </main>
 
 <footer class="wrap">
-  <p><strong>שפת הכסף</strong>. מידע כללי לחינוך פיננסי, לא ייעוץ השקעות. הסכומים הם הערכה ועשויים להשתנות.</p>
-  <p><a href="../?source=landing_footer" data-cta="footer_try" data-app>לאפליקציה</a></p>
+  <p><strong>שפת הכסף</strong>. מידע כללי לחינוך פיננסי, לא ייעוץ השקעות. הסכומים הם הערכה לפי נתוני 2026 ועשויים להשתנות.</p>
+  <p><a href="../?source=landing_footer" data-app data-cta="footer_try">לפתוח את האפליקציה בדפדפן</a></p>
 </footer>
 
-<div class="bar" id="bar" aria-hidden="true"><a class="btn btn-gold" href="#join" data-cta="bar_join" tabindex="-1">להצטרף לרשימת ההמתנה</a></div>
+<nav class="tofes" id="tofes" aria-label="טופס הטיולים שלכם">
+  <div class="tf-head"><b>טופס טיולים</b><span>לכסף שלכם</span></div>
+  <div class="tf-lines">
+    <a class="tf-line" href="#st-pikadon" data-slot="pikadon"><span class="tf-short">פיקדון</span><span class="tf-full">פיקדון</span><span class="tf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></a>
+    <a class="tf-line" href="#st-race" data-slot="race"><span class="tf-short">ריבית</span><span class="tf-full">ריבית דריבית</span><span class="tf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></a>
+    <a class="tf-line" href="#st-tax" data-slot="tax"><span class="tf-short">מס</span><span class="tf-full">מס</span><span class="tf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></a>
+  </div>
+  <a class="cta" href="#sign" data-cta="tofes">לתפוס מקום ברשימה</a>
+</nav>
 
 <script src="../config.js" onerror="void 0"></script>
 <script>
 (function () {
   'use strict';
   var CFG = window.DRIBIT_CONFIG || {};
-  var A = CFG.analytics || {};
+  var A = CFG.analytics || {}, WL = CFG.waitlist || {};
   var KEY = A.posthogKey || '', HOST = (A.host || '').replace(/\/$/, '');
+  var SHEET = WL.sheetUrl || '', BOOST = WL.boostPerFriend || 5, SHOW_FROM = WL.showCountFrom || 50;
   var WA = (CFG.feedback && CFG.feedback.whatsapp) || '';
-  var VERSION = 'landing-1';
-  var UID_KEY = 'dribit.landing.uid', JOINED_KEY = 'dribit.landing.joined';
+  var PREVIEW = !!window.LANDING_PREVIEW;
+  var VERSION = 'landing-2.1';
+  var SITE = 'https://jonathanriahi.github.io/dribit/landing/';
+  var UID_KEY = 'dribit.landing.uid', JOINED_KEY = 'dribit.landing.joined', STAMPS_KEY = 'dribit.landing.stamps', REF_KEY = 'dribit.landing.ref';
+  var reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (reduce) document.documentElement.classList.add('rm');
 
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function readJSON(k) { try { return JSON.parse(store(k) || 'null'); } catch (e) { return null; } }
+  function $(id) { return document.getElementById(id); }
   function uuid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
   }
+  function newCode() {
+    var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', out = '', b = new Uint8Array(6);
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(b); else for (var i = 0; i < 6; i++) b[i] = Math.random() * 256 | 0;
+    for (var j = 0; j < 6; j++) out += abc[b[j] % abc.length];
+    return out;
+  }
+  function fmt(n) { return Math.round(n).toLocaleString('en-US'); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
   var uid = store(UID_KEY);
   if (!uid || !/^[A-Za-z0-9-]{8,64}$/.test(uid)) { uid = 'lp-' + uuid(); store(UID_KEY, uid); }
 
-  // where the visitor came from: ?source=tiktok, ?utm_source=..., or the referrer
+  // where the visitor came from
   var qs = new URLSearchParams(location.search);
   var ua = navigator.userAgent || '';
   var inApp = /musical_ly|BytedanceWebview|TikTok|trill/i.test(ua) ? 'tiktok' : /Instagram/i.test(ua) ? 'instagram' : /FBAN|FBAV/i.test(ua) ? 'facebook' : '';
-  var source = qs.get('source') || qs.get('utm_source') || inApp || (document.referrer ? (function () { try { return new URL(document.referrer).hostname; } catch (e) { return 'referrer'; } })() : 'direct');
+  var refIn = (qs.get('r') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  if (refIn.length >= 4) store(REF_KEY, refIn); else refIn = store(REF_KEY) || '';
+  var source = (qs.get('source') || qs.get('utm_source') || (refIn ? 'friend' : '') || inApp || (document.referrer ? (function () { try { return new URL(document.referrer).hostname; } catch (e) { return 'referrer'; } })() : 'direct')).replace(/[^\w.-]/g, '_').slice(0, 40);
   var platform = /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : 'other';
-  var base = { source: source, in_app: inApp || null, platform: platform, landing_version: VERSION, utm_campaign: qs.get('utm_campaign') || null, utm_content: qs.get('utm_content') || null };
+  var base = { source: source, in_app: inApp || null, platform: platform, landing_version: VERSION, ref_code: refIn || null, utm_campaign: qs.get('utm_campaign') || null, utm_content: qs.get('utm_content') || null };
 
-  // events go straight to PostHog with the public key (the same way the app sends them)
+  // ---------- analytics: straight to PostHog with the public key, the same way the app sends ----------
   function send(event, props, keepalive) {
-    if (!KEY && window.LANDING_PREVIEW) return Promise.resolve(); // claude.ai preview: nothing is sent
+    if (PREVIEW) return Promise.resolve();
     if (!KEY || !HOST) return Promise.reject(new Error('no-key'));
     var p = { distinct_id: uid, $current_url: location.href.split('#')[0] };
     for (var k in base) p[k] = base[k];
@@ -356,11 +695,20 @@ footer a { color: var(--ink-2); }
     return fetch(HOST + '/batch/', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: body, keepalive: !!keepalive })
       .then(function (r) { if (!r.ok) throw new Error('http-' + r.status); return r; });
   }
-  function track(event, props, keepalive) { send(event, props, keepalive).catch(function () { /* analytics only */ }); }
-
+  function track(event, props, keepalive) { send(event, props, keepalive).catch(function () {}); }
   track('landing_view', { $set_once: { first_source: source }, referrer: document.referrer || null });
 
-  // the app link keeps the source, so the app's data shows who came from the landing page
+  // ---------- the waitlist sheet (Google Apps Script web app) ----------
+  function withTimeout(pr, ms) { return Promise.race([pr, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, ms); })]); }
+  function sheet(method, data) {
+    if (!SHEET || PREVIEW) return Promise.reject(new Error('no-sheet'));
+    var req = method === 'GET'
+      ? fetch(SHEET + (SHEET.indexOf('?') < 0 ? '?' : '&') + new URLSearchParams(data).toString(), { redirect: 'follow' })
+      : fetch(SHEET, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(data), redirect: 'follow' });
+    return withTimeout(req.then(function (r) { return r.json(); }), 10000).then(function (j) { if (!j || !j.ok) throw new Error((j && j.error) || 'sheet'); return j; });
+  }
+
+  // app links keep the source, so the app's data shows who came from here
   document.querySelectorAll('[data-app]').forEach(function (a) {
     var u = new URL(a.getAttribute('href'), location.href);
     if (source && source !== 'direct') u.searchParams.set('ref', ('lp_' + source).replace(/[^\w-]/g, '_').slice(0, 40));
@@ -370,87 +718,162 @@ footer a { color: var(--ink-2); }
     var el = e.target.closest && e.target.closest('[data-cta]');
     if (el) track('landing_cta', { cta: el.getAttribute('data-cta') }, true);
   });
-  if (inApp) document.getElementById('inappHint').classList.add('on');
+  if (inApp) $('inappHint').classList.add('on');
 
-  // ---------- waitlist ----------
-  var box = document.getElementById('joinBox'), form = document.getElementById('joinForm');
-  var phone = document.getElementById('phone'), email = document.getElementById('email');
-  var phoneField = document.getElementById('phoneField'), emailField = document.getElementById('emailField');
-  var errEl = document.getElementById('phoneErr'), consentErr = document.getElementById('consentErr');
-  var btn = document.getElementById('joinBtn'), fallback = document.getElementById('fallback');
-  var mode = 'phone';
-
-  if (store(JOINED_KEY)) box.classList.add('is-done');
-
-  function setMode(m) {
-    mode = m;
-    phoneField.style.display = m === 'phone' ? '' : 'none';
-    emailField.style.display = m === 'email' ? '' : 'none';
-    errEl.textContent = '';
-    (m === 'phone' ? phone : email).focus();
+  // ---------- the form that follows you: stamps ----------
+  var STAMP_TEXT = { pikadon: ['נבדק', 'yes'], race: ['הבנתי', 'yes'], tax: ['נבדק', 'yes'], sign: ['אושר', 'yes'] };
+  var stamps = readJSON(STAMPS_KEY) || {};
+  var tofes = $('tofes'), paper = $('paper');
+  function paintSlot(id, animate) {
+    var tf = tofes.querySelector('[data-slot="' + id + '"]');
+    if (tf && !tf.classList.contains('on')) { tf.classList.add('on'); tf.setAttribute('aria-label', tf.textContent.trim() + ': הוחתם'); }
+    var slot = paper.querySelector('[data-slot="' + id + '"]');
+    var t = typeof stamps[id] === 'string' ? stamps[id] : STAMP_TEXT[id][0];
+    if (slot) slot.innerHTML = '<span class="stamp ' + STAMP_TEXT[id][1] + '"' + (animate ? '' : ' style="animation:none"') + '>' + t + '</span>';
   }
-  document.getElementById('toEmail').onclick = function () { setMode('email'); };
-  document.getElementById('toPhone').onclick = function () { setMode('phone'); };
-
-  // Israeli mobile numbers: 05X-XXXXXXX, +972 5X..., 9725X... → 05XXXXXXXX
-  function normPhone(v) {
-    var d = String(v || '').replace(/[^\d+]/g, '');
-    if (d.indexOf('+972') === 0) d = '0' + d.slice(4);
-    else if (d.indexOf('972') === 0) d = '0' + d.slice(3);
-    return /^05\d{8}$/.test(d) ? d : '';
+  function stamp(id, text) {
+    if (stamps[id]) return;
+    stamps[id] = text || true;
+    store(STAMPS_KEY, JSON.stringify(stamps));
+    paintSlot(id, true);
+    if (!reduce) { tofes.classList.remove('thump'); void tofes.offsetWidth; tofes.classList.add('thump'); }
+    try { if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate(14); } catch (e) {}
+    track('landing_stamp', { station: id });
   }
-  function normEmail(v) {
-    var s = String(v || '').trim().toLowerCase();
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 120 ? s : '';
+  Object.keys(stamps).forEach(function (id) { if (STAMP_TEXT[id]) paintSlot(id, false); });
+
+  // ---------- station 1: the wishes get stamped as they cross the middle of the screen ----------
+  var wishes = [].slice.call(document.querySelectorAll('.wish'));
+  function wishDone() { if (wishes.every(function (w) { return w.classList.contains('on'); })) stamp('pikadon'); }
+  if ('IntersectionObserver' in window && !reduce) {
+    var wo = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('on'); wo.unobserve(e.target); wishDone(); } });
+    }, { rootMargin: '0px 0px -42% 0px', threshold: 1 });
+    wishes.forEach(function (w) { wo.observe(w); });
+  } else {
+    wishes.forEach(function (w) { w.classList.add('on'); });
+    var lastWish = wishes[wishes.length - 1];
+    if ('IntersectionObserver' in window) new IntersectionObserver(function (es, o) { if (es[0].isIntersecting) { wishDone(); o.disconnect(); } }).observe(lastWish); else wishDone();
   }
-  function picked(name) { var r = form.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : null; }
 
-  function waLink(text) { return WA ? 'https://wa.me/' + WA + '?text=' + encodeURIComponent(text) : ''; }
-
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    errEl.textContent = ''; consentErr.textContent = '';
-    phone.removeAttribute('aria-invalid'); email.removeAttribute('aria-invalid');
-    var contact = mode === 'phone' ? normPhone(phone.value) : normEmail(email.value);
-    if (!contact) {
-      errEl.textContent = mode === 'phone' ? 'צריך מספר נייד ישראלי, למשל 050-1234567.' : 'האימייל לא נראה תקין.';
-      (mode === 'phone' ? phone : email).setAttribute('aria-invalid', 'true');
-      (mode === 'phone' ? phone : email).focus();
-      return;
+  // ---------- peak: the race, scroll is time ----------
+  var race = $('st-race'), ageEl = $('age'), capEl = $('raceCap');
+  var vMaya = $('vMaya'), vOmer = $('vOmer'), dMaya = $('dMaya'), dOmer = $('dOmer');
+  var lMaya = $('lMaya'), lOmer = $('lOmer'), aMaya = $('aMaya'), aOmer = $('aOmer'), dotMaya = $('dotMaya'), dotOmer = $('dotOmer');
+  var M = 300, R = 0.06 / 12, MAXV = 600000, X0 = 21, X1 = 60, TOTAL = (X1 - X0) * 12;
+  function fv(months) { var v = 0; for (var i = 0; i < months; i++) v = v * (1 + R) + M; return v; }
+  // one value per month from 21 to 60
+  var maya = [], omer = [];
+  (function () { var v = 0, w = 0; for (var m = 0; m <= (X1 - X0) * 12; m++) { maya.push(v); omer.push(w); v = v * (1 + R) + M; if (m >= 14 * 12) w = w * (1 + R) + M; } })();
+  function px(m) { return m / TOTAL * 400; }
+  function py(v) { return 250 - v / MAXV * 250; }
+  function pathTo(arr, from, to) {
+    var d = '', step = 3;
+    for (var m = from; m <= to; m += step) d += (d ? 'L' : 'M') + px(m).toFixed(1) + ' ' + py(arr[m]).toFixed(1);
+    d += 'L' + px(to).toFixed(1) + ' ' + py(arr[to]).toFixed(1);
+    return d;
+  }
+  function dot(el, m, v) { el.style.opacity = 1; el.style.left = (m / TOTAL * 100).toFixed(2) + '%'; el.style.top = (100 - v / MAXV * 100).toFixed(2) + '%'; }
+  var CAPS = [[21, 'מאיה מתחילה. עומר עוד לא.'], [35, 'עומר סוף סוף מתחיל. 14 שנה אחרי מאיה.'], [44, 'הרווחים של מאיה מתחילים להרוויח בעצמם.'], [52, 'העשור האחרון עושה את רוב העבודה.'], [60, 'אותם 300 ₪ בחודש. פער של כ-350 אלף.']];
+  var lastAge = -1, lastCap = '';
+  function drawRace(t) {
+    var mth = Math.round(clamp(t, 0, 1) * (X1 - X0) * 12), age = X0 + Math.floor(mth / 12);
+    var dark = clamp((age - 46) / 8, 0, 1);
+    race.style.setProperty('--dark', dark.toFixed(3));
+    race.classList.toggle('lit', dark > .5);
+    lMaya.setAttribute('d', pathTo(maya, 0, mth));
+    aMaya.setAttribute('d', pathTo(maya, 0, mth) + 'L' + px(mth).toFixed(1) + ' 250L0 250Z');
+    dot(dotMaya, mth, maya[mth]);
+    var oStart = 14 * 12;
+    if (mth > oStart) {
+      lOmer.setAttribute('d', pathTo(omer, oStart, mth));
+      aOmer.setAttribute('d', pathTo(omer, oStart, mth) + 'L' + px(mth).toFixed(1) + ' 250L' + px(oStart).toFixed(1) + ' 250Z');
+      dot(dotOmer, mth, omer[mth]);
+    } else { lOmer.setAttribute('d', ''); aOmer.setAttribute('d', ''); dotOmer.style.opacity = 0; }
+    if (age !== lastAge) {
+      lastAge = age; ageEl.textContent = age;
+      var end = mth >= (X1 - X0) * 12;
+      vMaya.textContent = (end ? 'כ-559,000' : fmt(Math.round(maya[mth] / 100) * 100)) + ' ₪';
+      dMaya.textContent = 'הפקידה ' + fmt(mth * M) + ' ₪';
+      if (mth > oStart) { vOmer.classList.remove('wait'); vOmer.textContent = (end ? 'כ-208,000' : fmt(Math.round(omer[mth] / 100) * 100)) + ' ₪'; dOmer.textContent = 'הפקיד ' + fmt((mth - oStart) * M) + ' ₪'; }
+      else { vOmer.classList.add('wait'); vOmer.textContent = 'עוד לא התחיל'; dOmer.textContent = 'הפקיד 0 ₪'; }
+      var cap = CAPS[0][1]; for (var i = 0; i < CAPS.length; i++) if (age >= CAPS[i][0]) cap = CAPS[i][1];
+      if (cap !== lastCap) { lastCap = cap; capEl.textContent = cap; }
+      race.classList.toggle('finished', end);
+      if (end && !reduce) stamp('race');
     }
-    if (!document.getElementById('consent').checked) { consentErr.textContent = 'צריך לסמן את האישור כדי שנוכל לשלוח לכם הודעה.'; return; }
+  }
 
-    var device = picked('device'), status = picked('status');
-    var props = {
-      contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null,
-      device: device, status: status, consent: true, consent_text: 'הודעה כשהאפליקציה בחנות ועדכונים מדי פעם, אפשר לבקש הסרה',
-      $set: { waitlist: true, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_status: status, waitlist_at: new Date().toISOString(), waitlist_source: source }
-    };
-    btn.disabled = true; btn.textContent = 'שומרים...';
-    send('waitlist_signup', props).then(function () {
-      store(JOINED_KEY, new Date().toISOString());
-      box.classList.add('is-done');
-      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }).catch(function (err) {
-      // blocked by an ad blocker, offline, or no key (preview): offer WhatsApp so the signup is not lost
-      btn.disabled = false; btn.textContent = 'שמרו לי מקום';
-      var link = waLink('היי, אשמח להצטרף לרשימת ההמתנה של שפת הכסף' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : ''));
-      if (link) { document.getElementById('waJoin').href = link; fallback.classList.add('on'); }
-      else errEl.textContent = 'לא הצלחנו לשמור כרגע. נסו שוב בעוד רגע.';
+  // ---------- hero depth + the tour pan, all from one scroll loop ----------
+  var depthEls = [].slice.call(document.querySelectorAll('[data-depth]'));
+  var hero = document.querySelector('.hero'), tour = $('st-tour'), trackEl = $('track'), trackVp = $('trackVp');
+  var px0 = 0, py0 = 0, pxT = 0, pyT = 0, ticking = false;
+  var finePointer = !!(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches);
+  function frame() {
+    ticking = false;
+    var vh = window.innerHeight, sy = window.scrollY;
+    // hero: each plane moves at its own rate, plus a little pointer drift on desktop
+    var hp = clamp(sy / Math.max(1, hero.offsetHeight), 0, 1);
+    px0 += (pxT - px0) * .12; py0 += (pyT - py0) * .12;
+    if (hp < 1 && !reduce) {
+      for (var i = 0; i < depthEls.length; i++) {
+        var el = depthEls[i], d = +el.getAttribute('data-depth'), tl = +(el.getAttribute('data-tilt') || 0);
+        el.style.transform = 'translate3d(' + (px0 * tl).toFixed(1) + 'px,' + (hp * d * vh + py0 * tl).toFixed(1) + 'px,0)';
+      }
+    }
+    if (finePointer && (Math.abs(pxT - px0) > .002 || Math.abs(pyT - py0) > .002)) req();
+    if (reduce) { drawRace(1); return; }
+    // race: pinned, scroll position is the age
+    var rr = race.getBoundingClientRect(), span = rr.height - vh;
+    var rp = clamp(-rr.top / Math.max(1, span), 0, 1);
+    drawRace(clamp((rp - .06) / .8, 0, 1));
+    // tour: pinned, vertical scroll moves the cards sideways (in RTL the next card comes from the left)
+    var tr = tour.getBoundingClientRect(), tspan = tr.height - vh;
+    var tp = clamp(-tr.top / Math.max(1, tspan), 0, 1);
+    var over = Math.max(0, trackEl.scrollWidth - trackVp.clientWidth);
+    trackEl.style.transform = 'translate3d(' + (tp * over).toFixed(1) + 'px,0,0)';
+  }
+  function req() { if (!ticking) { ticking = true; requestAnimationFrame(frame); } }
+  window.addEventListener('scroll', req, { passive: true });
+  window.addEventListener('resize', req);
+  if (finePointer && !reduce) window.addEventListener('pointermove', function (e) { pxT = (e.clientX / innerWidth - .5) * -1; pyT = (e.clientY / innerHeight - .5) * -1; req(); }, { passive: true });
+  frame();
+  // without motion the race is drawn finished, and stamped once it is on screen
+  if (reduce && 'IntersectionObserver' in window) new IntersectionObserver(function (es, o) { if (es[0].isIntersecting) { stamp('race'); o.disconnect(); } }, { threshold: .4 }).observe(race);
+
+  // ---------- station 3: one question, like in the app ----------
+  var qcard = $('qcard'), qfb = $('qfb'), answered = false;
+  qcard.querySelectorAll('.opt').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (answered) return; answered = true;
+      var ok = b.getAttribute('data-ok') === '1';
+      qcard.querySelectorAll('.opt').forEach(function (o) {
+        o.disabled = true;
+        if (o.getAttribute('data-ok') === '1') o.classList.add('right'); else if (o === b) o.classList.add('wrong'); else o.classList.add('dim');
+      });
+      qfb.className = 'q-fb on ' + (ok ? 'good' : 'bad');
+      qfb.querySelector('.t').innerHTML = ok ? 'בול! <span class="pts">+10</span>' : 'לא בדיוק. התשובה: ב';
+      if (ok && !reduce) {
+        var r = b.getBoundingClientRect(), c = qcard.getBoundingClientRect(), s = document.createElement('span');
+        s.className = 'burst'; s.textContent = '+10'; s.style.left = (r.left - c.left + 16) + 'px'; s.style.top = (r.top - c.top - 8) + 'px';
+        qcard.appendChild(s); setTimeout(function () { s.remove(); }, 1100);
+      }
+      stamp('tax', ok ? '+10' : 'נבדק');
+      track('landing_quiz', { correct: ok });
     });
   });
 
-  // ---------- share with a friend ----------
-  document.getElementById('shareBtn').addEventListener('click', function () {
-    var url = 'https://jonathanriahi.github.io/dribit/landing/?source=friend';
-    var text = 'יודע/ת מה מותר לעשות עם הפיקדון? מצאתי אפליקציה שמסבירה את זה בכמה דקות:';
-    if (navigator.share) { navigator.share({ title: 'שפת הכסף', text: text, url: url }).catch(function () {}); }
-    else location.href = 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url);
-  });
+  // ---------- the form shows up after the hero and steps aside at the signing ----------
+  if ('IntersectionObserver' in window) {
+    var heroOut = false, signIn = false;
+    var upd = function () { var on = heroOut && !signIn; tofes.classList.toggle('on', on); tofes.inert = !on; };
+    new IntersectionObserver(function (es) { heroOut = !es[0].isIntersecting; upd(); }, { threshold: 0, rootMargin: '-40% 0px 0px 0px' }).observe(hero);
+    new IntersectionObserver(function (es) { signIn = es[0].isIntersecting; upd(); }, { rootMargin: '0px 0px -30% 0px' }).observe($('sign'));
+    upd();
+  }
 
-  // ---------- clips play only while on screen (battery, data) ----------
+  // ---------- clips play only while on screen ----------
   var clips = document.querySelectorAll('video.clip');
-  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if ('IntersectionObserver' in window && !reduce) {
     var vo = new IntersectionObserver(function (es) {
       es.forEach(function (e) {
@@ -458,18 +881,110 @@ footer a { color: var(--ink-2); }
         if (e.isIntersecting) { if (v.preload === 'none') v.preload = 'auto'; var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
         else v.pause();
       });
-    }, { threshold: 0.35 });
+    }, { threshold: 0.25 });
     clips.forEach(function (v) { vo.observe(v); });
-  } else if (reduce) clips.forEach(function (v) { v.removeAttribute('autoplay'); v.pause(); v.controls = true; });
+  } else if (reduce) clips.forEach(function (v) { v.removeAttribute('autoplay'); v.pause(); v.controls = true; v.preload = 'metadata'; });
 
-  // ---------- sticky button: after the hero, hidden while the form is on screen ----------
-  var bar = document.getElementById('bar'), hero = document.querySelector('.hero'), join = document.getElementById('join');
-  if ('IntersectionObserver' in window) {
-    var heroOut = false, joinIn = false;
-    var upd = function () { var on = heroOut && !joinIn && !box.classList.contains('is-done'); bar.classList.toggle('on', on); bar.setAttribute('aria-hidden', on ? 'false' : 'true'); bar.querySelector('a').tabIndex = on ? 0 : -1; };
-    new IntersectionObserver(function (es) { heroOut = !es[0].isIntersecting; upd(); }).observe(hero);
-    new IntersectionObserver(function (es) { joinIn = es[0].isIntersecting; upd(); }, { rootMargin: '0px 0px -20% 0px' }).observe(join);
+  // ---------- waitlist ----------
+  var form = $('joinForm'), phone = $('phone'), email = $('email');
+  var errEl = $('contactErr'), consentErr = $('consentErr'), btn = $('joinBtn'), fallback = $('fallback'), sigInk = $('sigInk');
+  var mode = 'phone';
+  function setMode(m) {
+    mode = m; $('phoneField').hidden = m !== 'phone'; $('emailField').hidden = m !== 'email';
+    errEl.textContent = ''; (m === 'phone' ? phone : email).focus(); sign();
   }
+  $('toEmail').onclick = function () { setMode('email'); };
+  $('toPhone').onclick = function () { setMode('phone'); };
+  function normPhone(v) {
+    var d = String(v || '').replace(/[^\d+]/g, '');
+    if (d.indexOf('+972') === 0) d = '0' + d.slice(4); else if (d.indexOf('972') === 0) d = '0' + d.slice(3);
+    return /^05\d{8}$/.test(d) ? d : '';
+  }
+  function normEmail(v) { var s = String(v || '').trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 120 ? s : ''; }
+  function picked(name) { var r = form.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : null; }
+  // the signature line writes itself as you type
+  function sign() {
+    var v = mode === 'phone' ? String(phone.value || '').replace(/[^\d]/g, '') : String(email.value || '').trim();
+    if (mode === 'phone' && v.length > 4) v = v.slice(0, 3) + '-' + v.slice(3, -3).replace(/\d/g, '•') + v.slice(-3);
+    sigInk.textContent = v ? v : '';
+  }
+  phone.addEventListener('input', sign); email.addEventListener('input', sign);
+
+  var joined = readJSON(JOINED_KEY);
+  if (joined && joined.at) showDone(joined, false);
+
+  function shareUrl(code) { return SITE + '?r=' + encodeURIComponent(code) + '&source=friend'; }
+  function shareText() { return 'לפני שאתה מוציא את המענק: יודע על מה מותר להוציא את הפיקדון? אני כבר ברשימה של שפת הכסף, אפליקציה שמלמדת מה עושים עם הכסף מהצבא. היא יוצאת לפי הסדר ברשימה, אז כדאי להיכנס עכשיו:'; }
+  function showDone(j, animate) {
+    paper.classList.add('signed');
+    if (animate && !reduce) { paper.classList.remove('thump'); void paper.offsetWidth; paper.classList.add('thump'); }
+    else paper.querySelector('.big-stamp').style.animation = 'none';
+    var tn = $('ticketNo');
+    if (j.position) { tn.hidden = false; tn.querySelector('span').textContent = '#' + fmt(j.position); $('doneTitle').textContent = 'תפסתם מקום.'; }
+    else if (PREVIEW) { tn.hidden = false; tn.querySelector('span').textContent = '#—'; $('doneTitle').textContent = 'תצוגה מקדימה: כאן יופיע המקום בתור.'; }
+    $('boostTxt').textContent = 'כל חבר שנרשם מהקישור שלכם מקדם אתכם ' + BOOST + ' מקומות.';
+    var code = j.code || '';
+    var url = code ? shareUrl(code) : SITE + '?source=friend';
+    $('shareWa').href = 'https://wa.me/?text=' + encodeURIComponent(shareText() + ' ' + url);
+    $('copyLink').onclick = function () {
+      var done = function () { $('copyLink').textContent = 'הקישור הועתק'; setTimeout(function () { $('copyLink').textContent = 'להעתיק קישור'; }, 2200); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { window.prompt('הקישור שלכם:', url); });
+      else window.prompt('הקישור שלכם:', url);
+    };
+    if (j.refs) { $('friends').hidden = false; $('friends').textContent = j.refs === 1 ? 'חבר אחד כבר נרשם דרככם.' : j.refs + ' חברים כבר נרשמו דרככם.'; }
+    if (animate) { stamp('sign'); $('done').focus({ preventScroll: true }); }
+  }
+
+  // a returning visitor sees the updated place in line
+  if (joined && joined.code && SHEET) {
+    sheet('GET', { code: joined.code }).then(function (j) { joined.position = j.position; joined.refs = j.refs; store(JOINED_KEY, JSON.stringify(joined)); showDone(joined, false); }).catch(function () {});
+  }
+  // the real number of people on the list, shown only once it is worth showing
+  if (SHEET) sheet('GET', { count: 1 }).then(function (j) {
+    if (j.total >= SHOW_FROM) { var c = $('count'); c.hidden = false; c.querySelector('span').textContent = 'כבר ' + fmt(j.total) + ' ברשימה'; }
+  }).catch(function () {});
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    errEl.textContent = ''; consentErr.textContent = '';
+    phone.removeAttribute('aria-invalid'); email.removeAttribute('aria-invalid');
+    var input = mode === 'phone' ? phone : email;
+    var contact = mode === 'phone' ? normPhone(phone.value) : normEmail(email.value);
+    if (!contact) {
+      errEl.textContent = mode === 'phone' ? 'צריך מספר נייד ישראלי, למשל 050-1234567.' : 'האימייל לא נראה תקין.';
+      input.setAttribute('aria-invalid', 'true'); input.focus(); return;
+    }
+    if (!$('consent').checked) { consentErr.textContent = 'צריך לסמן את האישור, כדי שנוכל לשלוח לכם הודעה.'; return; }
+    if ($('company').value) { showDone({ at: new Date().toISOString() }, true); return; } // bots fill the hidden field
+
+    var device = picked('device'), status = picked('status');
+    var code = (joined && joined.code) || newCode();
+    var stations = Object.keys(stamps).filter(function (k) { return k !== 'sign'; });
+    var row = { contact: contact, contact_type: mode, device: device, status: status, source: source, ref: refIn && refIn !== code ? refIn : '', code: code, consent: true, stations: stations.join(','), v: VERSION };
+    var props = {
+      contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null,
+      device: device, status: status, consent: true, consent_text: 'הודעה כשהאפליקציה מוכנה ועדכונים מדי פעם, אפשר לבקש הסרה',
+      my_code: code, stations: stations,
+      $set: { waitlist: true, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_status: status, waitlist_at: new Date().toISOString(), waitlist_source: source, waitlist_code: code, waitlist_ref: row.ref || null }
+    };
+    btn.disabled = true; btn.textContent = 'חותמים...';
+    var ph = send('waitlist_signup', props).then(function () { return true; });
+    var sh = sheet('POST', row);
+    Promise.all([ph.catch(function () { return false; }), sh.catch(function () { return null; })]).then(function (res) {
+      var phOk = res[0], s = res[1];
+      if (!phOk && !s && !PREVIEW) {
+        btn.disabled = false; btn.textContent = 'לתפוס מקום ברשימה';
+        var msg = 'היי, אשמח להצטרף לרשימת ההמתנה של שפת הכסף' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : '');
+        if (WA) { $('waJoin').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(msg); fallback.classList.add('on'); }
+        else errEl.textContent = 'לא הצלחנו לשמור כרגע. נסו שוב בעוד רגע.';
+        return;
+      }
+      joined = { at: new Date().toISOString(), code: (s && s.code) || code, position: s && s.position, refs: s && s.refs };
+      store(JOINED_KEY, JSON.stringify(joined));
+      if (s && s.code && s.code !== code) track('waitlist_code_fixed', { my_code: s.code });
+      showDone(joined, true);
+    });
+  });
 })();
 </script>
 </body>
