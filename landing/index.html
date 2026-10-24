@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#062E25">
-<title>שפת הכסף: השחרור מגיע עם כסף</title>
-<meta name="description" content="פיקדון, מענק, משכורת ראשונה. שפת הכסף מלמדת מה עושים עם כל שקל, בכמה דקות ביום ומהטלפון. בחינם. שריינו מקום ברשימה וקבלו את האפליקציה ראשונים.">
+<title>שפת הכסף: הכסף מהצבא, לפני שהוא נגמר</title>
+<meta name="description" content="מישהו בגילכם כבר יודע מה לעשות עם הפיקדון, המענק והמשכורת הראשונה. שפת הכסף מלמדת את זה בכמה דקות ביום, בחינם. האפליקציה יוצאת לפי הסדר ברשימה.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="he_IL">
-<meta property="og:title" content="השחרור מגיע עם כסף. לא עם הוראות שימוש.">
-<meta property="og:description" content="שפת הכסף מלמדת מה עושים עם הפיקדון, המענק והמשכורת הראשונה. כמה דקות ביום, בחינם. שריינו מקום ברשימה.">
+<meta property="og:title" content="מישהו בגילכם כבר יודע מה לעשות עם הכסף מהצבא. אתם?">
+<meta property="og:description" content="פיקדון, מענק, משכורת ראשונה. שפת הכסף מלמדת מה עושים איתם לפני שהם נגמרים. בחינם. האפליקציה יוצאת לפי הסדר ברשימה.">
 <meta property="og:image" content="https://jonathanriahi.github.io/dribit/landing/media/og.jpg">
 <meta property="og:url" content="https://jonathanriahi.github.io/dribit/landing/">
 <meta name="twitter:card" content="summary_large_image">
@@ -143,7 +143,7 @@ p { margin: 0; text-wrap: pretty; }
 /* =========================== STATION: PIKADON =========================== */
 .pik { padding: clamp(72px, 12vh, 120px) 0 clamp(56px, 9vh, 96px); }
 .pik h2 { font-weight: 900; font-size: clamp(34px, 8.4vw, 64px); line-height: 1.04; max-width: 15em; }
-.pik h2 .muted { display: block; color: var(--ink-2); font-weight: 800; font-size: .62em; line-height: 1.2; margin-top: 12px; letter-spacing: -.01em; }
+.pik h2 .muted, .sign h2 .muted { display: block; color: var(--ink-2); font-weight: 800; font-size: .62em; line-height: 1.2; margin-top: 12px; letter-spacing: -.01em; }
 .pik-grid { display: grid; gap: 36px; }
 .wishes { list-style: none; margin: 30px 0 0; padding: 0; border-top: 2px solid var(--ink); }
 .wish { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 66px; padding: 10px 2px; border-bottom: 1px dashed var(--rule); }
@@ -411,10 +411,10 @@ footer a { color: var(--ink-2); font-weight: 700; }
   <div class="wrap hero-in">
     <a class="brand" href="#top"><img src="../icons/icon.svg" alt="" width="34" height="34">שפת הכסף</a>
     <div class="hero-copy">
-      <h1><span>השחרור מגיע עם כסף.</span> <span class="h1b">לא עם הוראות שימוש.</span></h1>
-      <p class="lead">פיקדון, מענק, משכורת ראשונה. <b>שפת הכסף מלמדת מה עושים עם כל שקל</b>, בכמה דקות ביום ומהטלפון, לפני שמישהו אחר יחליט בשבילכם.</p>
-      <a class="cta" href="#sign" data-cta="hero">לשריין מקום ברשימה</a>
-      <p class="cta-note">בחינם. <b>מי שברשימה מקבל ראשון</b> את האפליקציה לאנדרואיד ולאייפון.</p>
+      <h1><span>מישהו בגילכם כבר יודע</span> <span class="h1b">מה לעשות עם הכסף מהצבא.</span></h1>
+      <p class="lead">ומי שלא, מגלה מאוחר מדי: אחרי שהמענק נגמר, אחרי שנה של מס מיותר, אחרי עשר שנים שהכסף היה יכול לעבוד. <b>שפת הכסף מלמדת את זה בכמה דקות ביום</b>, מהטלפון.</p>
+      <a class="cta" href="#sign" data-cta="hero">לתפוס מקום ברשימה</a>
+      <p class="cta-note">בחינם. <b>האפליקציה יוצאת לפי הסדר ברשימה</b>, וכל מי שנרשם היום נכנס לפני מי שיירשם מחר.</p>
       <p class="count" id="count" hidden><i aria-hidden="true"></i><span></span></p>
       <p class="inapp" id="inappHint">פתחתם מטיקטוק או מאינסטגרם? ההרשמה עובדת גם מכאן. כדי לנסות את האפליקציה עצמה, פתחו את הקישור בדפדפן: שלוש הנקודות למעלה, ואז "פתיחה בדפדפן".</p>
     </div>
@@ -434,7 +434,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
 <main>
   <section class="pik" id="st-pikadon" aria-labelledby="pikTitle">
     <div class="wrap pik-grid">
-      <h2 id="pikTitle">כ-31,200 ₪ יחכו לכם בפיקדון. <span class="muted">עכשיו נחשו על מה מותר להוציא אותם.</span></h2>
+      <h2 id="pikTitle">כ-31,200 ₪ יחכו לכם בפיקדון. <span class="muted">נחשו על מה מותר להוציא אותם, לפני שתגלו בדרך הקשה.</span></h2>
       <ul class="wishes" id="wishes">
         <li class="wish no"><span class="w">טיסה לתאילנד</span><span class="stamp no">לא</span></li>
         <li class="wish no"><span class="w">רכב ראשון</span><span class="stamp no">לא</span></li>
@@ -445,10 +445,10 @@ footer a { color: var(--ink-2); font-weight: 700; }
       </ul>
       <div class="pik-after">
         <p>בחמש השנים הראשונות הפיקדון נפתח רק לשש מטרות: <b>לימודים, הכשרה מקצועית, נהיגה, עסק, חתונה ודירה</b> (קנייה, לא שכירות). מה שלא נוצל עובר אחר כך לחשבון הבנק, ומותר לכל דבר.</p>
-        <p class="grant">והמענק? מותר לכל מטרה, מהיום הראשון. ובדיוק בגלל זה כדאי לדעת מה עושים איתו.</p>
+        <p class="grant">והמענק? מותר לכל מטרה, מהיום הראשון. ולכן הוא גם הכסף הכי קל לבזבז בלי לשים לב.</p>
         <figure class="peek">
           <div class="phone-s"><video class="clip" poster="media/check.webp" muted loop playsinline preload="none" width="576" height="1246" aria-label="סרטון מהאפליקציה: בודקים אם מותר לטוס עם הפיקדון (לא בחמש השנים הראשונות) ואם מותר לממן שיעורי נהיגה (מותר, מהיום ה-14 אחרי השחרור)"><source src="media/check.mp4" type="video/mp4"></video></div>
-          <figcaption>יש לכם רעיון אחר?<span>באפליקציה בוחרים, ורואים מיד אם מותר, ומתי.</span></figcaption>
+          <figcaption>יש לכם תוכנית אחרת?<span>באפליקציה בודקים לפני שמתכננים: מותר, אסור, ומתי.</span></figcaption>
         </figure>
       </div>
     </div>
@@ -458,7 +458,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
     <div class="wrap">
       <p id="quietTitle"><span class="maya">מאיה</span> ו<span class="omer">עומר</span> חוסכים בדיוק אותו דבר.</p>
       <p class="q-small">300 ₪ בחודש. 6% בשנה. עד גיל 60.</p>
-      <p>הבדל אחד: מאיה מתחילה בגיל 21. עומר בגיל 35.</p>
+      <p>הבדל אחד: מאיה מתחילה בגיל 21. עומר אומר "אחר כך", ומתחיל בגיל 35.</p>
     </div>
   </section>
 
@@ -487,7 +487,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
       </div>
       <div class="race-end">
         <p class="big">מאיה הפקידה רק כ-50,000 ₪ יותר. <em>בסוף יש לה פי 2.7.</em></p>
-        <p class="small">את כל הפער עשה הזמן. בשפת הכסף קוראים לזה ריבית דריבית.</p>
+        <p class="small">את כל הפער עשה הזמן, וכל "אחר כך" עולה כסף: אם מאיה הייתה מחכה רק שנה, היו לה בגיל 60 כ-36,000 ₪ פחות.</p>
         <p class="fine">חישוב לדוגמה בתשואה קבועה של 6% בשנה. בשוק אמיתי התשואה משתנה, ואין הבטחה.</p>
       </div>
       <span class="stamp race-stamp" aria-hidden="true">הבנתי</span>
@@ -497,8 +497,8 @@ footer a { color: var(--ink-2); font-weight: 700; }
   <section class="tax" id="st-tax" aria-labelledby="taxTitle">
     <div class="wrap tax-grid">
       <div class="tax-head">
-        <h2 id="taxTitle">משכורת ראשונה.<br>שאלה אחת.</h2>
-        <p>ככה נראה כל שיעור בשפת הכסף: סיפור קצר, שאלה שמבלבלת והסבר. נכון בניסיון הראשון? 10 נקודות.</p>
+        <h2 id="taxTitle">משכורת ראשונה.<br>מס שלא הייתם צריכים לשלם.</h2>
+        <p>שאלה אחת ששווה עד כ-17,400 ₪. ככה נראה כל שיעור בשפת הכסף: סיפור קצר, שאלה שמבלבלת והסבר. נכון בניסיון הראשון? 10 נקודות.</p>
       </div>
       <div class="qcard" id="qcard" role="group" aria-labelledby="qPrompt">
         <p class="q-scn"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg><span>נועה השתחררה אחרי 24 חודשי שירות, והתחילה לעבוד בבית קפה. בתלוש הראשון ירד לה מס כמו לכל אחד.</span></p>
@@ -509,7 +509,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
           <button class="opt" type="button" data-ok="0"><span class="k">ג</span>לחכות לסוף השנה. ההנחה מגיעה כמענק</button>
           <button class="opt" type="button" data-ok="0"><span class="k">ד</span>לבקש מביטוח לאומי לעדכן את המעסיק</button>
         </div>
-        <div class="q-fb" id="qfb" aria-live="polite"><div class="t"></div><p>המעסיק לא יודע לבד. מסמנים בטופס 101, ומקבלים 2 נקודות זיכוי לשלוש שנים: עד כ-17,400 ₪ פחות מס. ופספסתם? מבקשים החזר מס, עד שש שנים אחורה.</p></div>
+        <div class="q-fb" id="qfb" aria-live="polite"><div class="t"></div><p>המעסיק לא יודע לבד. מסמנים בטופס 101, ומקבלים 2 נקודות זיכוי לשלוש שנים: עד כ-17,400 ₪ פחות מס. עד שמסמנים, כל תלוש מוריד יותר מדי. ופספסתם? מבקשים החזר מס, עד שש שנים אחורה.</p></div>
       </div>
     </div>
   </section>
@@ -517,14 +517,14 @@ footer a { color: var(--ink-2); font-weight: 700; }
   <section class="tour" id="st-tour" aria-labelledby="tourTitle">
     <div class="tour-stage">
       <div class="wrap tour-head">
-        <h2 id="tourTitle">ככה נראות כמה דקות ביום.</h2>
+        <h2 id="tourTitle">כמה דקות ביום. פחות מהזמן שהולך על טיקטוק.</h2>
         <p>33 שיעורים ב-8 יחידות. רצף, נקודות ושלבים, כמו באפליקציה ללימוד שפות. רק שהשפה כאן היא כסף.</p>
       </div>
       <div class="track-vp" id="trackVp">
         <div class="track" id="track">
           <figure class="card"><div class="fr"><video class="clip" poster="media/quiz.webp" muted loop playsinline preload="none" width="576" height="1246" aria-label="סרטון מהאפליקציה: שאלה על מאיה ועומר, עונים נכון ומקבלים 10 נקודות"><source src="media/quiz.mp4" type="video/mp4"></video></div><figcaption>שאלות שנשמעות קלות.<span>עד שעונים עליהן. והסבר אחרי כל תשובה.</span></figcaption></figure>
           <figure class="card"><div class="fr"><img src="media/story.webp" alt="מסך שיעור: מאיה ועומר, אותו חיסכון" width="600" height="1298" loading="lazy"></div><figcaption>כל שיעור מתחיל בסיפור.<span>של מישהו בגילכם, עם כסף אמיתי.</span></figcaption></figure>
-          <figure class="card"><div class="fr"><img src="media/home.webp" alt="מסך הבית: רצף של 6 ימים, 640 נקודות, המסלול עם השיעור הבא" width="600" height="1298" loading="lazy"></div><figcaption>רצף ששווה לשמור עליו.<span>שיעור ביום מאריך את האש, וכל שלב נותן יום חופש.</span></figcaption></figure>
+          <figure class="card"><div class="fr"><img src="media/home.webp" alt="מסך הבית: רצף של 6 ימים, 640 נקודות, המסלול עם השיעור הבא" width="600" height="1298" loading="lazy"></div><figcaption>רצף שלא תרצו לשבור.<span>יום בלי שיעור והאש נכבית, אלא אם צברתם יום חופש.</span></figcaption></figure>
           <figure class="card"><div class="fr"><img src="media/tools.webp" alt="מסך הכלים: מחשבון שחרור, מה מותר עם הפיקדון, מכונת הזמן, דמי ניהול, התוכנית שלי" width="600" height="1298" loading="lazy"></div><figcaption>כלים שעושים את החשבון.<span>נפתחים לפי שלב: מחשבון שחרור, דמי ניהול, תוכנית לכסף מהצבא.</span></figcaption></figure>
           <figure class="card"><div class="fr"><img src="media/skins.webp" alt="מסך ההתקדמות: שלב 4 מתוך 11 וצבעים שנפתחים לפי שלב" width="600" height="1298" loading="lazy"></div><figcaption>שלבים וצבעים.<span>כל כמה שלבים נפתח צבע חדש לאפליקציה.</span></figcaption></figure>
           <figure class="card"><div class="fr"><img src="media/status.webp" alt="בחירת מצב: בשירות סדיר, לפני שחרור, אחרי שחרור, לא בצבא" width="600" height="1298" loading="lazy"></div><figcaption>לפי איפה שאתם.<span>בסדיר, לפני שחרור או אחרי: מה שרלוונטי עכשיו, קודם.</span></figcaption></figure>
@@ -536,8 +536,8 @@ footer a { color: var(--ink-2); font-weight: 700; }
   <section class="sign" id="sign" aria-labelledby="signTitle">
     <div class="wrap sign-grid">
       <div>
-        <h2 id="signTitle">נשאר רק לחתום.</h2>
-        <p class="sub">האפליקציה לאנדרואיד ולאייפון בדרך. מי שברשימה מקבל אותה ראשון, בהודעת וואטסאפ. בחינם, בלי ספאם.</p>
+        <h2 id="signTitle">נשאר רק לחתום. <span class="muted">לפני שהתור מתארך.</span></h2>
+        <p class="sub">האפליקציה לאנדרואיד ולאייפון יוצאת לפי הסדר ברשימה. מי שחותם עכשיו מקבל אותה לפני מי שחותם מחר, בהודעת וואטסאפ. בחינם, בלי ספאם.</p>
       </div>
       <div>
         <div class="paper" id="paper">
@@ -583,7 +583,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
             <p class="err" id="consentErr" role="alert"></p>
 
             <div class="sig-line" aria-hidden="true"><span>חתימה</span><i id="sigInk"></i></div>
-            <button class="cta" type="submit" id="joinBtn" data-cta="sign">לשריין מקום ברשימה</button>
+            <button class="cta" type="submit" id="joinBtn" data-cta="sign">לתפוס מקום ברשימה</button>
             <p class="privacy">הפרטים משמשים רק לעדכונים משפת הכסף, ולא מועברים לאף גוף אחר. מגיל 18.</p>
             <div class="fallback" id="fallback">
               <p class="err">לא הצלחנו לשמור מהדפדפן הזה. אפשר להצטרף בהודעת וואטסאפ קצרה:</p>
@@ -594,10 +594,10 @@ footer a { color: var(--ink-2); font-weight: 700; }
           <div class="done" id="done" aria-live="polite" tabindex="-1">
             <span class="stamp big-stamp" aria-hidden="true">אושר</span>
             <div class="ticket-no" id="ticketNo" hidden><small>המקום שלכם ברשימה</small><span></span></div>
-            <h3 id="doneTitle">שריינו לכם מקום.</h3>
-            <p class="d-sub" id="doneSub">כשהאפליקציה מוכנה, תקבלו הודעה ראשונים.</p>
+            <h3 id="doneTitle">תפסתם מקום.</h3>
+            <p class="d-sub" id="doneSub">כשהאפליקציה יוצאת, הסדר ברשימה קובע מי מקבל קודם.</p>
             <div class="boost">
-              <b>רוצים לעלות בתור?</b>
+              <b>רוצים לעקוף את התור?</b>
               <p id="boostTxt">כל חבר שנרשם מהקישור שלכם מקדם אתכם 5 מקומות.</p>
               <div class="row">
                 <a class="btn2 wa" id="shareWa" href="#" target="_blank" rel="noopener" data-cta="share_whatsapp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>לשלוח לחבר</a>
@@ -636,7 +636,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
     <a class="tf-line" href="#st-race" data-slot="race"><span class="tf-short">ריבית</span><span class="tf-full">ריבית דריבית</span><span class="tf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></a>
     <a class="tf-line" href="#st-tax" data-slot="tax"><span class="tf-short">מס</span><span class="tf-full">מס</span><span class="tf-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></a>
   </div>
-  <a class="cta" href="#sign" data-cta="tofes">לשריין מקום ברשימה</a>
+  <a class="cta" href="#sign" data-cta="tofes">לתפוס מקום ברשימה</a>
 </nav>
 
 <script src="../config.js" onerror="void 0"></script>
@@ -649,7 +649,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
   var SHEET = WL.sheetUrl || '', BOOST = WL.boostPerFriend || 5, SHOW_FROM = WL.showCountFrom || 50;
   var WA = (CFG.feedback && CFG.feedback.whatsapp) || '';
   var PREVIEW = !!window.LANDING_PREVIEW;
-  var VERSION = 'landing-2';
+  var VERSION = 'landing-2.1';
   var SITE = 'https://jonathanriahi.github.io/dribit/landing/';
   var UID_KEY = 'dribit.landing.uid', JOINED_KEY = 'dribit.landing.joined', STAMPS_KEY = 'dribit.landing.stamps', REF_KEY = 'dribit.landing.ref';
   var reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -774,7 +774,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
     return d;
   }
   function dot(el, m, v) { el.style.opacity = 1; el.style.left = (m / TOTAL * 100).toFixed(2) + '%'; el.style.top = (100 - v / MAXV * 100).toFixed(2) + '%'; }
-  var CAPS = [[21, 'מאיה מתחילה. עומר עוד לא.'], [35, 'עומר מתחיל. אותם 300 ₪ בחודש.'], [44, 'הרווחים של מאיה מתחילים להרוויח בעצמם.'], [52, 'העשור האחרון עושה את רוב העבודה.'], [60, 'אותם 300 ₪ בחודש. פער של כ-350 אלף.']];
+  var CAPS = [[21, 'מאיה מתחילה. עומר עוד לא.'], [35, 'עומר סוף סוף מתחיל. 14 שנה אחרי מאיה.'], [44, 'הרווחים של מאיה מתחילים להרוויח בעצמם.'], [52, 'העשור האחרון עושה את רוב העבודה.'], [60, 'אותם 300 ₪ בחודש. פער של כ-350 אלף.']];
   var lastAge = -1, lastCap = '';
   function drawRace(t) {
     var mth = Math.round(clamp(t, 0, 1) * (X1 - X0) * 12), age = X0 + Math.floor(mth / 12);
@@ -914,13 +914,13 @@ footer a { color: var(--ink-2); font-weight: 700; }
   if (joined && joined.at) showDone(joined, false);
 
   function shareUrl(code) { return SITE + '?r=' + encodeURIComponent(code) + '&source=friend'; }
-  function shareText() { return 'יודעים על מה מותר להוציא את הפיקדון? אני ברשימה של שפת הכסף, אפליקציה שמלמדת מה עושים עם הכסף מהצבא. תצטרפו מהקישור שלי:'; }
+  function shareText() { return 'לפני שאתה מוציא את המענק: יודע על מה מותר להוציא את הפיקדון? אני כבר ברשימה של שפת הכסף, אפליקציה שמלמדת מה עושים עם הכסף מהצבא. היא יוצאת לפי הסדר ברשימה, אז כדאי להיכנס עכשיו:'; }
   function showDone(j, animate) {
     paper.classList.add('signed');
     if (animate && !reduce) { paper.classList.remove('thump'); void paper.offsetWidth; paper.classList.add('thump'); }
     else paper.querySelector('.big-stamp').style.animation = 'none';
     var tn = $('ticketNo');
-    if (j.position) { tn.hidden = false; tn.querySelector('span').textContent = '#' + fmt(j.position); $('doneTitle').textContent = 'אתם ברשימה.'; }
+    if (j.position) { tn.hidden = false; tn.querySelector('span').textContent = '#' + fmt(j.position); $('doneTitle').textContent = 'תפסתם מקום.'; }
     else if (PREVIEW) { tn.hidden = false; tn.querySelector('span').textContent = '#—'; $('doneTitle').textContent = 'תצוגה מקדימה: כאן יופיע המקום בתור.'; }
     $('boostTxt').textContent = 'כל חבר שנרשם מהקישור שלכם מקדם אתכם ' + BOOST + ' מקומות.';
     var code = j.code || '';
@@ -973,7 +973,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
     Promise.all([ph.catch(function () { return false; }), sh.catch(function () { return null; })]).then(function (res) {
       var phOk = res[0], s = res[1];
       if (!phOk && !s && !PREVIEW) {
-        btn.disabled = false; btn.textContent = 'לשריין מקום ברשימה';
+        btn.disabled = false; btn.textContent = 'לתפוס מקום ברשימה';
         var msg = 'היי, אשמח להצטרף לרשימת ההמתנה של שפת הכסף' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : '');
         if (WA) { $('waJoin').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(msg); fallback.classList.add('on'); }
         else errEl.textContent = 'לא הצלחנו לשמור כרגע. נסו שוב בעוד רגע.';
