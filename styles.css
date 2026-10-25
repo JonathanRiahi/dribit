@@ -294,6 +294,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .u6 { --u: #C2453D; --u-deep: #8F2E28; }
 .u7 { --u: #4F5DAA; --u-deep: #37427D; }
 .u8 { --u: #3D6B2E; --u-deep: #2A4C1F; }
+.u9 { --u: #A63D6B; --u-deep: #772A4C; }
 
 .path { display: flex; flex-direction: column; align-items: center; gap: 18px; padding-block: 26px 10px; }
 .node-wrap { position: relative; transform: translateX(var(--dx, 0)); }
@@ -1317,3 +1318,17 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 :root[data-theme="dark"][data-skin="neon"], :root[data-theme="dark"] [data-skin="neon"]{--brand:#45CBE0;--brand-deep:#167486;--brand-soft:#10323A;--on-brand:#03131A;--brand-2:#C29BFF;--q-accent:var(--brand);--brand-img:linear-gradient(120deg,#3DD68C,var(--brand) 45%,var(--brand-2));--mark-img:linear-gradient(90deg,#3DD68C,var(--brand) 45%,var(--brand-2));--mark-fill:transparent;--sw-img:linear-gradient(135deg,#3DD68C,var(--brand) 50%,var(--brand-2));--bg:#0C161A;--surface:#142126;--surface-2:#1C2D33;--line:#233740;--ink:#E6F0F5;--ink-2:#A8BBC4;--ink-3:#7A8F98;--example-bg:#1A2B31;--lock:#2A393F;--lock-deep:#1E2A2F}
 :root[data-theme="dark"][data-skin="gold"], :root[data-theme="dark"] [data-skin="gold"]{--brand:#F2C14E;--brand-deep:#7A5806;--brand-soft:#352A0E;--on-brand:#1F1703;--brand-2:#E9A92B;--q-accent:var(--brand);--brand-img:linear-gradient(135deg,#F7D774,#E9A92B);--mark-img:linear-gradient(90deg,#F7D774,#E9A92B);--mark-fill:transparent;--sw-img:linear-gradient(135deg,#F7D774 30%,#B88618);--bg:#18140B;--surface:#231E13;--surface-2:#30291B;--line:#3B3322;--ink:#F0EEEA;--ink-2:#BBB7AF;--ink-3:#8F8B82;--example-bg:#2E2719;--lock:#3B3529;--lock-deep:#2C271D}
 /* ---------- end of generated color tokens ---------- */
+
+/* 0.13: the daily check card and its "tomorrow" line, the onboarding calculator */
+.daily-check { margin-top: 12px; }
+.daily-check .m-ic { background: var(--gold-soft); color: var(--gold-ink); }
+.check-next { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: var(--r-md); background: var(--brand-soft); color: var(--ink-2); font-size: 15px; line-height: 1.45; }
+.check-next svg { width: 20px; height: 20px; flex: none; margin-top: 1px; color: var(--brand); }
+.check-next b { color: var(--ink); }
+.check-next.done svg { color: var(--ok, var(--brand)); }
+.check-steps { padding: 0; margin: 0; }
+.check-steps li { list-style: none; display: flex; align-items: flex-start; gap: 12px; border: 2px solid var(--line); border-radius: var(--r-md); padding: 12px; counter-increment: s; }
+.check-steps li::before { content: counter(s); flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-weight: 700; font-size: 14px; }
+.onboard-calc .calc { margin-top: 2px; }
+.calc-hook { display: flex; align-items: flex-start; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--gold-soft); color: var(--gold-ink); font-weight: 600; font-size: 15px; line-height: 1.45; }
+.calc-hook svg { width: 22px; height: 22px; flex: none; margin-top: 1px; }

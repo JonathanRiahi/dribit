@@ -169,14 +169,17 @@
       tools: { seen: [], introSeen: true, check: null, growth: null, fees: null, plan: null },
       // 0.12 colors: the chosen one, the open ones already shown (the "חדש" chip and the tab badge; never forest), and
       // the one-time intro. Which colors are open is derived from xp, never stored.
-      skins: { id: 'forest', seen: [], introSeen: true }
+      skins: { id: 'forest', seen: [], introSeen: true },
+      // 0.13 daily checks (config.dailyChecks): start = the day the first lesson was finished (the first check opens the
+      // next day; null = open now, for people who finished lessons before 0.13), done = check id -> the day it was done
+      checks: { start: null, done: {} }
     };
   }
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
   // the open lesson or the event queue.
   var TRANSFER_KEYS = ['v', 'uid', 'status', 'startUnit', 'goalXp', 'sound', 'share', 'firstDay', 'contentV', 'xp', 'streak',
     'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent', 'amount', 'ref', 'calc',
-    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools', 'skins'];
+    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools', 'skins', 'checks'];
   function migrate(s) {
     // before 0.9 there were no days off: checked before the defaults below fill offLevel in
     var needsOff = !('offLevel' in s);
@@ -258,6 +261,8 @@
     ['ratings', 'intent', 'amount'].forEach(function (k) { s[k] = cleanMap(s[k], function (v) { return okWord(v) ? v : null; }); });
     s.tools = cleanTools(s.tools);
     s.skins = cleanSkins(s.skins);
+    s.checks = isRec(s.checks) ? { start: isDayKey(s.checks.start) ? s.checks.start : null,
+      done: cleanMap(s.checks.done, function (v) { return isDayKey(v) ? v : null; }) } : { start: null, done: {} };
   }
   // S.skins also arrives in transfer codes: an unknown color becomes forest, seen keeps known ids only
   function cleanSkins(k) {
@@ -451,9 +456,12 @@
   // the units in path order: the start unit (by status) first, then the file order; an unknown id changes nothing
   function orderedUnits(startId) {
     var units = DATA.units.slice();
-    if (startId == null) return units;
-    for (var i = 1; i < units.length; i++) if (String(units[i].id) === String(startId)) { units.unshift(units.splice(i, 1)[0]); break; }
-    return units;
+    if (startId != null) {
+      for (var i = 1; i < units.length; i++) if (String(units[i].id) === String(startId)) { units.unshift(units.splice(i, 1)[0]); break; }
+    }
+    // 0.13: a unit marked pinFirst opens the path for everyone, before the start unit ("איפה הכסף בורח", 25.10)
+    var pinned = units.filter(function (u) { return u.pinFirst === true; });
+    return pinned.concat(units.filter(function (u) { return u.pinFirst !== true; }));
   }
   // the first lesson a status would get, with its length, without touching the live index (the welcome screen)
   function firstLessonFor(status) {
@@ -918,6 +926,10 @@
             (rs === 'install' ? 'איך מתקינים' : 'להפעיל') + '</button><button class="btn text" data-act="reminder-later">לא עכשיו</button></div></div>';
       } else html += installCard('home');
     }
+    // 0.13: the daily check sits under the resume and rescue cards; it is content, not an ask, so it never hides the asks
+    var asks = html.indexOf('reminder-card') >= 0 || html.indexOf('install-card') >= 0;
+    var dc = checkCard('home');
+    if (dc) html = asks ? html.replace(/(<div class="card (?:reminder|install)-card)/, dc + '$1') : html + dc;
     return html;
   }
   // the invite and feedback bars live on the profile, not on home (Jonathan, 18.10)
@@ -1928,6 +1940,7 @@
       rec.fastest = rec.fastest ? Math.min(rec.fastest, s.time) : s.time;
       S.lessons[l.id] = rec;
       S.inProgress = null;
+      if (checksOn() && !S.checks.start && doneCount() === 1 && !Object.keys(S.checks.done).length) S.checks.start = dayKey();
       // a friend's gift: the first lesson of someone who opened the app from an invite link (before the points, so a
       // level-up on lesson 1 reports the right count)
       if (DO.enabled && s.firstTime && S.giftPending && doneCount() === 1) {
@@ -2135,11 +2148,88 @@
           '<button class="btn text" data-act="close-sheet">אעשה אחר כך</button>'), 'tall');
   }
 
+  // ---------- Daily check (config.dailyChecks, 0.13) ----------
+  // Jonathan (25.10, "תשפר לי את ה-MVP לפי מה שדיברנו"): a reason to come back tomorrow that is not another question.
+  // One short check on the phone each day, about money that leaks; after it, the card says what opens tomorrow.
+  var DC = CFG.dailyChecks || { enabled: false, list: [] };
+  function checksOn() { return !!(DC.enabled && DC.list && DC.list.length); }
+  function checkList() {
+    return (DC.list || []).filter(function (c) { return c && okKey(c.id) && c.title && Array.isArray(c.steps) && visible(c); });
+  }
+  function checkInfo(id) { return checkList().filter(function (c) { return c.id === id; })[0] || null; }
+  function checkDone(id) { return isDayKey(S.checks.done[id]); }
+  function checksDoneCount() { return checkList().filter(function (c) { return checkDone(c.id); }).length; }
+  function nextCheck() { return checkList().filter(function (c) { return !checkDone(c.id); })[0] || null; }
+  // open = today's check waits; tomorrow = the first one opens tomorrow; done = today's is done (next = tomorrow's)
+  function checkToday() {
+    if (!checksOn() || !doneCount()) return null;
+    var today = dayKey(), nx = nextCheck();
+    var did = checkList().filter(function (c) { return S.checks.done[c.id] === today; })[0];
+    if (did) return { state: 'done', check: did, next: nx };
+    if (!nx) return null;
+    if (S.checks.start && S.checks.start >= today) return { state: 'tomorrow', next: nx };
+    return { state: 'open', check: nx };
+  }
+  function checkMins(c) { var m = Math.max(1, Math.round(+c.minutes || 2)); return m === 1 ? 'דקה' : m + ' דקות'; }
+  function checkCard(from) {
+    var t = checkToday();
+    if (!t) return '';
+    if (t.state === 'open') {
+      return '<button class="mission-card big daily-check" data-act="dcheck" data-id="' + esc(t.check.id) + '" data-from="' + from + '">' +
+        '<span class="m-ic">' + ICON.shieldCheck + '</span>' +
+        '<span class="m-txt"><span class="eyebrow">הבדיקה של היום</span><b>' + esc(t.check.title) + '</b>' +
+        '<span class="m-meta">' + ICON.clock + checkMins(t.check) + ' · ' + plus(P.mission) + ' נקודות · שומרת על הרצף</span></span>' + ICON.chevron + '</button>';
+    }
+    if (t.state === 'tomorrow') {
+      return '<p class="check-next">' + ICON.clock + '<span>מחר נפתחת הבדיקה היומית הראשונה: <b>' + esc(t.next.title) + '</b>. ' +
+        checkMins(t.next) + ' בטלפון, ' + plus(P.mission) + ' נקודות, והיא שומרת על הרצף.</span></p>';
+    }
+    return '<p class="check-next done">' + ICON.check + '<span><b>עשית את הבדיקה של היום.</b> ' +
+      (t.next ? 'מחר נפתחת: ' + esc(t.next.title) + '.' : 'סיימת את כל הבדיקות היומיות. כל הכבוד.') + '</span></p>';
+  }
+  function checkSheet(id, from) {
+    var c = checkInfo(id), t = checkToday();
+    if (!c) return;
+    var open = !!(t && t.state === 'open' && t.check.id === id);
+    track('daily_check_opened', { check_id: id, n: checksDoneCount() + 1, from: from || view });
+    openSheet('<div class="eyebrow">הבדיקה של היום · ' + ICON.clock + checkMins(c) + '</div>' +
+      '<h3>' + esc(c.title) + '</h3>' +
+      (c.why ? '<p class="lead">' + esc(c.why) + '</p>' : '') +
+      '<ol class="m-steps check-steps">' + c.steps.map(function (x) { return '<li><span>' + esc(x) + '</span></li>'; }).join('') + '</ol>' +
+      (c.done ? '<p class="m-done-note">' + ICON.trophy + '<span>' + esc(c.done) + '</span></p>' : '') +
+      (open ? '<button class="btn gold" data-act="dcheck-done" data-id="' + esc(id) + '">עשיתי את זה · ' + plus(P.mission) + '</button>' +
+          '<button class="btn text" data-act="close-sheet">אעשה אחר כך</button>'
+        : '<button class="btn ghost" data-act="close-sheet">סגירה</button>'), 'tall');
+  }
+  function checkDoneNow(id) {
+    var t = checkToday();
+    if (!t || t.state !== 'open' || t.check.id !== id) return;
+    var before = levelIndex(S.xp);
+    S.checks.done[id] = dayKey();
+    var grant = awardXp(P.mission);
+    save();
+    var n = checksDoneCount(), nx = nextCheck();
+    track('daily_check_done', { check_id: id, n: n, streak: currentStreak(), $set: { daily_checks_done: n } });
+    closeSheet(true);
+    render();
+    if (levelIndex(S.xp) > before) {
+      toolsUnlocked(toolsCrossed(before, levelIndex(S.xp)), 'level_up'); skinsLevelUp(before, levelIndex(S.xp)); save();
+      track('level_up', levelUpProps(grant, before));
+      levelUpSheet(grant, before); return;
+    }
+    sfx.done();
+    confetti();
+    var st = currentStreak();
+    openSheet('<h3>בדיקה בוצעה</h3><p class="lead">' + plus(P.mission) + ' נקודות' + (st > 1 ? ', והרצף שלך: ' + plural(st, 'יום אחד', 'ימים') : '') + '.</p>' +
+      (nx ? '<p class="check-next">' + ICON.clock + '<span>מחר נפתחת: <b>' + esc(nx.title) + '</b></span></p>' : '<p class="fine">סיימת את כל הבדיקות היומיות.</p>') +
+      '<button class="btn" data-act="close-sheet">יופי</button>');
+  }
+
   function renderMissions() {
     var done = LESSONS.filter(function (l) { return isDone(l.id); });
     var open = done.filter(function (l) { return !missionState(l.id).done; });
     var closed = done.filter(function (l) { return missionState(l.id).done; });
-    var html = '<div class="page"><h1>משימות</h1><p class="sub">כל שיעור נגמר במשימה קצרה בעולם האמיתי. כאן הידע הופך לכסף שנשאר אצלך.</p>';
+    var html = '<div class="page"><h1>משימות</h1><p class="sub">כל שיעור נגמר במשימה קצרה בעולם האמיתי. כאן הידע הופך לכסף שנשאר אצלך.</p>' + checkCard('missions');
     if (!done.length) {
       html += '<div class="card">' + img('empty', 'empty-art') + '<p class="empty">המשימה הראשונה נפתחת בסוף השיעור הראשון.</p>' +
         '<button class="btn" data-act="nav" data-to="home">לשיעור הראשון</button></div>';
@@ -2339,15 +2429,16 @@
             (IS_IOS && !isStandalone() ? ' באייפון: עושים את השיעור הראשון כאן, ורק אז מוסיפים למסך הבית עם קוד ההעברה, והימים עוברים איתך.' : '') + '</span></p>'
           : '') + art +
         '<ul class="promises">' +
+          '<li><b>איפה הכסף שלך בורח</b><span>מינוס, עמלות, דמי ניהול ומי שמבטיח לך רווח: איך לוקחים לך כסף בלי שאתה שם לב, ואיך עוצרים.</span></li>' +
           '<li><b>מה עושים עם הכסף לפני שהוא נעלם</b><span>פיקדון, מענק שחרור, משכורת ראשונה: תוכנית לפני שהכסף מגיע לחשבון.</span></li>' +
-          '<li><b>שיעורים של כמה דקות, בלי חישובים</b><span>סיפורים של אנשים בגילך, ושאלה קצרה אחרי כל הסבר.</span></li>' +
-          '<li><b>משימה קצרה בסוף כל שיעור</b><span>דקה או שתיים בטלפון, כמו לבדוק כמה כסף יש בעו״ש.</span></li>' +
+          '<li><b>כמה דקות ביום, בלי חישובים</b><span>שיעור קצר עם סיפור, ובדיקה של 2 דקות בטלפון, כמו כמה עמלות ירדו לך החודש.</span></li>' +
         '</ul>' +
         '<div class="spacer"></div>' +
         '<button class="btn gold" data-act="onboard-next">יאללה, מתחילים</button>' +
         '<p class="fine center"><button class="link" data-act="import">יש לי קוד העברה</button></p>' +
         '<p class="fine center">' + esc(CFG.disclaimer) + '.</p></div>';
     }
+    if (onboardStep === 2 && !onlyStatus && pickedStatus && onboardCalcFor(pickedStatus)) return renderOnboardCalc();
     var cur = pickedStatus || S.status;
     var op = cur && CFG.openers && CFG.openers[cur], fl = cur ? firstLessonFor(cur) : null;
     var opener = op ? '<div class="card opener"><h2>' + esc(op.headline) + '</h2><p class="lead">' + esc(op.promise) + '</p>' +
@@ -2363,6 +2454,24 @@
       '<div class="spacer"></div>' +
       '<button class="btn gold" data-act="' + (onlyStatus ? 'begin-status' : 'onboard-status') + '"' + (cur ? '' : ' disabled') + '>' +
         (onlyStatus ? 'שומרים' : esc((op && op.cta) || 'יאללה, מתחילים')) + '</button></div>';
+  }
+
+  // 0.13 (25.10, "מספר אישי בדקה הראשונה"): soldiers see what the army money comes to before the first lesson
+  var onboardMoreOpen = false;
+  function onboardCalcFor(st) { return CALC.onboarding !== false && calcEnabled() && ['sadir', 'pre', 'post'].indexOf(st) >= 0; }
+  function renderOnboardCalc() {
+    var post = pickedStatus === 'post', est = calcEstimate(S.calc && calcState()), fl = firstLessonFor(pickedStatus);
+    return '<div class="welcome gutter onboard-calc">' +
+      '<button class="icon-btn back-top" data-act="onboard-back" aria-label="אחורה">' + ICON.back + '</button>' +
+      '<h1 class="q-prompt">' + (post ? 'כמה כסף קיבלת מהצבא?' : 'כמה כסף מחכה לך בשחרור?') + '</h1>' +
+      '<p class="lead">שתי בחירות, והאפליקציה מחשבת. בלי הרשמה, והמספר נשאר רק בטלפון שלך.</p>' +
+      calcWidget('onboard', onboardMoreOpen) +
+      (est ? '<p class="calc-hook">' + ICON.shieldCheck + '<span>' + (post
+          ? 'זה הכסף שנכנס, או ייכנס, לחשבון שלך. השיעור הראשון: איך לוקחים לך ממנו בלי שאתה שם לב.'
+          : 'רוב החיילים מגלים את המספר הזה רק כשהכסף כבר בחשבון. השיעור הראשון: איך לא לתת לו לברוח.') + '</span></p>' : '') +
+      '<div class="spacer"></div>' +
+      '<button class="btn gold" data-act="onboard-status">' + (est ? 'לשיעור הראשון' : 'לדלג ולהתחיל') + '</button>' +
+      (fl ? '<p class="fine center">' + esc(fl.lesson.title) + ' · כ-' + fl.minutes + ' דקות</p>' : '') + '</div>';
   }
 
   function setStatus(v, source) {
@@ -2975,9 +3084,10 @@
     c.training = Math.min(c.months, Math.max(0, Math.round(+c.training || 0)));
     c.at = Date.now();
     S.calc = c; save();
-    calcCtx = document.querySelector('#sheet .calc') ? 'sheet' : 'lesson';
+    var cel = document.querySelector('#sheet .calc') || (root && root.querySelector('.calc'));
+    calcCtx = document.querySelector('#sheet .calc') ? 'sheet' : (cel && cel.getAttribute('data-ctx') === 'onboard') ? 'onboard' : 'lesson';
     sfx.tap();
-    calcRefresh();
+    if (calcCtx === 'onboard') { var more = cel.querySelector('details'); onboardMoreOpen = !!(more && more.open); render(); } else calcRefresh();
     // the profile card under the sheet shows the new estimate when the sheet closes
     var card = root && root.querySelector('.calc-card');
     if (card) card.outerHTML = calcCard();
@@ -3962,6 +4072,8 @@
         break;
       case 'home': session = null; setView('home'); break;
       case 'mission': missionSheet(id); break;
+      case 'dcheck': checkSheet(id, el.getAttribute('data-from')); break;
+      case 'dcheck-done': checkDoneNow(id); break;
       case 'mstep': {
         var ms = S.missions[id] || (S.missions[id] = { steps: [], done: false });
         ms.steps[+el.getAttribute('data-i')] = el.checked;
@@ -4007,11 +4119,18 @@
       }
       case 'onboard-status': {
         if (!pickedStatus) break;
+        if (onboardStep !== 2 && onboardCalcFor(pickedStatus)) {
+          onboardStep = 2; histPush({ onboard: 2 }); render(); window.scrollTo(0, 0);
+          track('onboarding_calc_viewed', { status: pickedStatus, has_estimate: !!(S.calc && S.calc.type) });
+          break;
+        }
+        var calcShown = onboardStep === 2;
         S.onboarded = true;
         setStatus(pickedStatus, 'onboarding');
         var first = currentLesson();
         track('onboarding_done', {
           goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: first ? first.id : null,
+          calc_shown: calcShown, calc_done: !!(calcShown && S.calc && S.calc.type),
           $set: { status: S.status, goal_xp: S.goalXp, start_unit_id: S.startUnit }
         });
         setView('home');
