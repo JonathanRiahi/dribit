@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* שפת הכסף (Sfat HaKesef) daily reminder sender. GitHub Actions runs it every day (.github/workflows/reminders.yml).
+/* Dribit daily reminder sender. GitHub Actions runs it every day (.github/workflows/reminders.yml).
    1. Reads the push subscriptions from PostHog: the app records push_subscribed and push_unsubscribed events.
    2. Skips people who finished a lesson today (Israel time) and people who already got today's reminder.
    3. Sends one short Web Push message to everyone else; the app's service worker shows it.
@@ -57,7 +57,7 @@ const DIAGNOSE = flag('DIAGNOSE');
 const MESSAGE_MAX = 180;
 const CUSTOM_MESSAGE = (process.env.MESSAGE || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
 // the test goes to someone who just used the app; everyone includes people who already did today's lesson
-const NOW_MESSAGE = CUSTOM_MESSAGE || (ONLY_LATEST ? 'השיעור של היום מחכה לך. כמה דקות וזה מאחוריך.' : 'יש לך כמה דקות? השיעור הבא בשפת הכסף מחכה לך.');
+const NOW_MESSAGE = CUSTOM_MESSAGE || (ONLY_LATEST ? 'השיעור של היום מחכה לך. כמה דקות וזה מאחוריך.' : 'יש לך כמה דקות? השיעור הבא בדריבית מחכה לך.');
 const API_KEY = (process.env.POSTHOG_API_KEY || '').trim();
 // this run's id on its daily reminder_sent events, to wait until PostHog shows them
 const RUN = crypto.randomUUID();
@@ -193,7 +193,7 @@ async function main() {
   const which = t.weekday % MESSAGES.length;
   // a tag per day: a new day's reminder pops up even if yesterday's is still in the notification list (one tag for every
   // day made the new one quietly replace the old one, with no sound or banner)
-  const payload = JSON.stringify({ title: 'שפת הכסף', body: MESSAGES[which], url: './?source=push', tag: 'daily-' + t.date });
+  const payload = JSON.stringify({ title: 'דריבית', body: MESSAGES[which], url: './?source=push', tag: 'daily-' + t.date });
   const events = [];
   const sentRecord = (s) => ({ event: 'reminder_sent', distinct_id: s.uid, properties: { weekday: t.weekday, message: which, push_service: host(s.endpoint), run: RUN } });
   const send = async (s, body, onSent) => {
@@ -347,7 +347,7 @@ async function sendNow(list, kind, t) {
   if (DRY) {
     console.log(`Would send "${NOW_MESSAGE}" to ${list.length} subscription${list.length === 1 ? '' : 's'}.`);
   } else {
-    const payload = JSON.stringify({ title: 'שפת הכסף', body: NOW_MESSAGE, url: './?source=push&kind=' + kind, tag: kind + '-' + Date.now() });
+    const payload = JSON.stringify({ title: 'דריבית', body: NOW_MESSAGE, url: './?source=push&kind=' + kind, tag: kind + '-' + Date.now() });
     const ttl = kind === 'test' ? 3600 : 12 * 3600;
     const one = async (s) => {
       try {
