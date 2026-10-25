@@ -605,7 +605,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
               </div>
               <p class="friends" id="friends" hidden></p>
             </div>
-            <a class="try" href="../?source=landing_joined" data-app data-cta="joined_try">בינתיים אפשר להתחיל כבר עכשיו בדפדפן ←</a>
+            <a class="try" href="https://jonathanriahi.github.io/dribit/?source=landing_joined" data-app data-cta="joined_try">בינתיים אפשר להתחיל כבר עכשיו בדפדפן ←</a>
           </div>
         </div>
 
@@ -626,7 +626,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
 
 <footer class="wrap">
   <p><strong>דריבית</strong>. מידע כללי לחינוך פיננסי, לא ייעוץ השקעות. הסכומים הם הערכה לפי נתוני 2026 ועשויים להשתנות.</p>
-  <p><a href="../?source=landing_footer" data-app data-cta="footer_try">לפתוח את האפליקציה בדפדפן</a></p>
+  <p><a href="https://jonathanriahi.github.io/dribit/?source=landing_footer" data-app data-cta="footer_try">לפתוח את האפליקציה בדפדפן</a></p>
 </footer>
 
 <nav class="tofes" id="tofes" aria-label="טופס הטיולים שלכם">
@@ -650,7 +650,8 @@ footer a { color: var(--ink-2); font-weight: 700; }
   var WA = (CFG.feedback && CFG.feedback.whatsapp) || '';
   var PREVIEW = !!window.LANDING_PREVIEW;
   var VERSION = 'landing-2.1';
-  var SITE = 'https://jonathanriahi.github.io/dribit/landing/';
+  // the landing page is also served at https://dribit.app/ (a Cloudflare Worker, see landing/domain/); invite links keep whichever address the visitor is on
+  var SITE = /(^|\.)dribit\.app$/.test(location.hostname) ? 'https://dribit.app/' : 'https://jonathanriahi.github.io/dribit/landing/';
   var UID_KEY = 'dribit.landing.uid', JOINED_KEY = 'dribit.landing.joined', STAMPS_KEY = 'dribit.landing.stamps', REF_KEY = 'dribit.landing.ref';
   var reduce = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   if (reduce) document.documentElement.classList.add('rm');
