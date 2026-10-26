@@ -1002,7 +1002,8 @@
     document.body.appendChild(wrap);
     sheetOpen = true;
     if (topIsSheet) histReplace({ view: view, sheet: true }); else histEnter({ view: view, sheet: true });
-    var btn = wrap.querySelector('button.btn, a.btn'); // not the color preview's look-alike button
+    // not the color preview's look-alike button, and never a partner's link
+    var btn = Array.prototype.filter.call(wrap.querySelectorAll('button.btn, a.btn'), function (b) { return !b.closest('.offer'); })[0];
     if (btn) { try { btn.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
   }
   // keepEntry: the caller is about to reuse the sheet's history entry (a view change or another sheet)
@@ -1154,44 +1155,102 @@
     livePartners().forEach(function (p) { var d = p.disclosure || CFG.partner.disclosure; if (d && out.indexOf(d) < 0) out.push(d); });
     return out;
   }
-  // a partner's offer: the benefit in one line, the real terms, a caution, the link, the official terms and the disclosure.
-  // place = where it shows (unit_sheet / lesson_done), sent with every event
+  // ---------- A partner's offer card (config.partner.partners[].offer, 0.13.4) ----------
+  // Order: who and what (logo, name, both 400s), what it takes (two tiles + the other terms), a self-check, and only after
+  // "yes" the disclosure and the link on one panel. Official terms, then risk and regulation (folded, its key fact visible).
+  // In the comparison it is a folded tray; on the 5.2 done screen it is open. place (unit_sheet / lesson_done) goes with
+  // every event. offer strings may use {bonus} {deposit} {months} {name} {who}.
+  var offerCheckAns = {};   // partner id -> 'yes' / 'no' for this session (never saved, never sent as a person property)
+  function offerFill(p, t) {
+    var o = p.offer || {};
+    return fillIn(t, { bonus: o.bonus || '', deposit: o.deposit || '', months: o.months || '', name: p.name || '', who: contactName() || '' });
+  }
+  function offerData(p, optionId, place) {
+    return 'data-id="' + esc(p.id) + '" data-option="' + esc(optionId) + '" data-place="' + esc(place) + '"';
+  }
+  function partnerLogo(p) {
+    var mono = esc(p.monogram || String(p.name || '').charAt(0));
+    return p.logo
+      ? '<span class="offer-logo"><img src="' + esc(p.logo) + '" alt="" width="48" height="48" decoding="async" data-mono="' + mono + '"></span>'
+      : '<span class="offer-logo mono" aria-hidden="true">' + mono + '</span>';
+  }
+  // the self-check, the "not now" answer, or (after "yes", or with no check in the config) the disclosure and the link
+  function offerGate(p, optionId, place) {
+    var o = p.offer, c = o.check, d = offerData(p, optionId, place), ans = c ? offerCheckAns[p.id] : 'yes';
+    if (!ans) {
+      return '<div class="offer-gate offer-q" ' + d + '><b>' + offerFill(p, c.q) + '</b>' +
+        (c.hint ? '<p>' + offerFill(p, c.hint) + '</p>' : '') +
+        '<div class="rate-btns"><button class="chip-btn" data-act="partner-check" data-v="yes" ' + d + '>' + esc(c.yes) + '</button>' +
+        '<button class="chip-btn" data-act="partner-check" data-v="no" ' + d + '>' + esc(c.no) + '</button></div></div>';
+    }
+    if (ans === 'no') {
+      var nl = BY_ID[c.noLessonId];
+      return '<div class="offer-gate offer-no" ' + d + '>' + ICON.check + '<div><b>' + offerFill(p, c.noTitle) + '</b><p>' + offerFill(p, c.noText) + '</p>' +
+        (shown(nl) ? '<button class="link" data-act="preview" data-id="' + esc(nl.id) + '">לשיעור "' + esc(nl.title) + '"</button>' : '') +
+        '<button class="link quiet" data-act="partner-check" data-v="undo" ' + d + '>' + esc(c.undo) + '</button></div></div>';
+    }
+    return '<div class="offer-gate offer-act" ' + d + '>' +
+      '<p class="offer-disc">' + ICON.user + '<span><b>גילוי נאות:</b> ' + offerFill(p, o.disclosure) + '</span></p>' +
+      '<a class="btn ghost" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" ' + d + '>' +
+        '<span>' + offerFill(p, o.cta) + '</span>' + ICON.ext + '<span class="sr-only"> (' + offerFill(p, o.ctaNote) + ')</span></a>' +
+      '<p class="offer-note" aria-hidden="true">' + offerFill(p, o.ctaNote) + '</p>' +
+      (c ? '<button class="link quiet" data-act="partner-check" data-v="undo" ' + d + '>' + esc(c.undo) + '</button>' : '') + '</div>';
+  }
   function partnerOffer(p, optionId, place) {
     var o = p.offer;
     if (!o) return '';
-    var d = 'data-id="' + esc(p.id) + '" data-option="' + esc(optionId) + '" data-place="' + esc(place) + '"';
-    return '<div class="offer"><b>' + esc(o.title) + '</b>' +
-      (o.text ? '<p>' + esc(o.text) + '</p>' : '') +
-      ((o.terms || []).length ? '<div class="eyebrow">התנאים, בקצרה</div><ul class="offer-terms">' + o.terms.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '') +
-      (o.caution ? '<p class="offer-caution">' + esc(o.caution) + '</p>' : '') +
-      '<a class="btn ghost" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" ' + d + '>' + esc(o.cta || p.name) + '</a>' +
-      (/^https:\/\//.test(p.termsUrl || '') ? '<a class="link" href="' + esc(p.termsUrl) + '" target="_blank" rel="noopener" data-act="partner-terms" ' + d + '>' + esc(o.termsLink || 'התנאים המלאים') + '</a>' +
-        (p.termsChecked ? '<span class="fine">התנאים נבדקו ב-' + ltr(esc(p.termsChecked)) + '.</span>' : '') : '') +
-      '<p class="fine">' + esc(p.disclosure || CFG.partner.disclosure) + '</p>' +
-      (o.regulation ? '<p class="fine">' + esc(o.regulation) + '</p>' : '') + '</div>';
+    var d = offerData(p, optionId, place), fold = place === 'unit_sheet';
+    var head = '<span class="offer-top">' + partnerLogo(p) +
+        '<span class="offer-id"><b>' + esc(p.name) + '</b><span>' + offerFill(p, o.kind) + '</span></span>' + (fold ? ICON.chevron : '') + '</span>' +
+      '<span class="offer-lead">' + offerFill(p, o.summary) + '</span>';
+    var tile = function (t, cls) {
+      return '<div class="offer-tile ' + cls + '"><span>' + offerFill(p, t.label) + '</span><b>' + ltr(offerFill(p, t.value)) + '</b><span>' + offerFill(p, t.note) + '</span></div>';
+    };
+    var body = '<div class="offer-body">' +
+      (o.need && o.get ? '<div class="offer-tiles">' + tile(o.need, 'need') + tile(o.get, 'get') + '</div>' : '') +
+      ((o.terms || []).length ? '<ul class="offer-terms">' + o.terms.map(function (t) { return '<li>' + offerFill(p, t) + '</li>'; }).join('') + '</ul>' : '') +
+      (o.caution && !o.check ? '<p class="offer-caution">' + ICON.info + '<span>' + offerFill(p, o.caution) + '</span></p>' : '') +
+      offerGate(p, optionId, place) +
+      (/^https:\/\//.test(p.termsUrl || '') ? '<div class="offer-foot">' +
+        (p.termsChecked ? '<p>התנאים נבדקו ב-' + ltr(esc(p.termsChecked)) + '.' + (o.change ? ' ' + offerFill(p, o.change) : '') + '</p>' : '') +
+        '<a class="offer-link" href="' + esc(p.termsUrl) + '" target="_blank" rel="noopener" data-act="partner-terms" ' + d + '>' + offerFill(p, o.termsLink || 'התנאים המלאים') + ICON.ext + '</a></div>' : '') +
+      ((o.more || []).length ? '<details class="offer-more"><summary data-act="partner-more" ' + d + '><span>' + offerFill(p, o.moreTitle) + '</span>' + ICON.chevron + '</summary>' +
+        o.more.map(function (t) { return '<p>' + offerFill(p, t) + '</p>'; }).join('') + '</details>' : '') +
+      '</div>';
+    return fold
+      ? '<details class="offer fold" ' + d + '><summary class="offer-head" data-act="partner-offer-open" ' + d + '>' + head + '</summary>' + body + '</details>'
+      : '<div class="offer open" ' + d + '><div class="offer-head">' + head + '</div>' + body + '</div>';
   }
-  // the offer once more on the done screen of offerLessons, only for someone who said they are thinking of opening an account
-  var offerSeen = {};
+  // the offer on the done screen of offerLessons: only right after someone answered "כן, בקרוב" to the trading-account
+  // question in this visit (not on every replay); "אולי בהמשך" gets one line that points to the comparison
+  var offerSeen = {}, offerFresh = {};
   function offerCard(l) {
     var P = CFG.partner;
-    if (!P || (P.offerLessons || []).indexOf(l.id) < 0) return '';
-    var a = S.intent[l.id];
-    if (a !== 'soon' && a !== 'later') return '';
+    if (!P || (P.offerLessons || []).indexOf(l.id) < 0 || !session || offerFresh[l.id] !== session) return '';
     var ps = livePartners().filter(function (p) { return p.offer; });
     if (!ps.length) return '';
+    var a = S.intent[l.id];
+    var back = '<button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">' + esc(P.doneBack || 'להשוואה בין שלוש האפשרויות') + '</button>';
+    if (a === 'later') return '<div class="intent later">' + ICON.info + '<span>' + esc(P.doneLater || '') + ' <button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">להשוואה</button></span></div>';
+    if (a !== 'soon') return '';
     ps.forEach(function (p) {
       if (offerSeen[p.id + l.id]) return;
       offerSeen[p.id + l.id] = true;
       track('partner_offer_viewed', { partner_id: p.id, place: 'lesson_done', lesson_id: l.id, intent: a });
     });
-    return '<section class="compare on-done"><div class="eyebrow">אם כבר פותחים תיק · לא המלצה</div>' +
-      '<p class="lead">יש כמה דרכים לפתוח תיק: בבנק, בבית השקעות או אצל ברוקר. זו אחת מהן, עם הטבה למי שעומד בתנאים. לפני שבוחרים, משווים עמלות.</p>' +
-      ps.map(function (p) { return partnerOffer(p, p.optionId, 'lesson_done'); }).join('') +
-      '<button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">להשוואה בין שלוש האפשרויות לכסף</button></section>';
+    return '<section class="compare on-done"><div class="eyebrow">' + esc(P.doneEyebrow || 'לא המלצה') + '</div>' +
+      (P.doneLead ? '<p class="lead">' + esc(P.doneLead) + '</p>' : '') +
+      ps.map(function (p) { return partnerOffer(p, p.optionId, 'lesson_done'); }).join('') + back + '</section>';
   }
+  // a missing or broken logo file (offline before it was cached) turns into the letter tile
+  document.addEventListener('error', function (e) {
+    var im = e.target, t = im && im.parentNode;
+    if (!im || im.tagName !== 'IMG' || !t || !t.classList || !t.classList.contains('offer-logo')) return;
+    t.classList.add('mono'); t.setAttribute('aria-hidden', 'true'); t.textContent = im.getAttribute('data-mono') || '';
+  }, true);
 
   // the neutral three-options comparison on the unit page (in lessons and in the home cards never; on the done screen
-  // only the offer, through offerCard)
+  // only the offer, through offerCard). In each option: title, text, who earns, the lesson, and an offer tray last.
   var partnerCardSeen = false;
   function compareCard(u) {
     var P = CFG.partner;
@@ -1199,18 +1258,20 @@
     var all = livePartners();
     var items = P.options.map(function (o) {
       var ps = all.filter(function (p) { return p.optionId === o.id; }), l = BY_ID[o.lessonId];
-      var plain = ps.filter(function (p) { return !p.offer; });
+      var plain = ps.filter(function (p) { return !p.offer; }), offers = ps.filter(function (p) { return p.offer; });
       return '<li class="cmp-opt"><b>' + esc(o.title) + '</b><p>' + esc(o.text) + '</p>' +
+        '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
+        (shown(l) ? '<button class="link" data-act="preview" data-id="' + esc(l.id) + '">לשיעור "' + esc(l.title) + '"</button>' : '') +
         (plain.length ? '<p class="cmp-partners">אפשר לפתוח אצל: ' + plain.map(function (p) {
           return '<a class="link" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" data-id="' + esc(p.id) + '" data-option="' + esc(o.id) + '" data-place="unit_sheet">' + esc(p.name) + '</a>';
         }).join(', ') + '</p>' : '') +
-        ps.filter(function (p) { return p.offer; }).map(function (p) { return partnerOffer(p, o.id, 'unit_sheet'); }).join('') +
-        (ps.length ? '<p class="fine">זה לא דירוג. אפשר לפתוח תיק כזה גם בבנק, בבית השקעות או אצל ברוקר אחר, וכדאי להשוות תעריפונים לפני שבוחרים.</p>' : '') +
-        '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
-        (shown(l) ? '<button class="link" data-act="preview" data-id="' + esc(l.id) + '">לשיעור "' + esc(l.title) + '"</button>' : '') + '</li>';
+        (ps.length ? '<p class="fine">' + esc(P.notRanking || 'זה לא דירוג. כדאי להשוות תעריפונים לפני שבוחרים.') + '</p>' : '') +
+        offers.map(function (p) { return partnerOffer(p, o.id, 'unit_sheet'); }).join('') + '</li>';
     }).join('');
     if (!partnerCardSeen) { partnerCardSeen = true; track('partner_card_viewed', { unit_id: u.id, partners: all.length, comparison_only: !all.length }); }
-    var disc = partnerDisclosures();
+    // partners with an offer card carry their disclosure next to their link, so it is not repeated here
+    var disc = [];
+    all.forEach(function (p) { var t = p.disclosure || P.disclosure; if (!p.offer && t && disc.indexOf(t) < 0) disc.push(t); });
     return '<section class="compare"><div class="eyebrow">השוואה · לא המלצה</div><b>' + esc(P.title) + '</b><p class="lead">' + esc(P.intro) + '</p>' +
       '<ul class="cmp-list">' + items + '</ul>' +
       (disc.length ? '<p class="fine">' + disc.map(esc).join(' ') + '</p>' : '') +
@@ -2088,7 +2149,8 @@
     if ((CFG.investIntentLessons || []).indexOf(l.id) < 0) return '';
     var a = S.intent[l.id];
     if (a) return '<div class="intent done">' + ICON.check + '<span>תודה! התשובה עוזרת לנו להבין מה מעניין אתכם.</span></div>';
-    return '<div class="intent"><b>חושבים לפתוח תיק מסחר בזמן הקרוב?</b><span>זו לא המלצה. רק שאלה, כדי שנדע מה מעניין אתכם.</span><div class="rate-btns">' +
+    var sub = livePartners().some(function (p) { return p.offer; }) ? 'זו לא המלצה. התשובה עוזרת לנו להבין מה מעניין אתכם.' : 'זו לא המלצה. רק שאלה, כדי שנדע מה מעניין אתכם.';
+    return '<div class="intent"><b>חושבים לפתוח תיק מסחר בזמן הקרוב?</b><span>' + sub + '</span><div class="rate-btns">' +
       [['soon', 'כן, בקרוב'], ['later', 'אולי בהמשך'], ['no', 'לא']].map(function (r) {
         return '<button class="chip-btn" data-act="intent" data-v="' + r[0] + '" data-id="' + esc(l.id) + '">' + r[1] + '</button>';
       }).join('') + '</div></div>';
@@ -2153,7 +2215,7 @@
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-        ratingRow(l) + intentCard(l) + amountCard(l) + offerCard(l) + missionCard(l, true);
+        ratingRow(l) + intentCard(l) + amountCard(l) + missionCard(l, true) + offerCard(l);
     }
     // iPhone: the install ask comes right after the first lesson, while the win is fresh (Android keeps the home card)
     if (s.mode === 'lesson' && s.firstTime && INSTALL.showOnDone && IS_IOS && doneCount() === INSTALL.afterLessons) {
@@ -4318,6 +4380,7 @@
         break;
       case 'intent':
         S.intent[id] = el.getAttribute('data-v'); save();
+        offerFresh[id] = session; // the offer shows on this done screen only, not on later replays
         track('invest_intent', { lesson_id: id, answer: S.intent[id], $set: { invest_intent: S.intent[id] } });
         sfx.pair(); render();
         break;
@@ -4332,7 +4395,7 @@
       }
       case 'partner-link': {
         var pp = partnerById(id);
-        track('partner_link_clicked', { option_id: el.getAttribute('data-option'), partner_id: id, partner: pp ? pp.name : null, place: el.getAttribute('data-place') || null, referral: !!(pp && pp.friendReferral), unit_id: CFG.partner && CFG.partner.unitId, lesson_id: view === 'done' && session && session.lesson ? session.lesson.id : null, $set: { partner_link_clicked: true } });
+        track('partner_link_clicked', { option_id: el.getAttribute('data-option'), partner_id: id, partner: pp ? pp.name : null, place: el.getAttribute('data-place') || null, referral: !!(pp && pp.friendReferral), selfcheck: offerCheckAns[id] || null, unit_id: CFG.partner && CFG.partner.unitId, lesson_id: view === 'done' && session && session.lesson ? session.lesson.id : null, $set: { partner_link_clicked: true } });
         flush();
         break; // no preventDefault: the link opens
       }
@@ -4340,6 +4403,22 @@
         track('partner_terms_clicked', { partner_id: id, place: el.getAttribute('data-place') || null });
         flush();
         break; // the link opens
+      case 'partner-offer-open': // the <summary> of the folded tray: count opening only, the <details> toggles by itself
+      case 'partner-more': {
+        var dt = el.parentNode;
+        if (dt && !dt.open) track(act === 'partner-more' ? 'partner_more_opened' : 'partner_offer_opened', { partner_id: id, place: el.getAttribute('data-place') || null });
+        break;
+      }
+      case 'partner-check': {
+        // the self-check before the link: redraw only this block, so an open tray and the scroll stay as they are
+        var pc = partnerById(id), v = el.getAttribute('data-v'), gate = el.closest('.offer-gate');
+        if (!pc || !pc.offer || !gate) break;
+        if (v === 'undo') delete offerCheckAns[id]; else offerCheckAns[id] = v === 'yes' ? 'yes' : 'no';
+        if (v !== 'undo') track('partner_selfcheck', { partner_id: id, answer: offerCheckAns[id], place: el.getAttribute('data-place') || null });
+        sfx.pair();
+        gate.outerHTML = offerGate(pc, el.getAttribute('data-option'), el.getAttribute('data-place'));
+        break;
+      }
       case 'reset':
         openSheet('<h3>לאפס את כל ההתקדמות?</h3><p class="lead">הנקודות, הרצף, השיעורים והמשימות יימחקו מהמכשיר הזה.</p>' +
           '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn bad" data-act="reset-confirm">לאפס</button></div>');
@@ -4413,7 +4492,7 @@
     // a sheet outside a lesson (a mission, the calculator, a code to paste), a practice or rescue run (no card to
     // continue from), and a share or link the app opened. A sheet with typed text is never thrown away.
     var keep = byApp || (sheetOpen && view !== 'lesson') || (view === 'lesson' && session && session.mode !== 'lesson') ||
-      (view === 'done' && !!root.querySelector('.done-wrap .intent:not(.done)')); // a one-time question still waiting
+      (view === 'done' && !!root.querySelector('.done-wrap .intent:not(.done):not(.later), .done-wrap .compare.on-done')); // a one-time question or the one-shot offer still waiting
     var limit = keep ? AWAY_KEEP_MS : AWAY_HOME_MS;
     if (sheetOpen && sheetHasText()) limit = Infinity;
     if (away >= limit && S.onboarded && S.status && (view !== 'home' || sheetOpen)) {
