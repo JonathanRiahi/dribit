@@ -1648,6 +1648,16 @@
     return '<button class="legal-line" data-act="legal">' + ICON.info + esc(CFG.disclaimer) + (withExamples ? ' · ' + esc(CFG.examplesNote) : '') + '</button>';
   }
 
+  // an explanation screen: an optional bold opening line ("lead"), the body, and the box under it.
+  // The box is "דוגמה" unless the screen names it ("exampleLabel", 0.13.3: "שים לב להבדל", "מה עושים?").
+  // Line breaks in body and example show as paragraphs (white-space: pre-line in styles.css).
+  function screenText(s) {
+    return (s.lead ? '<p class="lead-line">' + esc(s.lead) + '</p>' : '') + '<p>' + esc(s.body) + '</p>';
+  }
+  function screenBox(s) {
+    return s.example ? '<div class="example"><span class="eyebrow">' + esc(s.exampleLabel || 'דוגמה') + '</span><p>' + esc(s.example) + '</p></div>' : '';
+  }
+
   function renderPlayer() {
     var st = step();
     var cls = 'player u' + unitOfStep(st);
@@ -1657,8 +1667,8 @@
       return '<div class="' + cls + '">' + playerTop() +
         '<div class="stage gutter">' +
           '<div class="kicker">' + esc(session.lesson.title) + ' · הסבר ' + (st.n + 1) + ' מתוך ' + st.of + '</div>' +
-          '<article class="explain-card' + (st.s.type === 'calculator' ? ' calc-screen' : '') + '"><h2>' + esc(st.s.title) + '</h2><p>' + esc(st.s.body) + '</p>' +
-            (st.s.type === 'calculator' ? calcWidget('lesson') : st.s.example ? '<div class="example"><span class="eyebrow">דוגמה</span><p>' + esc(st.s.example) + '</p></div>' : '') +
+          '<article class="explain-card' + (st.s.type === 'calculator' ? ' calc-screen' : '') + '"><h2>' + esc(st.s.title) + '</h2>' + screenText(st.s) +
+            (st.s.type === 'calculator' ? calcWidget('lesson') : screenBox(st.s)) +
           '</article>' +
           '<div class="dots" aria-hidden="true">' + dots + '</div>' +
           legalLine(false) +
@@ -2244,9 +2254,9 @@
   // ---------- Notes (reread a finished lesson) ----------
   function renderNotes(l) {
     var screens = l.vScreens.map(function (s) {
-      return '<article class="explain-card flat"><h2>' + esc(s.title) + '</h2><p>' + esc(s.body) + '</p>' +
+      return '<article class="explain-card flat"><h2>' + esc(s.title) + '</h2>' + screenText(s) +
         (s.type === 'calculator' ? '<button class="btn ghost" data-act="calc-open" data-from="notes">לפתוח את המחשבון</button>'
-          : s.example ? '<div class="example"><span class="eyebrow">דוגמה</span><p>' + esc(s.example) + '</p></div>' : '') + '</article>';
+          : screenBox(s)) + '</article>';
     }).join('');
     return '<div class="notes u' + l.unit.id + '"><div class="player-top gutter"><button class="icon-btn" data-act="notes-close" aria-label="חזרה">' + ICON.back + '</button>' +
       '<div class="notes-title"><span class="eyebrow">יחידה ' + l.unit.n + ' · שיעור ' + l.n + '</span><b>' + esc(l.title) + '</b></div></div>' +
@@ -2276,7 +2286,8 @@
   function peekSheet() {
     var l = session.lesson;
     var screens = l.vScreens.map(function (s) {
-      return '<div class="peek-item"><b>' + esc(s.title) + '</b><p>' + esc(s.body) + '</p>' + (s.example ? '<p class="ex">' + esc(s.example) + '</p>' : '') + '</div>';
+      return '<div class="peek-item"><b>' + esc(s.title) + '</b>' + (s.lead ? '<p class="lead-line">' + esc(s.lead) + '</p>' : '') + '<p>' + esc(s.body) + '</p>' +
+        (s.example ? '<p class="ex">' + (s.exampleLabel ? '<b>' + esc(s.exampleLabel) + ': </b>' : '') + esc(s.example) + '</p>' : '') + '</div>';
     }).join('');
     openSheet('<div class="eyebrow">' + esc(l.title) + '</div><h3>ההסברים של השיעור</h3>' + screens + '<button class="btn" data-act="close-sheet">חזרה לשאלה</button>', 'tall');
   }
