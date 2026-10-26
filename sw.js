@@ -2,7 +2,7 @@
 // build.py stamps VERSION, the file list and PUSH (the public push key and the usage-data key from config.js).
 // Each deploy changes VERSION, so phones fetch the new version in the background and the app reloads itself
 // on the next screen change.
-var VERSION = '0.13.1-a2e416fd';
+var VERSION = '0.13.1-3b1f4179';
 var FILES = ["./", "index.html", "styles.css", "config.js", "app.js", "manifest.webmanifest", "icons/apple-touch-icon.png", "icons/badge-96.png", "icons/favicon-32.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon.svg", "icons/maskable-512.png", "assets/images/done-celebration.svg", "assets/images/empty-empty.svg", "assets/images/unit1-online-banking.svg", "assets/images/unit2-savings.svg", "assets/images/unit3-watering-plants.svg", "assets/images/unit4-bull-market.svg", "assets/images/unit5-investing.svg", "assets/images/unit6-warning.svg", "assets/images/unit7-career-progress.svg", "assets/images/unit8-five-year-plan.svg", "assets/images/welcome-growth-curve.svg", "data/lessons.json"];
 var PUSH = {"key": "BMwrT7BZQpvx3UGBsw5khdO5ZkwERNxRXz1slfXdwAWv0tMwhybKF6r25OJ3Ca_xqDKUoHllMRY82gacM79Nr6g", "posthogKey": "phc_tsse5UQex6pJhPK4yZkLjXLTXykftLFo8BXibrXa3Bqm", "host": "https://eu.i.posthog.com"};
 var CACHE = 'dribit-' + VERSION;
@@ -42,7 +42,8 @@ self.addEventListener('fetch', function (e) {
 
   // app pages open from the cache, so the app works offline
   // pages of their own (the landing page) load from the network, never as the app
-  if (url.pathname.indexOf('/landing/') !== -1) return;
+  // the landing page's own requests (like ../config.js) also go to the network, so it never reads an old cached config
+  if (url.pathname.indexOf('/landing/') !== -1 || (req.referrer && req.referrer.indexOf('/landing/') !== -1)) return;
   if (req.mode === 'navigate') {
     e.respondWith(caches.match('index.html', { cacheName: CACHE }).then(function (hit) { return hit || fetch(req); }));
     return;
