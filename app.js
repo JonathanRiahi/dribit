@@ -1129,16 +1129,20 @@
   }
 
   // ---------- Partners (config.partner) ----------
-  // a partner is "live" only with the master switch on, a signed contract, approved wording, a name and an https link
+  // a partner is "live" only with the master switch on, approved wording, a name, an https link, and a basis:
+  // a signed contract, or a personal refer-a-friend link that the company OK'd (friendReferral + referralOk)
   var partnerWarned = {};
-  function partnerLive(p) { return !!(p && p.enabled && p.contractSigned && p.textApproved && p.name && /^https:\/\//.test(p.url || '')); }
+  function partnerLive(p) {
+    return !!(p && p.enabled && p.textApproved && p.name && /^https:\/\//.test(p.url || '') &&
+      (p.contractSigned || (p.friendReferral && p.referralOk)));
+  }
   function livePartners(optionId) {
     var P = CFG.partner;
     if (!P || !P.enabled) return [];
     return (P.partners || []).filter(function (p) {
       if (!p || !p.enabled) return false;
       if (!partnerLive(p)) {
-        if (!partnerWarned[p.id]) { partnerWarned[p.id] = true; console.warn('dribit: partner "' + p.id + '" is enabled but not live (needs contractSigned, textApproved, name and an https url)'); }
+        if (!partnerWarned[p.id]) { partnerWarned[p.id] = true; console.warn('dribit: partner "' + p.id + '" is enabled but not live (needs textApproved, a name, an https url, and contractSigned or friendReferral with referralOk)'); }
         return false;
       }
       return !optionId || p.optionId === optionId;
@@ -1150,7 +1154,44 @@
     livePartners().forEach(function (p) { var d = p.disclosure || CFG.partner.disclosure; if (d && out.indexOf(d) < 0) out.push(d); });
     return out;
   }
-  // the neutral three-options comparison on the unit page (never on the done screen, in lessons or in the home cards)
+  // a partner's offer: the benefit in one line, the real terms, a caution, the link, the official terms and the disclosure.
+  // place = where it shows (unit_sheet / lesson_done), sent with every event
+  function partnerOffer(p, optionId, place) {
+    var o = p.offer;
+    if (!o) return '';
+    var d = 'data-id="' + esc(p.id) + '" data-option="' + esc(optionId) + '" data-place="' + esc(place) + '"';
+    return '<div class="offer"><b>' + esc(o.title) + '</b>' +
+      (o.text ? '<p>' + esc(o.text) + '</p>' : '') +
+      ((o.terms || []).length ? '<div class="eyebrow">התנאים, בקצרה</div><ul class="offer-terms">' + o.terms.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '') +
+      (o.caution ? '<p class="offer-caution">' + esc(o.caution) + '</p>' : '') +
+      '<a class="btn ghost" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" ' + d + '>' + esc(o.cta || p.name) + '</a>' +
+      (/^https:\/\//.test(p.termsUrl || '') ? '<a class="link" href="' + esc(p.termsUrl) + '" target="_blank" rel="noopener" data-act="partner-terms" ' + d + '>' + esc(o.termsLink || 'התנאים המלאים') + '</a>' +
+        (p.termsChecked ? '<span class="fine">התנאים נבדקו ב-' + ltr(esc(p.termsChecked)) + '.</span>' : '') : '') +
+      '<p class="fine">' + esc(p.disclosure || CFG.partner.disclosure) + '</p>' +
+      (o.regulation ? '<p class="fine">' + esc(o.regulation) + '</p>' : '') + '</div>';
+  }
+  // the offer once more on the done screen of offerLessons, only for someone who said they are thinking of opening an account
+  var offerSeen = {};
+  function offerCard(l) {
+    var P = CFG.partner;
+    if (!P || (P.offerLessons || []).indexOf(l.id) < 0) return '';
+    var a = S.intent[l.id];
+    if (a !== 'soon' && a !== 'later') return '';
+    var ps = livePartners().filter(function (p) { return p.offer; });
+    if (!ps.length) return '';
+    ps.forEach(function (p) {
+      if (offerSeen[p.id + l.id]) return;
+      offerSeen[p.id + l.id] = true;
+      track('partner_offer_viewed', { partner_id: p.id, place: 'lesson_done', lesson_id: l.id, intent: a });
+    });
+    return '<section class="compare on-done"><div class="eyebrow">אם כבר פותחים תיק · לא המלצה</div>' +
+      '<p class="lead">יש כמה דרכים לפתוח תיק: בבנק, בבית השקעות או אצל ברוקר. זו אחת מהן, עם הטבה למי שעומד בתנאים. לפני שבוחרים, משווים עמלות.</p>' +
+      ps.map(function (p) { return partnerOffer(p, p.optionId, 'lesson_done'); }).join('') +
+      '<button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">להשוואה בין שלוש האפשרויות לכסף</button></section>';
+  }
+
+  // the neutral three-options comparison on the unit page (in lessons and in the home cards never; on the done screen
+  // only the offer, through offerCard)
   var partnerCardSeen = false;
   function compareCard(u) {
     var P = CFG.partner;
@@ -1158,10 +1199,13 @@
     var all = livePartners();
     var items = P.options.map(function (o) {
       var ps = all.filter(function (p) { return p.optionId === o.id; }), l = BY_ID[o.lessonId];
+      var plain = ps.filter(function (p) { return !p.offer; });
       return '<li class="cmp-opt"><b>' + esc(o.title) + '</b><p>' + esc(o.text) + '</p>' +
-        (ps.length ? '<p class="cmp-partners">אפשר לפתוח אצל: ' + ps.map(function (p) {
-          return '<a class="link" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" data-id="' + esc(p.id) + '" data-option="' + esc(o.id) + '">' + esc(p.name) + '</a>';
-        }).join(', ') + '</p><p class="fine">זה לא דירוג. כדאי להשוות תעריפונים לפני שבוחרים.</p>' : '') +
+        (plain.length ? '<p class="cmp-partners">אפשר לפתוח אצל: ' + plain.map(function (p) {
+          return '<a class="link" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" data-id="' + esc(p.id) + '" data-option="' + esc(o.id) + '" data-place="unit_sheet">' + esc(p.name) + '</a>';
+        }).join(', ') + '</p>' : '') +
+        ps.filter(function (p) { return p.offer; }).map(function (p) { return partnerOffer(p, o.id, 'unit_sheet'); }).join('') +
+        (ps.length ? '<p class="fine">זה לא דירוג. אפשר לפתוח תיק כזה גם בבנק, בבית השקעות או אצל ברוקר אחר, וכדאי להשוות תעריפונים לפני שבוחרים.</p>' : '') +
         '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
         (shown(l) ? '<button class="link" data-act="preview" data-id="' + esc(l.id) + '">לשיעור "' + esc(l.title) + '"</button>' : '') + '</li>';
     }).join('');
@@ -1195,7 +1239,7 @@
     var reviewed = rv.name ? fillIn(a.reviewedBy, { name: rv.name, role: rv.role || '' }) : esc(a.notReviewed);
     var names = live.map(function (p) { return p.name; });
     var earn = !live.length ? esc(a.earnNow)
-      : live.length === 1 ? fillIn(a.earnPartner, { partner: names[0] })
+      : live.length === 1 ? fillIn(live[0].about || a.earnPartner, { partner: names[0] })
       : fillIn(a.earnPartners || a.earnPartner, { partners: names.join(', '), partner: names.join(', ') });
     var wa = waNumber();
     openSheet('<h3>' + esc(a.title) + '</h3>' +
@@ -2109,7 +2153,7 @@
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-        ratingRow(l) + intentCard(l) + amountCard(l) + missionCard(l, true);
+        ratingRow(l) + intentCard(l) + amountCard(l) + offerCard(l) + missionCard(l, true);
     }
     // iPhone: the install ask comes right after the first lesson, while the win is fresh (Android keeps the home card)
     if (s.mode === 'lesson' && s.firstTime && INSTALL.showOnDone && IS_IOS && doneCount() === INSTALL.afterLessons) {
@@ -4288,10 +4332,14 @@
       }
       case 'partner-link': {
         var pp = partnerById(id);
-        track('partner_link_clicked', { option_id: el.getAttribute('data-option'), partner_id: id, partner: pp ? pp.name : null, unit_id: CFG.partner && CFG.partner.unitId, $set: { partner_link_clicked: true } });
+        track('partner_link_clicked', { option_id: el.getAttribute('data-option'), partner_id: id, partner: pp ? pp.name : null, place: el.getAttribute('data-place') || null, referral: !!(pp && pp.friendReferral), unit_id: CFG.partner && CFG.partner.unitId, lesson_id: view === 'done' && session && session.lesson ? session.lesson.id : null, $set: { partner_link_clicked: true } });
         flush();
         break; // no preventDefault: the link opens
       }
+      case 'partner-terms':
+        track('partner_terms_clicked', { partner_id: id, place: el.getAttribute('data-place') || null });
+        flush();
+        break; // the link opens
       case 'reset':
         openSheet('<h3>לאפס את כל ההתקדמות?</h3><p class="lead">הנקודות, הרצף, השיעורים והמשימות יימחקו מהמכשיר הזה.</p>' +
           '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn bad" data-act="reset-confirm">לאפס</button></div>');

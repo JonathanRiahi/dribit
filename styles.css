@@ -930,6 +930,18 @@ button.slot { cursor: pointer; }
 .rate-btns.bands { display: grid; grid-template-columns: 1fr 1fr; }
 .rate-btns.bands .chip-btn { text-align: center; padding-inline: 6px; font-size: 14.5px; }
 .intent .skip { align-self: flex-start; font-size: 14px; }
+/* 0.13.4: a partner's offer (terms, caution, link, disclosure) in the comparison and on the 5.2 done screen */
+.offer { align-self: stretch; display: flex; flex-direction: column; gap: 8px; border: 2px dashed var(--line); border-radius: var(--r-md); padding: 12px 14px; background: var(--surface-2); }
+.offer > b { font-family: var(--font-display); font-weight: 600; font-size: 16px; }
+.offer p { color: var(--ink-2); font-size: 14.5px; line-height: 1.5; }
+.offer .eyebrow { margin-top: 2px; }
+.offer-terms { display: flex; flex-direction: column; gap: 4px; padding-inline-start: 18px; list-style: disc; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
+.offer .offer-caution { color: var(--ink); font-weight: 600; font-size: 14px; }
+.offer .btn { margin-top: 4px; text-decoration: none; text-align: center; }
+.offer > .link { align-self: flex-start; font-size: 14px; }
+.offer .fine { font-size: 12.5px; }
+.compare.on-done { margin-top: 0; padding: 14px 16px; border: 2px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.compare.on-done > .link { align-self: flex-start; font-size: 14px; }
 
 /* ---------- v0.5: feedback, install, level up ---------- */
 .faces { display: flex; gap: 6px; }
