@@ -563,13 +563,6 @@ footer a { color: var(--ink-2); font-weight: 700; }
             <label class="hp" aria-hidden="true">חברה<input type="text" name="company" id="company" tabindex="-1" autocomplete="off"></label>
 
             <fieldset>
-              <legend class="lbl">איזה טלפון יש לכם?</legend>
-              <div class="chips">
-                <label class="pick"><input type="radio" name="device" value="android"><span>אנדרואיד</span></label>
-                <label class="pick"><input type="radio" name="device" value="iphone"><span>אייפון</span></label>
-              </div>
-            </fieldset>
-            <fieldset>
               <legend class="lbl">איפה אתם עכשיו?</legend>
               <div class="chips">
                 <label class="pick"><input type="radio" name="status" value="sadir"><span>בשירות סדיר</span></label>
@@ -958,7 +951,8 @@ footer a { color: var(--ink-2); font-weight: 700; }
     if (!$('consent').checked) { consentErr.textContent = 'צריך לסמן את האישור, כדי שנוכל לשלוח לכם הודעה.'; return; }
     if ($('company').value) { showDone({ at: new Date().toISOString() }, true); return; } // bots fill the hidden field
 
-    var device = picked('device'), status = picked('status');
+    // no phone question in the form: read it from the browser instead (null on a computer)
+    var device = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'iphone' : /Android/i.test(navigator.userAgent) ? 'android' : null, status = picked('status');
     var code = (joined && joined.code) || newCode();
     var stations = Object.keys(stamps).filter(function (k) { return k !== 'sign'; });
     var row = { contact: contact, contact_type: mode, device: device, status: status, source: source, ref: refIn && refIn !== code ? refIn : '', code: code, consent: true, stations: stations.join(','), v: VERSION };
