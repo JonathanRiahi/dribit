@@ -448,6 +448,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .explain-card.flat { animation: none; }
 .explain-card h2 { font-size: 25px; }
 .explain-card p { font-size: 18px; line-height: 1.7; color: var(--ink); }
+.explain-card p, .example p, .peek-item p { white-space: pre-line; }
+.explain-card .lead-line { font-family: var(--font-display); font-weight: 600; font-size: 19px; line-height: 1.45; }
+.peek-item .lead-line { font-weight: 700; color: var(--ink); }
 .example { background: var(--example-bg); border-radius: var(--r-md); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; border-inline-start: 4px solid var(--brand); }
 .example p { font-size: 16px; line-height: 1.6; }
 .dots { display: flex; gap: 6px; justify-content: center; }
