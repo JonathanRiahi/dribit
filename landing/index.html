@@ -951,7 +951,9 @@ footer a { color: var(--ink-2); font-weight: 700; }
     var device = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'iphone' : /Android/i.test(navigator.userAgent) ? 'android' : null, status = picked('status');
     var code = (joined && joined.code) || newCode();
     var stations = Object.keys(stamps).filter(function (k) { return k !== 'sign'; });
-    var row = { contact: contact, contact_type: mode, device: device, status: status, source: source, ref: refIn && refIn !== code ? refIn : '', code: code, consent: true, stations: stations.join(','), v: VERSION };
+    // ref stays empty on purpose: the deployed sheet script still moves the inviter up for every ref, and Jonathan
+    // keeps that script as is (26.10). Who invited whom is still measured in PostHog (ref_code) and in the source column.
+    var row = { contact: contact, contact_type: mode, device: device, status: status, source: source, ref: '', code: code, consent: true, stations: stations.join(','), v: VERSION };
     var props = {
       contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null,
       device: device, status: status, consent: true, consent_text: 'הודעה כשהאפליקציה מוכנה ועדכונים מדי פעם, אפשר לבקש הסרה',
