@@ -16,7 +16,7 @@ KEY = os.environ.get('ELEVENLABS_API_KEY', '')
 MODEL = os.environ.get('VO_MODEL', 'eleven_v3')
 DRY = os.environ.get('DRY') == '1'
 SR = 44100
-TARGET, MAX_TEMPO = 15.4, 1.12
+TARGET, MAX_TEMPO = 15.4, float(os.environ.get('MAX_TEMPO', '1.2'))
 LEAD = 0.12          # voice starts this long after its scene starts
 TAIL = 0.28          # gap after a line before the next scene
 API = 'https://api.elevenlabs.io'
