@@ -4,9 +4,10 @@
  * מה הסקריפט עושה:
  *  - doPost: דף הנחיתה שולח לכאן כל הרשמה. שורה חדשה בגיליון "רשימת המתנה".
  *    מי שכבר ברשימה (אותו טלפון או אימייל) לא נכנס פעמיים: מקבל בחזרה את הקוד והמקום שלו.
- *    מי שנרשם מקישור של חבר (ref) מוסיף לחבר הזמנה אחת, וכל הזמנה מקדמת אותו BOOST מקומות.
+ *    מי שנרשם מקישור של חבר (ref) נספר לחבר בעמודת "הזמנות" (רק למדידה: זה לא משנה את המקום בתור).
  *  - doGet?count=1: כמה אנשים ברשימה (הדף מציג את זה רק מעל 50).
- *  - doGet?code=XXXXXX: המקום בתור ומספר ההזמנות של קוד אחד (בלי שום פרט אישי).
+ *  - doGet?code=XXXXXX: המקום בתור של קוד אחד (בלי שום פרט אישי).
+ *  - אימייל אליך על כל נרשם חדש (NOTIFY). נשלח מהחשבון שלך אל עצמך, ולכן אין בקוד שום כתובת.
  *  - גיליון "סיכום": נוסחאות שמתעדכנות לבד (סך הכול, אנדרואיד/אייפון, לפי סטטוס ולפי מקור).
  *
  * התקנה: ראו README.md באותה תיקייה. אחרי כל שינוי בקוד: Deploy > Manage deployments > עריכה > New version.
@@ -14,7 +15,7 @@
 
 var SHEET_NAME = 'רשימת המתנה';
 var SUMMARY_NAME = 'סיכום';
-var BOOST = 5; // כמה מקומות מקדמת כל הזמנה. חייב להיות זהה ל-waitlist.boostPerFriend ב-config.js
+var NOTIFY = true; // אימייל על כל נרשם חדש. false = בלי אימיילים
 var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף'];
 var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12 };
 
@@ -49,7 +50,7 @@ function doPost(e) {
     rows.forEach(function (r) { taken[r[COL.code - 1]] = true; });
     while (taken[code]) code = newCode_();
 
-    // the friend who sent the link gets one more invite
+    // count the signup for the friend who sent the link (for measurement only, the place in line doesn't change)
     var ref = String(d.ref || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     var refRow = -1;
     if (ref && ref !== code) {
@@ -85,7 +86,9 @@ function doPost(e) {
 
     SpreadsheetApp.flush();
     rows = data_(sh);
-    return json_(placeOf_(rows, rows.length - 1, { ok: true }));
+    var out = placeOf_(rows, rows.length - 1, { ok: true });
+    if (NOTIFY) notify_(row, out);
+    return json_(out);
   } catch (err) {
     return json_({ ok: false, error: 'server' });
   } finally {
@@ -105,18 +108,10 @@ function doGet(e) {
   return json_({ ok: true, total: rows.length });
 }
 
-// place in line: the order of signing, minus BOOST places for every invite (never above 1)
+// place in line: the order of signing. Inviting friends doesn't move anyone up (Jonathan, 26.10).
 function placeOf_(rows, i, out) {
-  function score(k) { return k - BOOST * (Number(rows[k][COL.refs - 1]) || 0); }
-  var mine = score(i), ahead = 0;
-  for (var k = 0; k < rows.length; k++) {
-    if (k === i) continue;
-    var s = score(k);
-    if (s < mine || (s === mine && k < i)) ahead++;
-  }
   out.code = rows[i][COL.code - 1];
-  out.position = ahead + 1;
-  out.refs = Number(rows[i][COL.refs - 1]) || 0;
+  out.position = i + 1;
   out.total = rows.length;
   return out;
 }
@@ -187,6 +182,24 @@ function newCode_() {
 }
 
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+// an email to the owner of the sheet about the new signup. A failure here never fails the signup.
+function notify_(row, out) {
+  try {
+    var to = Session.getEffectiveUser().getEmail();
+    if (!to) return;
+    var lines = [
+      'מקום ברשימה: #' + out.position + ' (סך הכול ' + out.total + ')',
+      'טלפון או אימייל: ' + row[COL.contact - 1],
+      'סטטוס: ' + (row[COL.status - 1] || 'לא נבחר'),
+      'טלפון: ' + (row[COL.device - 1] || 'מחשב'),
+      'מקור: ' + (row[COL.source - 1] || 'direct'),
+      '',
+      'הגיליון: ' + SpreadsheetApp.getActiveSpreadsheet().getUrl()
+    ];
+    MailApp.sendEmail({ to: to, subject: 'דריבית: נרשם/ה חדש/ה לרשימה (#' + out.position + ')', body: lines.join('\n'), name: 'רשימת ההמתנה של דריבית' });
+  } catch (err) {}
+}
 
 // optional: run once from the editor to create both sheets before the first signup
 function setup() { sheet_(); }
