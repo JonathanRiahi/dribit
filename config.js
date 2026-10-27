@@ -132,9 +132,9 @@ window.DRIBIT_CONFIG = {
 
   // רשימת ההמתנה בדף הנחיתה (landing/). כל הרשמה נשלחת ל-PostHog (אירוע waitlist_signup), וגם לגיליון Google Sheets
   // כשיש sheetUrl: כתובת ה-Web App של Apps Script (הוראות ב-landing/waitlist/README.md). הכתובת אינה סוד.
-  // ריק = רק PostHog, והדף לא מציג מקום בתור. boostPerFriend: כמה מקומות מקדם כל חבר שנרשם מהקישור (חייב להיות זהה ל-BOOST בסקריפט).
+  // ריק = רק PostHog, והדף לא מציג מקום בתור. המקום בתור הוא סדר ההרשמה בלבד: הזמנת חברים לא מקדמת אף אחד (יהונתן, 26.10).
   // showCountFrom: מאיזה מספר נרשמים מציגים "כבר N ברשימה" (מספר אמיתי מהגיליון; מתחתיו לא מציגים כלום).
-  waitlist: { sheetUrl: 'https://script.google.com/macros/s/AKfycbxnlP9KdS0RdpZVQqwqxERZ1DonMLRbrZ7v9CFxSkWa59t--v_J87HdwEZIlFMvlRRfsA/exec', boostPerFriend: 5, showCountFrom: 50 },
+  waitlist: { sheetUrl: 'https://script.google.com/macros/s/AKfycbxnlP9KdS0RdpZVQqwqxERZ1DonMLRbrZ7v9CFxSkWa59t--v_J87HdwEZIlFMvlRRfsA/exec', showCountFrom: 50 },
 
   // הזמנת חברים: פס בפרופיל (מתחת ל"השבוע שלי") וכפתור במסך הסיום, אחרי afterLessons שיעורים. url = הקישור שנשלח (ריק = כתובת האפליקציה).
   // image = לצרף תמונת רצף כשהטלפון יודע לשתף קבצים. הקישור מקבל ref=share: כך רואים במדידה מי הגיע מהזמנה,

@@ -3,10 +3,13 @@
  *
  * מה הסקריפט עושה:
  *  - doPost: דף הנחיתה שולח לכאן כל הרשמה. שורה חדשה בגיליון "רשימת המתנה".
- *    מי שכבר ברשימה (אותו טלפון או אימייל) לא נכנס פעמיים: מקבל בחזרה את הקוד והמקום שלו.
- *    מי שנרשם מקישור של חבר (ref) מוסיף לחבר הזמנה אחת, וכל הזמנה מקדמת אותו BOOST מקומות.
+ *    מי שכבר ברשימה (אותו טלפון או אימייל) לא נכנס פעמיים: מקבל בחזרה את הקוד והמקום שלו
+ *    (ואם עכשיו כתב שם ובשורה שלו עוד אין שם, השם נכנס).
+ *    השם לא חובה. הוא בעמודה האחרונה, "שם", כדי שהעמודות הישנות ונוסחאות הסיכום לא יזוזו.
+ *    מי שנרשם מקישור של חבר (ref) נספר לחבר בעמודת "הזמנות" (רק למדידה: זה לא משנה את המקום בתור).
  *  - doGet?count=1: כמה אנשים ברשימה (הדף מציג את זה רק מעל 50).
- *  - doGet?code=XXXXXX: המקום בתור ומספר ההזמנות של קוד אחד (בלי שום פרט אישי).
+ *  - doGet?code=XXXXXX: המקום בתור של קוד אחד (בלי שום פרט אישי).
+ *  - אימייל אליך על כל נרשם חדש (NOTIFY). נשלח מהחשבון שלך אל עצמך, ולכן אין בקוד שום כתובת.
  *  - גיליון "סיכום": נוסחאות שמתעדכנות לבד (סך הכול, אנדרואיד/אייפון, לפי סטטוס ולפי מקור).
  *
  * התקנה: ראו README.md באותה תיקייה. אחרי כל שינוי בקוד: Deploy > Manage deployments > עריכה > New version.
@@ -14,9 +17,9 @@
 
 var SHEET_NAME = 'רשימת המתנה';
 var SUMMARY_NAME = 'סיכום';
-var BOOST = 5; // כמה מקומות מקדמת כל הזמנה. חייב להיות זהה ל-waitlist.boostPerFriend ב-config.js
-var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף'];
-var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12 };
+var NOTIFY = true; // אימייל על כל נרשם חדש. false = בלי אימיילים
+var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף', 'שם'];
+var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12, name: 13 };
 
 var DEVICE_HE = { android: 'אנדרואיד', iphone: 'אייפון' };
 var STATUS_HE = { sadir: 'בשירות סדיר', pre: 'לפני שחרור', post: 'אחרי שחרור', none: 'לא בצבא' };
@@ -34,12 +37,14 @@ function doPost(e) {
     if (!contact) return json_({ ok: false, error: 'contact' });
     if (d.consent !== true) return json_({ ok: false, error: 'consent' });
 
+    var name = cleanName_(d.name);
     var sh = sheet_();
     var rows = data_(sh);
 
-    // already on the list: same contact, return the existing place
+    // already on the list: same contact, return the existing place (and fill in the name if it was missing)
     for (var i = 0; i < rows.length; i++) {
       if (String(rows[i][COL.contact - 1]).replace(/^'/, '') === contact) {
+        if (name && !rows[i][COL.name - 1]) sh.getRange(i + 2, COL.name).setNumberFormat('@').setValue(name);
         return json_(placeOf_(rows, i, { ok: true, existing: true }));
       }
     }
@@ -49,7 +54,7 @@ function doPost(e) {
     rows.forEach(function (r) { taken[r[COL.code - 1]] = true; });
     while (taken[code]) code = newCode_();
 
-    // the friend who sent the link gets one more invite
+    // count the signup for the friend who sent the link (for measurement only, the place in line doesn't change)
     var ref = String(d.ref || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     var refRow = -1;
     if (ref && ref !== code) {
@@ -70,6 +75,7 @@ function doPost(e) {
     row[COL.consent - 1] = 'כן';
     row[COL.stations - 1] = safe_(d.stations, 60);
     row[COL.v - 1] = safe_(d.v, 20);
+    row[COL.name - 1] = name;
 
     var r = sh.getLastRow() + 1;
     var range = sh.getRange(r, 1, 1, HEADERS.length);
@@ -85,7 +91,9 @@ function doPost(e) {
 
     SpreadsheetApp.flush();
     rows = data_(sh);
-    return json_(placeOf_(rows, rows.length - 1, { ok: true }));
+    var out = placeOf_(rows, rows.length - 1, { ok: true });
+    if (NOTIFY) notify_(row, out);
+    return json_(out);
   } catch (err) {
     return json_({ ok: false, error: 'server' });
   } finally {
@@ -105,18 +113,10 @@ function doGet(e) {
   return json_({ ok: true, total: rows.length });
 }
 
-// place in line: the order of signing, minus BOOST places for every invite (never above 1)
+// place in line: the order of signing. Inviting friends doesn't move anyone up (Jonathan, 26.10).
 function placeOf_(rows, i, out) {
-  function score(k) { return k - BOOST * (Number(rows[k][COL.refs - 1]) || 0); }
-  var mine = score(i), ahead = 0;
-  for (var k = 0; k < rows.length; k++) {
-    if (k === i) continue;
-    var s = score(k);
-    if (s < mine || (s === mine && k < i)) ahead++;
-  }
   out.code = rows[i][COL.code - 1];
-  out.position = ahead + 1;
-  out.refs = Number(rows[i][COL.refs - 1]) || 0;
+  out.position = i + 1;
   out.total = rows.length;
   return out;
 }
@@ -131,6 +131,11 @@ function sheet_() {
     sh.setRightToLeft(true);
     sh.setColumnWidth(COL.contact, 170);
     sh.getRange(2, 1, sh.getMaxRows() - 1, HEADERS.length).setNumberFormat('@');
+  }
+  // a sheet made before a column was added (like "שם") gets its header now
+  var nameHead = sh.getRange(1, COL.name);
+  if (nameHead.getValue() === '') {
+    nameHead.setValue(HEADERS[COL.name - 1]).setFontWeight('bold').setBackground('#0E6E58').setFontColor('#ffffff');
   }
   if (!ss.getSheetByName(SUMMARY_NAME)) summary_(ss);
   return sh;
@@ -177,6 +182,12 @@ function cleanContact_(v) {
   return '';
 }
 
+// the optional name: letters, spaces and the marks names use (ג'ורג', בן-דוד). Never starts like a formula.
+function cleanName_(v) {
+  return String(v || '').replace(/[^A-Za-z\u00C0-\u024F\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF '"\u05F3\u05F4.\-]/g, '').replace(/\s+/g, ' ')
+    .replace(/^['"\-. ]+/, '').trim().slice(0, 40);
+}
+
 // nothing that a spreadsheet could read as a formula
 function safe_(v, max) { return String(v || '').replace(/[^\w.,\- ֐-׿]/g, '').replace(/^[=+\-@]+/, '').slice(0, max); }
 
@@ -187,6 +198,25 @@ function newCode_() {
 }
 
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+// an email to the owner of the sheet about the new signup. A failure here never fails the signup.
+function notify_(row, out) {
+  try {
+    var to = Session.getEffectiveUser().getEmail();
+    if (!to) return;
+    var lines = [
+      'מקום ברשימה: #' + out.position + ' (סך הכול ' + out.total + ')',
+      'שם: ' + (row[COL.name - 1] || 'לא נכתב'),
+      'טלפון או אימייל: ' + row[COL.contact - 1],
+      'סטטוס: ' + (row[COL.status - 1] || 'לא נבחר'),
+      'טלפון: ' + (row[COL.device - 1] || 'מחשב'),
+      'מקור: ' + (row[COL.source - 1] || 'direct'),
+      '',
+      'הגיליון: ' + SpreadsheetApp.getActiveSpreadsheet().getUrl()
+    ];
+    MailApp.sendEmail({ to: to, subject: 'דריבית: נרשם/ה חדש/ה לרשימה (#' + out.position + ')', body: lines.join('\n'), name: 'רשימת ההמתנה של דריבית' });
+  } catch (err) {}
+}
 
 // optional: run once from the editor to create both sheets before the first signup
 function setup() { sheet_(); }

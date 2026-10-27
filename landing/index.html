@@ -298,7 +298,7 @@ p { margin: 0; text-wrap: pretty; }
 .p-sign legend, .lbl { display: block; font: 800 17px/1.2 var(--display); margin-bottom: 10px; padding: 0; }
 fieldset { border: 0; padding: 0; margin: 18px 0 0; min-width: 0; }
 .field { margin-top: 4px; }
-input[type="tel"], input[type="email"] { width: 100%; min-height: 56px; border-radius: 14px; border: 2px solid var(--rule); background: var(--paper); color: var(--ink); font: 700 20px var(--text); padding: 10px 14px; unicode-bidi: plaintext; text-align: right; }
+input[type="tel"], input[type="email"], #fullName { width: 100%; min-height: 56px; border-radius: 14px; border: 2px solid var(--rule); background: var(--paper); color: var(--ink); font: 700 20px var(--text); padding: 10px 14px; unicode-bidi: plaintext; text-align: right; }
 input::placeholder { color: var(--ink-3); font-weight: 600; }
 input[aria-invalid="true"] { border-color: var(--red); }
 .swap { background: none; border: 0; padding: 10px 2px 0; color: var(--green-ink); font: 700 16px var(--text); text-decoration: underline; cursor: pointer; min-height: 40px; }
@@ -310,6 +310,8 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .pick input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
 .consent { display: flex; gap: 12px; align-items: flex-start; margin-top: 20px; font-size: 15px; color: var(--ink-2); cursor: pointer; }
 .consent input { width: 24px; height: 24px; flex: none; margin: 1px 0 0; accent-color: var(--green); }
+.lbl small { font: 600 14px var(--text); color: var(--ink-3); }
+.name-field { margin-bottom: 18px; }
 .err { color: var(--red); font-weight: 700; font-size: 15px; margin: 8px 2px 0; }
 .err:empty { display: none; }
 .sig-line { margin-top: 22px; display: flex; align-items: flex-end; gap: 12px; }
@@ -331,11 +333,10 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .ticket-no small { font: 800 18px/1 var(--display); color: var(--ink-2); display: block; direction: rtl; margin-bottom: 8px; }
 .done h3 { font: 900 30px/1.1 var(--display); }
 .done .d-sub { margin-top: 8px; color: var(--ink-2); font-size: 17px; }
-.boost { margin-top: 20px; border-radius: 18px; background: var(--paper-2); padding: 16px; }
-.boost b { display: block; font: 800 19px/1.25 var(--display); }
-.boost p { margin-top: 4px; font-size: 16px; color: var(--ink-2); }
-.boost .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-.boost .friends { margin-top: 12px; font-size: 15px; font-weight: 700; color: var(--green-ink); }
+.share { margin-top: 20px; border-radius: 18px; background: var(--paper-2); padding: 16px; }
+.share b { display: block; font: 800 19px/1.25 var(--display); }
+.share p { margin-top: 4px; font-size: 16px; color: var(--ink-2); }
+.share .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
 .try { display: inline-block; margin-top: 18px; font: 800 17px var(--text); color: var(--green-ink); }
 .done { position: relative; }
 .big-stamp { position: absolute; top: 46px; left: 4px; z-index: 4; color: var(--green); font-size: 30px; padding: 8px 16px 10px; border-width: 4px; opacity: 0; pointer-events: none; }
@@ -549,6 +550,10 @@ footer a { color: var(--ink-2); font-weight: 700; }
           </ul>
 
           <form id="joinForm" class="p-sign" novalidate>
+            <div class="field name-field">
+              <label class="lbl" for="fullName">שם <small>(לא חובה)</small></label>
+              <input id="fullName" name="name" type="text" autocomplete="name" maxlength="40" placeholder="איך לקרוא לכם?">
+            </div>
             <div class="field" id="phoneField">
               <label class="lbl" for="phone">מספר וואטסאפ</label>
               <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="050-1234567" aria-describedby="contactErr">
@@ -589,14 +594,13 @@ footer a { color: var(--ink-2); font-weight: 700; }
             <div class="ticket-no" id="ticketNo" hidden><small>המקום שלכם ברשימה</small><span></span></div>
             <h3 id="doneTitle">תפסתם מקום.</h3>
             <p class="d-sub" id="doneSub">כשהאפליקציה יוצאת, הסדר ברשימה קובע מי מקבל קודם.</p>
-            <div class="boost">
-              <b>רוצים לעקוף את התור?</b>
-              <p id="boostTxt">כל חבר שנרשם מהקישור שלכם מקדם אתכם 5 מקומות.</p>
+            <div class="share">
+              <b>מכירים מישהו שזה יעזור לו?</b>
+              <p>שלחו לו את הקישור לדף.</p>
               <div class="row">
                 <a class="btn2 wa" id="shareWa" href="#" target="_blank" rel="noopener" data-cta="share_whatsapp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>לשלוח לחבר</a>
                 <button class="btn2" type="button" id="copyLink" data-cta="share_copy">להעתיק קישור</button>
               </div>
-              <p class="friends" id="friends" hidden></p>
             </div>
             <a class="try" href="https://jonathanriahi.github.io/dribit/?source=landing_joined" data-app data-cta="joined_try">בינתיים אפשר להתחיל כבר עכשיו בדפדפן ←</a>
           </div>
@@ -639,10 +643,10 @@ footer a { color: var(--ink-2); font-weight: 700; }
   var CFG = window.DRIBIT_CONFIG || {};
   var A = CFG.analytics || {}, WL = CFG.waitlist || {};
   var KEY = A.posthogKey || '', HOST = (A.host || '').replace(/\/$/, '');
-  var SHEET = WL.sheetUrl || '', BOOST = WL.boostPerFriend || 5, SHOW_FROM = WL.showCountFrom || 50;
+  var SHEET = WL.sheetUrl || '', SHOW_FROM = WL.showCountFrom || 50;
   var WA = (CFG.feedback && CFG.feedback.whatsapp) || '';
   var PREVIEW = !!window.LANDING_PREVIEW;
-  var VERSION = 'landing-2.1';
+  var VERSION = 'landing-2.3';
   // the landing page is also served at https://dribit.app/ (a Cloudflare Worker, see landing/domain/); invite links keep whichever address the visitor is on
   var SITE = /(^|\.)dribit\.app$/.test(location.hostname) ? 'https://dribit.app/' : 'https://jonathanriahi.github.io/dribit/landing/';
   var UID_KEY = 'dribit.landing.uid', JOINED_KEY = 'dribit.landing.joined', STAMPS_KEY = 'dribit.landing.stamps', REF_KEY = 'dribit.landing.ref';
@@ -880,7 +884,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
   } else if (reduce) clips.forEach(function (v) { v.removeAttribute('autoplay'); v.pause(); v.controls = true; v.preload = 'metadata'; });
 
   // ---------- waitlist ----------
-  var form = $('joinForm'), phone = $('phone'), email = $('email');
+  var form = $('joinForm'), phone = $('phone'), email = $('email'), nameIn = $('fullName');
   var errEl = $('contactErr'), consentErr = $('consentErr'), btn = $('joinBtn'), fallback = $('fallback'), sigInk = $('sigInk');
   var mode = 'phone';
   function setMode(m) {
@@ -896,13 +900,18 @@ footer a { color: var(--ink-2); font-weight: 700; }
   }
   function normEmail(v) { var s = String(v || '').trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 120 ? s : ''; }
   function picked(name) { var r = form.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : null; }
-  // the signature line writes itself as you type
+  // optional name: letters, spaces and the marks names use (ג'ורג', בן-דוד), nothing a spreadsheet reads as a formula
+  function normName(v) { return String(v || '').replace(/[^A-Za-z\u00C0-\u024F\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF '"\u05F3\u05F4.\-]/g, '').replace(/\s+/g, ' ').replace(/^['"\-. ]+/, '').trim().slice(0, 40); }
+  // the signature line writes itself as you type: the name when there is one, otherwise the contact
   function sign() {
+    var nm = normName(nameIn.value);
+    sigInk.style.direction = nm ? 'rtl' : '';
+    if (nm) { sigInk.textContent = nm; return; }
     var v = mode === 'phone' ? String(phone.value || '').replace(/[^\d]/g, '') : String(email.value || '').trim();
     if (mode === 'phone' && v.length > 4) v = v.slice(0, 3) + '-' + v.slice(3, -3).replace(/\d/g, '•') + v.slice(-3);
     sigInk.textContent = v ? v : '';
   }
-  phone.addEventListener('input', sign); email.addEventListener('input', sign);
+  phone.addEventListener('input', sign); email.addEventListener('input', sign); nameIn.addEventListener('input', sign);
 
   var joined = readJSON(JOINED_KEY);
   if (joined && joined.at) showDone(joined, false);
@@ -916,7 +925,6 @@ footer a { color: var(--ink-2); font-weight: 700; }
     var tn = $('ticketNo');
     if (j.position) { tn.hidden = false; tn.querySelector('span').textContent = '#' + fmt(j.position); $('doneTitle').textContent = 'תפסתם מקום.'; }
     else if (PREVIEW) { tn.hidden = false; tn.querySelector('span').textContent = '#—'; $('doneTitle').textContent = 'תצוגה מקדימה: כאן יופיע המקום בתור.'; }
-    $('boostTxt').textContent = 'כל חבר שנרשם מהקישור שלכם מקדם אתכם ' + BOOST + ' מקומות.';
     var code = j.code || '';
     var url = code ? shareUrl(code) : SITE + '?source=friend';
     $('shareWa').href = 'https://wa.me/?text=' + encodeURIComponent(shareText() + ' ' + url);
@@ -925,7 +933,6 @@ footer a { color: var(--ink-2); font-weight: 700; }
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { window.prompt('הקישור שלכם:', url); });
       else window.prompt('הקישור שלכם:', url);
     };
-    if (j.refs) { $('friends').hidden = false; $('friends').textContent = j.refs === 1 ? 'חבר אחד כבר נרשם דרככם.' : j.refs + ' חברים כבר נרשמו דרככם.'; }
     if (animate) { stamp('sign'); $('done').focus({ preventScroll: true }); }
   }
 
@@ -955,12 +962,15 @@ footer a { color: var(--ink-2); font-weight: 700; }
     var device = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'iphone' : /Android/i.test(navigator.userAgent) ? 'android' : null, status = picked('status');
     var code = (joined && joined.code) || newCode();
     var stations = Object.keys(stamps).filter(function (k) { return k !== 'sign'; });
-    var row = { contact: contact, contact_type: mode, device: device, status: status, source: source, ref: refIn && refIn !== code ? refIn : '', code: code, consent: true, stations: stations.join(','), v: VERSION };
+    var name = normName(nameIn.value);
+    // ref stays empty on purpose: the deployed sheet script still moves the inviter up for every ref, and Jonathan
+    // keeps that script as is (26.10). Who invited whom is still measured in PostHog (ref_code) and in the source column.
+    var row = { name: name, contact: contact, contact_type: mode, device: device, status: status, source: source, ref: '', code: code, consent: true, stations: stations.join(','), v: VERSION };
     var props = {
-      contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null,
+      contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null, name: name || null,
       device: device, status: status, consent: true, consent_text: 'הודעה כשהאפליקציה מוכנה ועדכונים מדי פעם, אפשר לבקש הסרה',
       my_code: code, stations: stations,
-      $set: { waitlist: true, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_status: status, waitlist_at: new Date().toISOString(), waitlist_source: source, waitlist_code: code, waitlist_ref: row.ref || null }
+      $set: { waitlist: true, waitlist_name: name || null, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_status: status, waitlist_at: new Date().toISOString(), waitlist_source: source, waitlist_code: code, waitlist_ref: row.ref || null }
     };
     btn.disabled = true; btn.textContent = 'חותמים...';
     var ph = send('waitlist_signup', props).then(function () { return true; });
@@ -969,7 +979,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
       var phOk = res[0], s = res[1];
       if (!phOk && !s && !PREVIEW) {
         btn.disabled = false; btn.textContent = 'לתפוס מקום ברשימה';
-        var msg = 'היי, אשמח להצטרף לרשימת ההמתנה של דריבית' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : '');
+        var msg = 'היי' + (name ? ', אני ' + name : '') + ', אשמח להצטרף לרשימת ההמתנה של דריבית' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : '');
         if (WA) { $('waJoin').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(msg); fallback.classList.add('on'); }
         else errEl.textContent = 'לא הצלחנו לשמור כרגע. נסו שוב בעוד רגע.';
         return;
