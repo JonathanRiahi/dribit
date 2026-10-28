@@ -3,7 +3,9 @@
  *
  * מה הסקריפט עושה:
  *  - doPost: דף הנחיתה שולח לכאן כל הרשמה. שורה חדשה בגיליון "רשימת המתנה".
- *    מי שכבר ברשימה (אותו טלפון או אימייל) לא נכנס פעמיים: מקבל בחזרה את הקוד והמקום שלו.
+ *    מי שכבר ברשימה (אותו טלפון או אימייל) לא נכנס פעמיים: מקבל בחזרה את הקוד והמקום שלו
+ *    (ואם עכשיו כתב שם ובשורה שלו עוד אין שם, השם נכנס).
+ *    השם לא חובה. הוא בעמודה האחרונה, "שם", כדי שהעמודות הישנות ונוסחאות הסיכום לא יזוזו.
  *    מי שנרשם מקישור של חבר (ref) נספר לחבר בעמודת "הזמנות" (רק למדידה: זה לא משנה את המקום בתור).
  *  - doGet?count=1: כמה אנשים ברשימה (הדף מציג את זה רק מעל 50).
  *  - doGet?code=XXXXXX: המקום בתור של קוד אחד (בלי שום פרט אישי).
@@ -16,8 +18,8 @@
 var SHEET_NAME = 'רשימת המתנה';
 var SUMMARY_NAME = 'סיכום';
 var NOTIFY = true; // אימייל על כל נרשם חדש. false = בלי אימיילים
-var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף'];
-var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12 };
+var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף', 'שם'];
+var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12, name: 13 };
 
 var DEVICE_HE = { android: 'אנדרואיד', iphone: 'אייפון' };
 var STATUS_HE = { sadir: 'בשירות סדיר', pre: 'לפני שחרור', post: 'אחרי שחרור', none: 'לא בצבא' };
@@ -35,12 +37,14 @@ function doPost(e) {
     if (!contact) return json_({ ok: false, error: 'contact' });
     if (d.consent !== true) return json_({ ok: false, error: 'consent' });
 
+    var name = cleanName_(d.name);
     var sh = sheet_();
     var rows = data_(sh);
 
-    // already on the list: same contact, return the existing place
+    // already on the list: same contact, return the existing place (and fill in the name if it was missing)
     for (var i = 0; i < rows.length; i++) {
       if (String(rows[i][COL.contact - 1]).replace(/^'/, '') === contact) {
+        if (name && !rows[i][COL.name - 1]) sh.getRange(i + 2, COL.name).setNumberFormat('@').setValue(name);
         return json_(placeOf_(rows, i, { ok: true, existing: true }));
       }
     }
@@ -71,6 +75,7 @@ function doPost(e) {
     row[COL.consent - 1] = 'כן';
     row[COL.stations - 1] = safe_(d.stations, 60);
     row[COL.v - 1] = safe_(d.v, 20);
+    row[COL.name - 1] = name;
 
     var r = sh.getLastRow() + 1;
     var range = sh.getRange(r, 1, 1, HEADERS.length);
@@ -127,6 +132,11 @@ function sheet_() {
     sh.setColumnWidth(COL.contact, 170);
     sh.getRange(2, 1, sh.getMaxRows() - 1, HEADERS.length).setNumberFormat('@');
   }
+  // a sheet made before a column was added (like "שם") gets its header now
+  var nameHead = sh.getRange(1, COL.name);
+  if (nameHead.getValue() === '') {
+    nameHead.setValue(HEADERS[COL.name - 1]).setFontWeight('bold').setBackground('#0E6E58').setFontColor('#ffffff');
+  }
   if (!ss.getSheetByName(SUMMARY_NAME)) summary_(ss);
   return sh;
 }
@@ -172,6 +182,12 @@ function cleanContact_(v) {
   return '';
 }
 
+// the optional name: letters, spaces and the marks names use (ג'ורג', בן-דוד). Never starts like a formula.
+function cleanName_(v) {
+  return String(v || '').replace(/[^A-Za-z\u00C0-\u024F\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF '"\u05F3\u05F4.\-]/g, '').replace(/\s+/g, ' ')
+    .replace(/^['"\-. ]+/, '').trim().slice(0, 40);
+}
+
 // nothing that a spreadsheet could read as a formula
 function safe_(v, max) { return String(v || '').replace(/[^\w.,\- ֐-׿]/g, '').replace(/^[=+\-@]+/, '').slice(0, max); }
 
@@ -190,6 +206,7 @@ function notify_(row, out) {
     if (!to) return;
     var lines = [
       'מקום ברשימה: #' + out.position + ' (סך הכול ' + out.total + ')',
+      'שם: ' + (row[COL.name - 1] || 'לא נכתב'),
       'טלפון או אימייל: ' + row[COL.contact - 1],
       'סטטוס: ' + (row[COL.status - 1] || 'לא נבחר'),
       'טלפון: ' + (row[COL.device - 1] || 'מחשב'),

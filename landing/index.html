@@ -298,7 +298,7 @@ p { margin: 0; text-wrap: pretty; }
 .p-sign legend, .lbl { display: block; font: 800 17px/1.2 var(--display); margin-bottom: 10px; padding: 0; }
 fieldset { border: 0; padding: 0; margin: 18px 0 0; min-width: 0; }
 .field { margin-top: 4px; }
-input[type="tel"], input[type="email"] { width: 100%; min-height: 56px; border-radius: 14px; border: 2px solid var(--rule); background: var(--paper); color: var(--ink); font: 700 20px var(--text); padding: 10px 14px; unicode-bidi: plaintext; text-align: right; }
+input[type="tel"], input[type="email"], #fullName { width: 100%; min-height: 56px; border-radius: 14px; border: 2px solid var(--rule); background: var(--paper); color: var(--ink); font: 700 20px var(--text); padding: 10px 14px; unicode-bidi: plaintext; text-align: right; }
 input::placeholder { color: var(--ink-3); font-weight: 600; }
 input[aria-invalid="true"] { border-color: var(--red); }
 .swap { background: none; border: 0; padding: 10px 2px 0; color: var(--green-ink); font: 700 16px var(--text); text-decoration: underline; cursor: pointer; min-height: 40px; }
@@ -310,6 +310,8 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .pick input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
 .consent { display: flex; gap: 12px; align-items: flex-start; margin-top: 20px; font-size: 15px; color: var(--ink-2); cursor: pointer; }
 .consent input { width: 24px; height: 24px; flex: none; margin: 1px 0 0; accent-color: var(--green); }
+.lbl small { font: 600 14px var(--text); color: var(--ink-3); }
+.name-field { margin-bottom: 18px; }
 .err { color: var(--red); font-weight: 700; font-size: 15px; margin: 8px 2px 0; }
 .err:empty { display: none; }
 .sig-line { margin-top: 22px; display: flex; align-items: flex-end; gap: 12px; }
@@ -548,6 +550,10 @@ footer a { color: var(--ink-2); font-weight: 700; }
           </ul>
 
           <form id="joinForm" class="p-sign" novalidate>
+            <div class="field name-field">
+              <label class="lbl" for="fullName">שם <small>(לא חובה)</small></label>
+              <input id="fullName" name="name" type="text" autocomplete="name" maxlength="40" placeholder="איך לקרוא לכם?">
+            </div>
             <div class="field" id="phoneField">
               <label class="lbl" for="phone">מספר וואטסאפ</label>
               <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="050-1234567" aria-describedby="contactErr">
@@ -640,7 +646,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
   var SHEET = WL.sheetUrl || '', SHOW_FROM = WL.showCountFrom || 50;
   var WA = (CFG.feedback && CFG.feedback.whatsapp) || '';
   var PREVIEW = !!window.LANDING_PREVIEW;
-  var VERSION = 'landing-2.2';
+  var VERSION = 'landing-2.3';
   // the landing page is also served at https://dribit.app/ (a Cloudflare Worker, see landing/domain/); invite links keep whichever address the visitor is on
   var SITE = /(^|\.)dribit\.app$/.test(location.hostname) ? 'https://dribit.app/' : 'https://jonathanriahi.github.io/dribit/landing/';
   var UID_KEY = 'dribit.landing.uid', JOINED_KEY = 'dribit.landing.joined', STAMPS_KEY = 'dribit.landing.stamps', REF_KEY = 'dribit.landing.ref';
@@ -878,7 +884,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
   } else if (reduce) clips.forEach(function (v) { v.removeAttribute('autoplay'); v.pause(); v.controls = true; v.preload = 'metadata'; });
 
   // ---------- waitlist ----------
-  var form = $('joinForm'), phone = $('phone'), email = $('email');
+  var form = $('joinForm'), phone = $('phone'), email = $('email'), nameIn = $('fullName');
   var errEl = $('contactErr'), consentErr = $('consentErr'), btn = $('joinBtn'), fallback = $('fallback'), sigInk = $('sigInk');
   var mode = 'phone';
   function setMode(m) {
@@ -894,13 +900,18 @@ footer a { color: var(--ink-2); font-weight: 700; }
   }
   function normEmail(v) { var s = String(v || '').trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 120 ? s : ''; }
   function picked(name) { var r = form.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : null; }
-  // the signature line writes itself as you type
+  // optional name: letters, spaces and the marks names use (ג'ורג', בן-דוד), nothing a spreadsheet reads as a formula
+  function normName(v) { return String(v || '').replace(/[^A-Za-z\u00C0-\u024F\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF '"\u05F3\u05F4.\-]/g, '').replace(/\s+/g, ' ').replace(/^['"\-. ]+/, '').trim().slice(0, 40); }
+  // the signature line writes itself as you type: the name when there is one, otherwise the contact
   function sign() {
+    var nm = normName(nameIn.value);
+    sigInk.style.direction = nm ? 'rtl' : '';
+    if (nm) { sigInk.textContent = nm; return; }
     var v = mode === 'phone' ? String(phone.value || '').replace(/[^\d]/g, '') : String(email.value || '').trim();
     if (mode === 'phone' && v.length > 4) v = v.slice(0, 3) + '-' + v.slice(3, -3).replace(/\d/g, '•') + v.slice(-3);
     sigInk.textContent = v ? v : '';
   }
-  phone.addEventListener('input', sign); email.addEventListener('input', sign);
+  phone.addEventListener('input', sign); email.addEventListener('input', sign); nameIn.addEventListener('input', sign);
 
   var joined = readJSON(JOINED_KEY);
   if (joined && joined.at) showDone(joined, false);
@@ -951,14 +962,15 @@ footer a { color: var(--ink-2); font-weight: 700; }
     var device = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'iphone' : /Android/i.test(navigator.userAgent) ? 'android' : null, status = picked('status');
     var code = (joined && joined.code) || newCode();
     var stations = Object.keys(stamps).filter(function (k) { return k !== 'sign'; });
+    var name = normName(nameIn.value);
     // ref stays empty on purpose: the deployed sheet script still moves the inviter up for every ref, and Jonathan
     // keeps that script as is (26.10). Who invited whom is still measured in PostHog (ref_code) and in the source column.
-    var row = { contact: contact, contact_type: mode, device: device, status: status, source: source, ref: '', code: code, consent: true, stations: stations.join(','), v: VERSION };
+    var row = { name: name, contact: contact, contact_type: mode, device: device, status: status, source: source, ref: '', code: code, consent: true, stations: stations.join(','), v: VERSION };
     var props = {
-      contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null,
+      contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null, name: name || null,
       device: device, status: status, consent: true, consent_text: 'הודעה כשהאפליקציה מוכנה ועדכונים מדי פעם, אפשר לבקש הסרה',
       my_code: code, stations: stations,
-      $set: { waitlist: true, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_status: status, waitlist_at: new Date().toISOString(), waitlist_source: source, waitlist_code: code, waitlist_ref: row.ref || null }
+      $set: { waitlist: true, waitlist_name: name || null, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_status: status, waitlist_at: new Date().toISOString(), waitlist_source: source, waitlist_code: code, waitlist_ref: row.ref || null }
     };
     btn.disabled = true; btn.textContent = 'חותמים...';
     var ph = send('waitlist_signup', props).then(function () { return true; });
@@ -967,7 +979,7 @@ footer a { color: var(--ink-2); font-weight: 700; }
       var phOk = res[0], s = res[1];
       if (!phOk && !s && !PREVIEW) {
         btn.disabled = false; btn.textContent = 'לתפוס מקום ברשימה';
-        var msg = 'היי, אשמח להצטרף לרשימת ההמתנה של דריבית' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : '');
+        var msg = 'היי' + (name ? ', אני ' + name : '') + ', אשמח להצטרף לרשימת ההמתנה של דריבית' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : '');
         if (WA) { $('waJoin').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(msg); fallback.classList.add('on'); }
         else errEl.textContent = 'לא הצלחנו לשמור כרגע. נסו שוב בעוד רגע.';
         return;
