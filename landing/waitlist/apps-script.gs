@@ -7,7 +7,7 @@
  *    (ואם עכשיו כתב שם ובשורה שלו עוד אין שם, השם נכנס).
  *    השם לא חובה. הוא בעמודה האחרונה, "שם", כדי שהעמודות הישנות ונוסחאות הסיכום לא יזוזו.
  *    מי שנרשם מקישור של חבר (ref) נספר לחבר בעמודת "הזמנות" (רק למדידה: זה לא משנה את המקום בתור).
- *  - doGet?count=1: כמה אנשים ברשימה (הדף מציג את זה רק מעל 50).
+ *  - doGet?count=1: כמה אנשים ברשימה (הדף מציג את זה רק מעל 50), וגם איזו גרסה של הסקריפט פרוסה (v).
  *  - doGet?code=XXXXXX: המקום בתור של קוד אחד (בלי שום פרט אישי).
  *  - אימייל אליך על כל נרשם חדש (NOTIFY). נשלח מהחשבון שלך אל עצמך, ולכן אין בקוד שום כתובת.
  *  - גיליון "סיכום": נוסחאות שמתעדכנות לבד (סך הכול, אנדרואיד/אייפון, לפי סטטוס ולפי מקור).
@@ -18,6 +18,7 @@
 var SHEET_NAME = 'רשימת המתנה';
 var SUMMARY_NAME = 'סיכום';
 var NOTIFY = true; // אימייל על כל נרשם חדש. false = בלי אימיילים
+var SCRIPT_VERSION = 'sheet-3'; // מופיע בכתובת ?count=1, כך רואים איזו גרסה של הסקריפט באמת פרוסה
 var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף', 'שם'];
 var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12, name: 13 };
 
@@ -110,7 +111,7 @@ function doGet(e) {
     for (var i = 0; i < rows.length; i++) if (rows[i][COL.code - 1] === code) return json_(placeOf_(rows, i, { ok: true }));
     return json_({ ok: false, error: 'not-found' });
   }
-  return json_({ ok: true, total: rows.length });
+  return json_({ ok: true, total: rows.length, v: SCRIPT_VERSION });
 }
 
 // place in line: the order of signing. Inviting friends doesn't move anyone up (Jonathan, 26.10).
@@ -214,9 +215,23 @@ function notify_(row, out) {
       '',
       'הגיליון: ' + SpreadsheetApp.getActiveSpreadsheet().getUrl()
     ];
-    MailApp.sendEmail({ to: to, subject: 'דריבית: נרשם/ה חדש/ה לרשימה (#' + out.position + ')', body: lines.join('\n'), name: 'רשימת ההמתנה של דריבית' });
+    var who = row[COL.name - 1] ? ' ' + row[COL.name - 1] : '';
+    MailApp.sendEmail({ to: to, subject: 'דריבית: נרשם/ה חדש/ה לרשימה' + who + ' (#' + out.position + ')', body: lines.join('\n'), name: 'רשימת ההמתנה של דריבית' });
   } catch (err) {}
 }
 
 // optional: run once from the editor to create both sheets before the first signup
 function setup() { sheet_(); }
+
+// run once from the editor (choose testEmail at the top, then Run): Google asks to allow sending email,
+// and a test email arrives right away. After that every new signup sends one. Then: Deploy > Manage deployments > New version.
+function testEmail() {
+  var to = Session.getEffectiveUser().getEmail();
+  MailApp.sendEmail({
+    to: to,
+    subject: 'דריבית: בדיקה, ההתראות על נרשמים חדשים עובדות',
+    body: 'מעכשיו כל הרשמה חדשה לרשימת ההמתנה תשלח לך אימייל כזה.\n\nנשאר רק: Deploy > Manage deployments > עיפרון > New version > Deploy.\n\nהגיליון: ' + SpreadsheetApp.getActiveSpreadsheet().getUrl(),
+    name: 'רשימת ההמתנה של דריבית'
+  });
+  sheet_();
+}
