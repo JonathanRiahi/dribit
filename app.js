@@ -707,6 +707,12 @@
         (S.inProgress.steps || []).some(function (x) { return x && x.k === 'q' && !QUESTIONS[x.id]; }))) S.inProgress = null;
     // v17 (29.10, "תמשיך על כל הפרויקט"): every other lesson got the same rewrite, so any saved session starts over
     if ((S.contentV || 0) < 17 && v >= 17) S.inProgress = null;
+    // v18 (29.10, "לך על זה"): three new lessons (1.5 card types, unit 10 trip and home). Like v10: an unfinished lesson
+    // that now sits after the next lesson in the path is dropped, so "להמשיך" never skips ahead of the path.
+    if ((S.contentV || 0) < 18 && v >= 18 && S.inProgress) {
+      var ip18 = BY_ID[S.inProgress.lessonId], cur18 = currentLesson();
+      if (ip18 && cur18 && !isDone(ip18.id) && shown(ip18) && ip18.order > cur18.order) S.inProgress = null;
+    }
     S.contentV = v;
     save();
   }

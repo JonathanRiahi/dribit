@@ -295,6 +295,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .u7 { --u: #4F5DAA; --u-deep: #37427D; }
 .u8 { --u: #3D6B2E; --u-deep: #2A4C1F; }
 .u9 { --u: #A63D6B; --u-deep: #772A4C; }
+.u10 { --u: #8C5A2E; --u-deep: #664222; }
 
 .path { display: flex; flex-direction: column; align-items: center; gap: 18px; padding-block: 26px 10px; }
 .node-wrap { position: relative; transform: translateX(var(--dx, 0)); }

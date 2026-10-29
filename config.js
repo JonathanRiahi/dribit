@@ -2,7 +2,7 @@
 window.DRIBIT_CONFIG = {
   appName: 'דריבית',
   appNameEn: 'Dribit',
-  version: '0.15.0',
+  version: '0.16.0',
   tagline: 'כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.',
 
   // גרסת ניסיון: פס "ספרו לנו מה לשפר" בפרופיל, במקום כרטיס המשוב (מגרסה 0.9.1 כבר לא בבית)
@@ -23,7 +23,8 @@ window.DRIBIT_CONFIG = {
       6: 'assets/images/unit6-warning.svg',
       7: 'assets/images/unit7-career-progress.svg',
       8: 'assets/images/unit8-five-year-plan.svg',
-      9: 'assets/images/empty-empty.svg'  // 0.13: "איפה הכסף בורח", השיעור הראשון של כולם
+      9: 'assets/images/empty-empty.svg',  // 0.13: "איפה הכסף בורח", השיעור הראשון של כולם
+      10: 'assets/images/unit10-travelers.svg'  // 0.16: "יוצאים לעצמאות" (הטיול הגדול, דירה)
     }
   },
 
