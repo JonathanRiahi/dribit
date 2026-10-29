@@ -1335,3 +1335,47 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 .onboard-calc .calc { margin-top: 2px; }
 .calc-hook { display: flex; align-items: flex-start; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--gold-soft); color: var(--gold-ink); font-weight: 600; font-size: 15px; line-height: 1.45; }
 .calc-hook svg { width: 22px; height: 22px; flex: none; margin-top: 1px; }
+
+/* ---------- 0.14 battery (config.energy) ---------- */
+.stat.energy { color: var(--ok-ink); gap: 1px; }
+.stat.energy svg.batt { width: 22px; height: 22px; color: var(--ok); }
+.stat.energy.low, .stat.energy.low svg.batt { color: var(--flame); }
+.stat.energy.empty { color: var(--bad-ink); }
+.stat.energy.empty svg.batt { color: var(--bad); animation: batt-blink 1.6s ease-in-out infinite; }
+.stat.energy.free span { font-size: 19px; line-height: 1; }
+@keyframes batt-blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.etimer { font-variant-numeric: tabular-nums; font-weight: 700; }
+.energy-hero { display: grid; place-items: center; margin: 4px auto 6px; width: 84px; height: 84px; border-radius: 26px; background: var(--ok-bg); color: var(--ok); }
+.energy-hero svg { width: 60px; height: 60px; }
+.energy-hero.low { background: var(--gold-soft); color: var(--flame); }
+.energy-hero.empty { background: var(--bad-bg); color: var(--bad); }
+.energy-sheet h3 { text-align: center; }
+.energy-sheet > .lead { text-align: center; }
+.energy-next { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; margin: 10px 0 6px; font-weight: 600; color: var(--ink-2); flex-wrap: wrap; }
+.energy-next > span { display: inline-flex; align-items: center; gap: 6px; }
+.energy-next svg { width: 20px; height: 20px; flex: none; }
+.energy-next svg.batt { color: var(--bad); width: 24px; height: 24px; }
+.energy-next .etimer { font-family: var(--font-display); font-size: 22px; color: var(--ink); }
+.energy-sheet .btn + .btn { margin-top: 8px; }
+.energy-sheet .btn svg { width: 20px; height: 20px; margin-inline-end: 6px; vertical-align: -4px; }
+.energy-card .rc-ic { background: var(--bad-bg); color: var(--bad); }
+.energy-card .rc-ic svg { width: 30px; height: 30px; }
+.start-tip.wait { color: var(--bad-ink); display: inline-flex; align-items: center; gap: 4px; }
+.start-tip.wait svg { width: 18px; height: 18px; color: var(--bad); }
+.chip svg.batt { color: var(--ok); width: 18px; height: 18px; }
+.energy-done { display: flex; flex-direction: row; gap: 12px; align-items: center; }
+.energy-done .ed-ic { flex: none; width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: var(--ok-bg); color: var(--ok); }
+.energy-done .ed-ic svg { width: 30px; height: 30px; }
+.energy-done.low .ed-ic { background: var(--gold-soft); color: var(--flame); }
+.energy-done.empty .ed-ic { background: var(--bad-bg); color: var(--bad); }
+.energy-done > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.energy-done b { font-size: 16px; display: flex; align-items: center; gap: 6px; }
+.energy-done b + span { color: var(--ink-2); font-size: 14.5px; }
+.chip-new { font-style: normal; font-size: 12px; font-weight: 700; background: var(--brand); color: var(--on-brand); border-radius: 999px; padding: 1px 8px; }
+@media (max-width: 360px) {
+  .stat.energy svg.batt { width: 20px; height: 20px; }
+  /* one more stat on the top bar: a bit less air so 320px phones keep one line */
+  .topbar { gap: 6px; }
+  .stat { padding: 6px 3px; }
+}
+@media (prefers-reduced-motion: reduce) { .stat.energy.empty svg.batt { animation: none; } }
