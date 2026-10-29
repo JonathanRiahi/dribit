@@ -705,6 +705,8 @@
     // after each one. A saved session in them (or holding one of their old questions as a review) starts over.
     if ((S.contentV || 0) < 16 && v >= 16 && S.inProgress && (['2.1', '3.1', '4.4'].indexOf(S.inProgress.lessonId) >= 0 ||
         (S.inProgress.steps || []).some(function (x) { return x && x.k === 'q' && !QUESTIONS[x.id]; }))) S.inProgress = null;
+    // v17 (29.10, "תמשיך על כל הפרויקט"): every other lesson got the same rewrite, so any saved session starts over
+    if ((S.contentV || 0) < 17 && v >= 17) S.inProgress = null;
     S.contentV = v;
     save();
   }
