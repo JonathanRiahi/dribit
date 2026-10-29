@@ -701,6 +701,10 @@
     // v13 (21.10, a friend who did not get going): the first lessons of each path got one simple explanation screen.
     // A saved session in one of them gets the new screen slotted in, so the person resumes where they were.
     if ((S.contentV || 0) < 13 && v >= 13 && S.inProgress) addScreenV13(S.inProgress);
+    // v16 (29.10, Jonathan: "הכי קל שזה יכול להיות"): 2.1, 3.1 and 4.4 were rewritten as short cards with a question
+    // after each one. A saved session in them (or holding one of their old questions as a review) starts over.
+    if ((S.contentV || 0) < 16 && v >= 16 && S.inProgress && (['2.1', '3.1', '4.4'].indexOf(S.inProgress.lessonId) >= 0 ||
+        (S.inProgress.steps || []).some(function (x) { return x && x.k === 'q' && !QUESTIONS[x.id]; }))) S.inProgress = null;
     S.contentV = v;
     save();
   }
@@ -735,11 +739,29 @@
   function missionState(id) { return S.missions[id] || { steps: [], done: false }; }
   function openMissions() { return LESSONS.filter(function (l) { return isDone(l.id) && !missionState(l.id).done; }); }
   function maxLessonPoints(l) {
-    return l.vQuestions.length * P.correct + (hasReviewQuestion(l) ? P.review : 0) + P.lessonDone + P.perfect + P.speed;
+    return l.vQuestions.filter(scored).length * P.correct + (hasReviewQuestion(l) ? P.review : 0) + P.lessonDone + P.perfect + P.speed;
   }
   // startLesson adds one review question from an earlier finished lesson (not a match question): the same test
   function hasReviewQuestion(l) {
-    return LESSONS.some(function (x) { return x.order < l.order && isDone(x.id) && x.vQuestions.some(function (q) { return q.type !== 'match'; }); });
+    return LESSONS.some(function (x) { return x.order < l.order && isDone(x.id) && x.vQuestions.some(reviewable); });
+  }
+  // 0.15: a "guess" question opens a lesson before anything was explained. It earns no points, never counts as a mistake
+  // and never comes back in practice, reviews or the streak rescue test.
+  function scored(q) { return !q.guess; }
+  function reviewable(q) { return q.type !== 'match' && !q.guess; }
+  // 0.15 lessons with "flow": each question sits right after the card it is about ("at" = that card's id, "start" = before
+  // the first card, none = after the last). Older lessons keep every card first and then every question.
+  function lessonSteps(l) {
+    var screenStep = function (sc) { return { kind: 'screen', s: sc, n: l.vScreens.indexOf(sc), of: l.vScreens.length }; };
+    if (!l.flow) return l.vScreens.map(screenStep).concat(l.vQuestions.map(function (q) { return buildQuestionStep(q); }));
+    var at = {}, steps = [];
+    l.vQuestions.forEach(function (q) { var k = q.at || '_end'; (at[k] = at[k] || []).push(q); });
+    var add = function (k) { (at[k] || []).forEach(function (q) { steps.push(buildQuestionStep(q)); }); delete at[k]; };
+    add('start');
+    // a card shown to one status only (2.1: soldiers vs. the discharged) can share its id with the other status's card
+    l.screens.forEach(function (sc) { if (l.vScreens.indexOf(sc) < 0) return; steps.push(screenStep(sc)); if (sc.id) add(sc.id); });
+    Object.keys(at).forEach(add); // "_end", or a card id that does not exist
+    return steps;
   }
   function lessonMinutes(l) {
     return Math.max(3, Math.round((l.vScreens.length * 45 + l.vQuestions.length * 30) / 60));
@@ -1225,7 +1247,7 @@
       '<h3>' + esc(l.title) + '</h3>' +
       '<p class="lead">' + esc(l.what) + '</p>' +
       '<div class="chips"><span class="chip">' + ICON.clock + 'כ-' + lessonMinutes(l) + ' דקות</span>' +
-      '<span class="chip">' + l.vScreens.length + ' הסברים · ' + l.vQuestions.length + ' שאלות</span>' +
+      '<span class="chip">' + l.vScreens.length + ' הסברים · ' + l.vQuestions.filter(scored).length + ' שאלות</span>' +
       (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + enChip + '</div>' +
       '<div class="pts-box"><div class="pts-head">' + ICON.coin + '<b>נקודות בשיעור הזה</b><span>עד ' + Math.round(maxLessonPoints(l) * bx) + '</span></div>' + pointsList(l, bx) + '</div>' +
       main +
@@ -1795,12 +1817,11 @@
     }
     // 0.14: a new lesson needs a bar in the battery (the lesson in progress never does, restarted or not)
     if (!(S.inProgress && S.inProgress.lessonId === id) && !enCanStart()) { energyEmptySheet(startFrom || 'lesson', id); return; }
-    var steps = l.vScreens.map(function (sc, i) { return { kind: 'screen', s: sc, n: i, of: l.vScreens.length }; });
-    l.vQuestions.forEach(function (q) { steps.push(buildQuestionStep(q)); });
+    var steps = lessonSteps(l);
     // one review question from an earlier finished lesson, for spaced repetition
     var pool = [];
     LESSONS.forEach(function (x) {
-      if (x.order < l.order && isDone(x.id)) x.vQuestions.forEach(function (q) { if (q.type !== 'match') pool.push(q); });
+      if (x.order < l.order && isDone(x.id)) x.vQuestions.forEach(function (q) { if (reviewable(q)) pool.push(q); });
     });
     if (pool.length) {
       pool = shuffle(pool).sort(function (a, b) { return (S.mistakes[b.id] || 0) - (S.mistakes[a.id] || 0); });
@@ -1814,7 +1835,7 @@
   function startPractice(onlyMistakes) {
     var pool = [];
     LESSONS.forEach(function (l) {
-      if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (!onlyMistakes || S.mistakes[q.id] > 0) pool.push(q); });
+      if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (scored(q) && (!onlyMistakes || S.mistakes[q.id] > 0)) pool.push(q); });
     });
     if (!pool.length) return;
     pool = shuffle(pool).sort(function (a, b) { return (S.mistakes[b.id] || 0) - (S.mistakes[a.id] || 0); });
@@ -1827,7 +1848,7 @@
   function startRepair() {
     var R = CFG.streakRepair, pool = [];
     LESSONS.forEach(function (l) {
-      if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (q.type !== 'match') pool.push(q); });
+      if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (reviewable(q)) pool.push(q); });
     });
     if (!pool.length || !S.lostStreak) return;
     var n = Math.min(R.questions, pool.length);
@@ -1961,7 +1982,7 @@
           '<div class="dots" aria-hidden="true">' + dots + '</div>' +
           legalLine(false) +
         '</div>' +
-        '<div class="player-foot gutter"><button class="btn" data-act="next">' + (st.n + 1 === st.of ? 'לשאלות' : 'המשך') + '</button></div></div>';
+        '<div class="player-foot gutter"><button class="btn" data-act="next">' + (st.n + 1 === st.of && !session.lesson.flow ? 'לשאלות' : 'המשך') + '</button></div></div>';
     }
     return '<div class="' + cls + ' qt' + (session.idx % 4) + '">' + playerTop() +
       '<div class="stage gutter">' + questionHead(st) + questionBody(st) + legalLine(true) + '</div>' + questionFoot(st) + '</div>';
@@ -1986,14 +2007,16 @@
   function questionHead(st) {
     var q = st.q;
     var label = session.mode === 'repair' ? 'הצלת רצף · ' + (session.idx + 1) + ' מתוך ' + stepCount()
-      : st.review ? 'חזרה' + (BY_ID[q.lessonId] && (!session.lesson || BY_ID[q.lessonId] !== session.lesson) ? ' · ' + esc(BY_ID[q.lessonId].title) : '')
+      : q.guess ? 'ניחוש · אין כאן טעויות'
       : st.retry ? 'עוד ניסיון'
+      : q.label && !st.review ? esc(q.label)
+      : st.review ? 'חזרה' + (BY_ID[q.lessonId] && (!session.lesson || BY_ID[q.lessonId] !== session.lesson) ? ' · ' + esc(BY_ID[q.lessonId].title) : '')
       : q.type === 'trueFalse' ? 'נכון או לא נכון?'
       : q.type === 'match' ? 'התאמה'
       : q.type === 'order' ? 'סידור לפי הסדר'
       : q.type === 'numeric' ? 'חישוב'
       : 'בחרו את התשובה הנכונה';
-    var peek = session.lesson && !st.review ? '<button class="peek" data-act="peek">' + ICON.book + 'להציץ בהסבר</button>' : '';
+    var peek = session.lesson && !st.review && !q.guess && seenScreens().length ? '<button class="peek" data-act="peek">' + ICON.book + 'להציץ בהסבר</button>' : '';
     return '<div class="q-head"><div class="kicker' + (st.review || st.retry ? ' review' : '') + '">' + label + '</div>' + peek + '</div>' +
       (q.scenario ? '<div class="scenario"><span class="sc-ic">' + ICON.user + '</span><p>' + esc(q.scenario) + '</p></div>' : '') +
       '<h2 class="q-prompt">' + esc(q.prompt) + '</h2>';
@@ -2043,7 +2066,7 @@
       var c = 'opt';
       if (st.checked) {
         if (oi === q.correctIndex) c += ' right';
-        else if (oi === st.sel) c += ' wrong';
+        else if (oi === st.sel) c += q.guess ? ' sel' : ' wrong'; // a guess is never marked wrong
       } else if (oi === st.sel) c += ' sel';
       return '<button class="' + c + '" data-act="pick" data-i="' + oi + '"' + (st.checked ? ' disabled' : '') + '>' +
         (tf ? '' : '<span class="key">' + HEB_LETTERS[pos] + '</span>') + '<span>' + esc(q.options[oi]) + '</span></button>';
@@ -2077,18 +2100,33 @@
       return '<div class="player-foot gutter">' + hint + '<button class="btn" data-act="check"' + (ready ? '' : ' disabled') + '>בדיקה</button></div>';
     }
     var right = st.right, ct = correctText(q);
-    var title = right ? st.praise : q.type === 'match' ? 'הותאם, עם ' + plural(st.m.mistakes, 'טעות אחת', 'טעויות') : 'לא בדיוק';
+    var title = right ? st.praise : q.type === 'match' ? 'הותאם, עם ' + plural(st.m.mistakes, 'טעות אחת', 'טעויות') : st.oops || 'לא בדיוק';
     var fix = '';
     if (!right && ct) fix = '<p>התשובה הנכונה: <span class="ans">' + esc(ct) + '</span></p>';
+    // 0.15: an answer can have its own reply ("feedback", one per option), shown instead of the general explanation
+    var said = q.feedback && st.sel !== null && q.feedback[st.sel] ? q.feedback[st.sel] : q.explanation;
+    if (q.guess) {
+      var guessTitle = st.sel === q.correctIndex ? 'ניחוש מעולה!' : 'ניחוש טוב, והתשובה מפתיעה';
+      return '<div class="player-foot gutter ok guess">' +
+        '<div class="verdict"><div class="badge">' + ICON.check + '</div><div>' +
+        '<h3>' + guessTitle + '</h3>' + (st.sel === q.correctIndex ? '' : '<p>התשובה: <span class="ans">' + esc(ct) + '</span></p>') +
+        '<p>' + esc(said) + '</p></div></div>' +
+        '<button class="btn ok" data-act="next">בואו נראה למה</button></div>';
+    }
     if (!right && q.type === 'order') fix = '<p>הסדר הנכון:</p><ol class="ans-list">' + q.items.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>';
     return '<div class="player-foot gutter ' + (right ? 'ok' : 'bad') + '">' +
       '<div class="verdict"><div class="badge">' + (right ? ICON.check : ICON.x) + '</div><div>' +
       '<h3>' + title + (st.gain ? ' <span class="gain">' + plus(st.gain) + '</span>' : '') + '</h3>' +
-      fix + '<p>' + esc(q.explanation) + '</p>' + srcLink(q, 'answer') + '</div></div>' +
+      fix + '<p>' + esc(said) + '</p>' + srcLink(q, 'answer') + '</div></div>' +
       '<button class="btn ' + (right ? 'ok' : 'bad') + '" data-act="next">המשך</button></div>';
   }
 
-  var lastPraise = '';
+  var lastPraise = '', lastOops = '';
+  function oops() {
+    var c = ['לא בדיוק', 'כמעט', 'אופס, לא', 'קרוב, אבל לא', 'לא הפעם'].filter(function (x) { return x !== lastOops; });
+    lastOops = c[Math.floor(Math.random() * c.length)];
+    return lastOops;
+  }
   function praise() {
     var c = ['מצוין!', 'בול!', 'נכון!', 'יפה מאוד!', 'בדיוק!', 'אלוף!', 'וואו, נכון!'].filter(function (x) { return x !== lastPraise; });
     lastPraise = c[Math.floor(Math.random() * c.length)];
@@ -2110,6 +2148,15 @@
   function resolve(st, right) {
     st.checked = true;
     st.right = right;
+    if (st.q.guess) { // no points, no mistake, no combo change, not part of the lesson's accuracy
+      st.gain = 0;
+      track('question_answered', { mode: session.mode, lesson_id: session.lesson ? session.lesson.id : st.q.lessonId, question_id: st.q.id,
+        question_type: st.q.type, correct: right, retry: false, review: false, guess: true, is_first_try: !(session.lesson && isDone(session.lesson.id)),
+        option_index: st.sel, option_pos: st.order ? st.order.indexOf(st.sel) : st.sel, option_count: st.q.options.length });
+      sfx.pair();
+      save();
+      return;
+    }
     S.answered++;
     if (!st.retry) {
       session.firstTry++;
@@ -2128,6 +2175,7 @@
       sfx.right(session.combo);
     } else {
       session.combo = 0;
+      st.oops = oops();
       S.mistakes[st.q.id] = (S.mistakes[st.q.id] || 0) + 1;
       // a wrong answer comes back once at the end (not matching, and not in the streak rescue test)
       if (!st.retry && st.q.type !== 'match' && session.mode !== 'repair') session.steps.push(buildQuestionStep(st.q, { retry: true }));
@@ -2575,9 +2623,17 @@
     return links.length ? '<div class="src-list"><h2 class="sec">לבדוק במקור</h2>' + links.join('') + '</div>' : '';
   }
 
+  // the cards already shown in this lesson (in a flow lesson, the later ones are still a surprise)
+  function seenScreens() {
+    var l = session.lesson;
+    if (!l.flow) return l.vScreens;
+    var out = [];
+    session.steps.slice(0, session.idx).forEach(function (x) { if (x.kind === 'screen' && out.indexOf(x.s) < 0) out.push(x.s); });
+    return out;
+  }
   function peekSheet() {
     var l = session.lesson;
-    var screens = l.vScreens.map(function (s) {
+    var screens = seenScreens().map(function (s) {
       return '<div class="peek-item"><b>' + esc(s.title) + '</b>' + (s.lead ? '<p class="lead-line">' + esc(s.lead) + '</p>' : '') + '<p>' + esc(s.body) + '</p>' +
         (s.example ? '<p class="ex">' + (s.exampleLabel ? '<b>' + esc(s.exampleLabel) + ': </b>' : '') + esc(s.example) + '</p>' : '') + '</div>';
     }).join('');
