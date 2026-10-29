@@ -18,7 +18,9 @@
 var SHEET_NAME = 'רשימת המתנה';
 var SUMMARY_NAME = 'סיכום';
 var NOTIFY = true; // אימייל על כל נרשם חדש. false = בלי אימיילים
-var SCRIPT_VERSION = 'sheet-3'; // מופיע בכתובת ?count=1, כך רואים איזו גרסה של הסקריפט באמת פרוסה
+// עוד כתובות שיקבלו את האימייל על כל נרשם, מופרדות בפסיק. ריק במאגר הציבורי בכוונה: ממלאים רק בעותק שבגוגל.
+var NOTIFY_ALSO = '';
+var SCRIPT_VERSION = 'sheet-4'; // מופיע בכתובת ?count=1, כך רואים איזו גרסה של הסקריפט באמת פרוסה
 var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף', 'שם'];
 var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12, name: 13 };
 
@@ -200,10 +202,18 @@ function newCode_() {
 
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 
+// the sheet owner plus NOTIFY_ALSO (valid addresses only)
+function recipients_() {
+  var list = [Session.getEffectiveUser().getEmail()].concat(String(NOTIFY_ALSO || '').split(','));
+  return list.map(function (a) { return String(a || '').trim().toLowerCase(); })
+    .filter(function (a, i, all) { return /^[^\s@,]+@[^\s@,]+\.[^\s@,]{2,}$/.test(a) && all.indexOf(a) === i; })
+    .join(',');
+}
+
 // an email to the owner of the sheet about the new signup. A failure here never fails the signup.
 function notify_(row, out) {
   try {
-    var to = Session.getEffectiveUser().getEmail();
+    var to = recipients_();
     if (!to) return;
     var lines = [
       'מקום ברשימה: #' + out.position + ' (סך הכול ' + out.total + ')',
@@ -226,7 +236,7 @@ function setup() { sheet_(); }
 // run once from the editor (choose testEmail at the top, then Run): Google asks to allow sending email,
 // and a test email arrives right away. After that every new signup sends one. Then: Deploy > Manage deployments > New version.
 function testEmail() {
-  var to = Session.getEffectiveUser().getEmail();
+  var to = recipients_();
   MailApp.sendEmail({
     to: to,
     subject: 'דריבית: בדיקה, ההתראות על נרשמים חדשים עובדות',
