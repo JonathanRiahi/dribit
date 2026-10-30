@@ -1386,7 +1386,7 @@
   var offerCheckAns = {};   // partner id -> 'yes' / 'no' for this session (never saved, never sent as a person property)
   function offerFill(p, t) {
     var o = p.offer || {};
-    return fillIn(t, { bonus: o.bonus || '', deposit: o.deposit || '', months: o.months || '', name: p.name || '', who: contactName() || '' });
+    return fillIn(t, { bonus: o.bonus || '', deposit: o.deposit || '', hold: o.hold || o.deposit || '', months: o.months || '', name: p.name || '', who: contactName() || '' });
   }
   function offerData(p, optionId, place) {
     return 'data-id="' + esc(p.id) + '" data-option="' + esc(optionId) + '" data-place="' + esc(place) + '"';
@@ -1419,18 +1419,23 @@
       '<p class="offer-note" aria-hidden="true">' + offerFill(p, o.ctaNote) + '</p>' +
       (c ? '<button class="link quiet" data-act="partner-check" data-v="undo" ' + d + '>' + esc(c.undo) + '</button>' : '') + '</div>';
   }
-  function partnerOffer(p, optionId, place) {
+  // fold: a tray that opens on tap (always in the comparison; on the done screen when there is more than one offer)
+  function partnerOffer(p, optionId, place, fold) {
     var o = p.offer;
     if (!o) return '';
-    var d = offerData(p, optionId, place), fold = place === 'unit_sheet';
+    var d = offerData(p, optionId, place);
+    fold = fold || place === 'unit_sheet';
     var head = '<span class="offer-top">' + partnerLogo(p) +
         '<span class="offer-id"><b>' + esc(p.name) + '</b><span>' + offerFill(p, o.kind) + '</span></span>' + (fold ? ICON.chevron : '') + '</span>' +
-      '<span class="offer-lead">' + offerFill(p, o.summary) + '</span>';
+      '<span class="offer-lead">' + offerFill(p, o.summary) + '</span>' +
+      (fold ? '<span class="offer-hint">' + offerFill(p, o.openHint || 'לכל התנאים ולקישור') + ICON.chevron + '</span>' : '');
     var tile = function (t, cls) {
       return '<div class="offer-tile ' + cls + '"><span>' + offerFill(p, t.label) + '</span><b>' + ltr(offerFill(p, t.value)) + '</b><span>' + offerFill(p, t.note) + '</span></div>';
     };
     var body = '<div class="offer-body">' +
       (o.need && o.get ? '<div class="offer-tiles">' + tile(o.need, 'need') + tile(o.get, 'get') + '</div>' : '') +
+      ((o.steps || []).length ? '<div class="offer-steps-wrap"><b class="offer-sub">' + offerFill(p, o.stepsTitle || 'איך זה עובד') + '</b><ol class="offer-steps">' +
+        o.steps.map(function (t, i) { return '<li><span class="offer-step-n" aria-hidden="true">' + (i + 1) + '</span><span>' + offerFill(p, t) + '</span></li>'; }).join('') + '</ol></div>' : '') +
       ((o.terms || []).length ? '<ul class="offer-terms">' + o.terms.map(function (t) { return '<li>' + offerFill(p, t) + '</li>'; }).join('') + '</ul>' : '') +
       (o.caution && !o.check ? '<p class="offer-caution">' + ICON.info + '<span>' + offerFill(p, o.caution) + '</span></p>' : '') +
       offerGate(p, optionId, place) +
@@ -1462,8 +1467,8 @@
       track('partner_offer_viewed', { partner_id: p.id, place: 'lesson_done', lesson_id: l.id, intent: a });
     });
     return '<section class="compare on-done"><div class="eyebrow">' + esc(P.doneEyebrow || 'לא המלצה') + '</div>' +
-      (P.doneLead ? '<p class="lead">' + esc(P.doneLead) + '</p>' : '') +
-      ps.map(function (p) { return partnerOffer(p, p.optionId, 'lesson_done'); }).join('') + back + '</section>';
+      (P.doneLead ? '<p class="lead">' + esc(ps.length > 1 && P.doneLeadMany ? P.doneLeadMany : P.doneLead) + '</p>' : '') +
+      ps.map(function (p) { return partnerOffer(p, p.optionId, 'lesson_done', ps.length > 1); }).join('') + back + '</section>';
   }
   // a missing or broken logo file (offline before it was cached) turns into the letter tile
   document.addEventListener('error', function (e) {
@@ -1483,7 +1488,7 @@
       var ps = all.filter(function (p) { return p.optionId === o.id; }), l = BY_ID[o.lessonId];
       var plain = ps.filter(function (p) { return !p.offer; }), offers = ps.filter(function (p) { return p.offer; });
       return '<li class="cmp-opt"><b>' + esc(o.title) + '</b><p>' + esc(o.text) + '</p>' +
-        '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
+        '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length > 1 && P.paidLineMany ? P.paidLineMany : ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
         (shown(l) ? '<button class="link" data-act="preview" data-id="' + esc(l.id) + '">לשיעור "' + esc(l.title) + '"</button>' : '') +
         (plain.length ? '<p class="cmp-partners">אפשר לפתוח אצל: ' + plain.map(function (p) {
           return '<a class="link" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" data-id="' + esc(p.id) + '" data-option="' + esc(o.id) + '" data-place="unit_sheet">' + esc(p.name) + '</a>';
@@ -1524,6 +1529,8 @@
     var names = live.map(function (p) { return p.name; });
     var earn = !live.length ? esc(a.earnNow)
       : live.length === 1 ? fillIn(live[0].about || a.earnPartner, { partner: names[0] })
+      : a.earnReferrals && live.every(function (p) { return p.friendReferral && !p.contractSigned; })
+        ? fillIn(a.earnReferrals, { partners: names.slice(0, -1).join(', ') + ' ו' + names[names.length - 1] })
       : fillIn(a.earnPartners || a.earnPartner, { partners: names.join(', '), partner: names.join(', ') });
     var wa = waNumber();
     openSheet('<h3>' + esc(a.title) + '</h3>' +

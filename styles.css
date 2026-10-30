@@ -950,6 +950,10 @@ button.slot { cursor: pointer; }
 .offer-top > svg { flex: none; width: 22px; height: 22px; color: var(--ink-2); transform: rotate(-90deg); transition: transform .18s ease; }
 details.offer[open] .offer-top > svg { transform: rotate(90deg); }
 .offer .offer-lead { font-size: 16px; line-height: 1.5; color: var(--ink); }
+/* folded: a plain line that says what opening it gives (hidden once open) */
+.offer .offer-hint { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; font-size: 15px; font-weight: 700; color: var(--brand); }
+.offer-hint svg { width: 18px; height: 18px; transform: rotate(-90deg); }
+details.offer[open] .offer-hint { display: none; }
 .offer-body { display: flex; flex-direction: column; gap: 14px; padding: 0 16px 16px; }
 
 /* what it takes and what you get, side by side */
@@ -962,6 +966,10 @@ details.offer[open] .offer-top > svg { transform: rotate(90deg); }
 .offer-terms { display: flex; flex-direction: column; gap: 8px; padding-inline-start: 20px; list-style: disc; }
 .offer .offer-terms li { font-size: 15px; line-height: 1.5; color: var(--ink-2); }
 .offer .offer-terms li::marker { color: var(--ink-2); }
+.offer .offer-sub { display: block; font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+.offer-steps { display: flex; flex-direction: column; gap: 10px; list-style: none; padding: 0; margin: 0; }
+.offer .offer-steps li { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.5; color: var(--ink); }
+.offer-step-n { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: var(--on-brand, #fff); font: 700 14px/1 var(--font-display); margin-top: 1px; }
 .offer .offer-caution { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--gold-soft); color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.45; }
 .offer-caution svg { flex: none; width: 20px; height: 20px; margin-top: 1px; color: var(--gold-ink); }
 
@@ -1004,6 +1012,11 @@ details.offer > summary { list-style: none; cursor: pointer; border-radius: inhe
 details.offer > summary:focus-visible { outline-offset: -3px; }
 .cmp-opt > .offer { --o-bg: var(--surface-2); --o-well: var(--surface); margin: 2px -14px -12px; border: 0; border-top: 2px solid var(--line); border-radius: 0 0 calc(var(--r-md) - 2px) calc(var(--r-md) - 2px); }
 .cmp-opt > .offer .offer-head, .cmp-opt > .offer .offer-body { padding-inline: 14px; }
+/* two partners in one option: trays stack, only the last one closes the card's corners */
+.cmp-opt > .offer:not(:last-child) { margin-bottom: 0; border-radius: 0; }
+.cmp-opt > .offer + .offer { margin-top: 0; }
+/* on the done screen with more than one offer: folded cards, one under the other */
+.compare.on-done > details.offer + details.offer { margin-top: 0; }
 .compare .fine, .chip.plain { color: var(--ink-2); }
 
 /* on the 5.2 done screen: the card stands alone, with a line above and the way back to the comparison below */
