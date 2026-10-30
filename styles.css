@@ -589,6 +589,10 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .takeaway { background: var(--surface); border: 2px solid var(--line); border-radius: var(--r-md); padding: 16px; display: flex; flex-direction: column; gap: 6px; }
 .takeaway.remember { background: var(--gold-soft); border-color: transparent; }
 .takeaway.remember p { font-family: var(--font-display); font-weight: 500; font-size: 19px; }
+/* 0.17: the next lesson on the done screen (title + its opening guess), so there is a question to come back for */
+.next-up { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: var(--r-md); background: var(--surface); border: 2px solid var(--line); border-inline-start: 6px solid var(--u, var(--brand)); }
+.next-up b { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--ink); text-wrap: balance; }
+.next-up .nu-teaser { color: var(--ink-2); font-size: 15px; line-height: 1.45; }
 
 /* ---------- Missions ---------- */
 .mission-card {

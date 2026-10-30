@@ -713,6 +713,12 @@
       var ip18 = BY_ID[S.inProgress.lessonId], cur18 = currentLesson();
       if (ip18 && cur18 && !isDone(ip18.id) && shown(ip18) && ip18.order > cur18.order) S.inProgress = null;
     }
+    // v19 (30.10, Jonathan: "קודם כל ליצור הוק"): the path was re-ordered so personal lessons (gambling, scams, installments,
+    // the trip) come before the market. Like v10 and v18: an unfinished lesson that now sits after the next lesson is dropped.
+    if ((S.contentV || 0) < 19 && v >= 19 && S.inProgress) {
+      var ip19 = BY_ID[S.inProgress.lessonId], cur19 = currentLesson();
+      if (ip19 && cur19 && !isDone(ip19.id) && shown(ip19) && ip19.order > cur19.order) S.inProgress = null;
+    }
     S.contentV = v;
     save();
   }
@@ -2471,8 +2477,19 @@
       html += '<button class="btn ghost" data-act="invite" data-from="done" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + 'להזמין חבר</button>';
       html += inviteNote();
     }
+    if (s.mode === 'lesson') html += nextUpCard(l);
     html += '<button class="btn" data-act="home">המשך</button></div>';
     return html;
+  }
+  // 0.17 (30.10, "קודם כל ליצור הוק"): the done screen names the next lesson and asks its opening guess, so there is
+  // an open question to come back for. Only when a next lesson exists and it is not the one just finished.
+  function nextUpCard(l) {
+    var nx = currentLesson();
+    if (!nx || (l && nx.id === l.id)) return '';
+    var g = (nx.vQuestions || []).filter(function (q) { return q.guess; })[0];
+    var teaser = g && g.prompt && g.prompt.length <= 120 && !g.scenario ? g.prompt : nx.what;
+    return '<div class="next-up u' + esc(nx.unit.id) + '"><span class="eyebrow">השיעור הבא</span><b>' + esc(nx.title) + '</b>' +
+      (teaser ? '<span class="nu-teaser">' + esc(teaser) + '</span>' : '') + '</div>';
   }
 
   // ---------- Missions ----------
