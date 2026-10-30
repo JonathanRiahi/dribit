@@ -1374,7 +1374,7 @@
   var offerCheckAns = {};   // partner id -> 'yes' / 'no' for this session (never saved, never sent as a person property)
   function offerFill(p, t) {
     var o = p.offer || {};
-    return fillIn(t, { bonus: o.bonus || '', deposit: o.deposit || '', months: o.months || '', name: p.name || '', who: contactName() || '' });
+    return fillIn(t, { bonus: o.bonus || '', deposit: o.deposit || '', hold: o.hold || o.deposit || '', months: o.months || '', name: p.name || '', who: contactName() || '' });
   }
   function offerData(p, optionId, place) {
     return 'data-id="' + esc(p.id) + '" data-option="' + esc(optionId) + '" data-place="' + esc(place) + '"';
@@ -1471,7 +1471,7 @@
       var ps = all.filter(function (p) { return p.optionId === o.id; }), l = BY_ID[o.lessonId];
       var plain = ps.filter(function (p) { return !p.offer; }), offers = ps.filter(function (p) { return p.offer; });
       return '<li class="cmp-opt"><b>' + esc(o.title) + '</b><p>' + esc(o.text) + '</p>' +
-        '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
+        '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length > 1 && P.paidLineMany ? P.paidLineMany : ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
         (shown(l) ? '<button class="link" data-act="preview" data-id="' + esc(l.id) + '">לשיעור "' + esc(l.title) + '"</button>' : '') +
         (plain.length ? '<p class="cmp-partners">אפשר לפתוח אצל: ' + plain.map(function (p) {
           return '<a class="link" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" data-id="' + esc(p.id) + '" data-option="' + esc(o.id) + '" data-place="unit_sheet">' + esc(p.name) + '</a>';
@@ -1512,6 +1512,8 @@
     var names = live.map(function (p) { return p.name; });
     var earn = !live.length ? esc(a.earnNow)
       : live.length === 1 ? fillIn(live[0].about || a.earnPartner, { partner: names[0] })
+      : a.earnReferrals && live.every(function (p) { return p.friendReferral && !p.contractSigned; })
+        ? fillIn(a.earnReferrals, { partners: names.slice(0, -1).join(', ') + ' ו' + names[names.length - 1] })
       : fillIn(a.earnPartners || a.earnPartner, { partners: names.join(', '), partner: names.join(', ') });
     var wa = waNumber();
     openSheet('<h3>' + esc(a.title) + '</h3>' +
