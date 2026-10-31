@@ -23,7 +23,7 @@ window.DRIBIT_CONFIG = {
       6: 'assets/images/unit6-warning.svg',
       7: 'assets/images/unit7-career-progress.svg',
       8: 'assets/images/unit8-five-year-plan.svg',
-      9: 'assets/images/empty-empty.svg',  // 0.13: "איפה הכסף בורח", השיעור הראשון של כולם
+      9: 'assets/images/empty-empty.svg',  // 0.13: היחידה שפותחת את המסלול. מ-0.17: "מתחילים מהכסף שלך", 2.1 לחיילים ואז 0.1 (31.10)
       10: 'assets/images/unit10-travelers.svg'  // 0.16: "יוצאים לעצמאות" (הטיול הגדול, דירה)
     }
   },
@@ -77,7 +77,7 @@ window.DRIBIT_CONFIG = {
     { id: 'civ', label: 'לא בצבא', note: 'לא שירתי, או שזה לא רלוונטי' }
   ],
 
-  // היחידה שפותחת את המסלול לפי סטטוס (מזהה יחידה מ-lessons.json). null = סדר הקובץ (ריבית דריבית קודם).
+  // היחידה שבאה מיד אחרי יחידה 9 (שפותחת לכולם) לפי סטטוס (מזהה יחידה מ-lessons.json). null = סדר הקובץ (ריבית דריבית אחרי 0.1).
   startUnit: { sadir: 2, pre: 2, post: 2, civ: null },
 
   // מה מבטיחים במסך הפתיחה אחרי בחירת סטטוס. בלי סכומים, בלי שמות של חברות ובלי שותף.
