@@ -9,6 +9,8 @@
   // days off for the streak (config.daysOff): read by migrate(), so it is set before the state loads
   var DO = CFG.daysOff || { enabled: false, maxHeld: 0, perLevel: 0, invite: 0, inviteEveryDays: 7, friendGift: 0, minStreak: 2 };
   // tools that open by level (config.tools, 0.10): read by cleanState(), so it is set before the state loads
+  // the lesson battery (config.energy, 0.14): read by freshState(), so it is set before the state loads
+  var EN = CFG.energy || { enabled: false };
   var TOOLS = CFG.tools || { enabled: false, list: [] };
   var TOOL_IDS = ['discharge', 'pikadon_check', 'time_machine', 'fees', 'my_plan'];
   // colors that open by level (config.skins, 0.12): read by cleanState(), so they are set before the state loads.
@@ -172,7 +174,9 @@
       skins: { id: 'forest', seen: [], introSeen: true },
       // 0.13 daily checks (config.dailyChecks): start = the day the first lesson was finished (the first check opens the
       // next day; null = open now, for people who finished lessons before 0.13), done = check id -> the day it was done
-      checks: { start: null, done: {} }
+      checks: { start: null, done: {} },
+      // 0.14 battery (config.energy): bars at the time `at` (ms), and whether the one-time note was shown. Never in transfer codes.
+      energy: { n: EN.max > 0 ? Math.floor(EN.max) : 5, at: 0, seen: false }
     };
   }
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
@@ -263,6 +267,9 @@
     s.skins = cleanSkins(s.skins);
     s.checks = isRec(s.checks) ? { start: isDayKey(s.checks.start) ? s.checks.start : null,
       done: cleanMap(s.checks.done, function (v) { return isDayKey(v) ? v : null; }) } : { start: null, done: {} };
+    var en = isRec(s.energy) ? s.energy : {}, enCap = EN.max > 0 ? Math.floor(EN.max) : 5;
+    s.energy = { n: typeof en.n === 'number' && isFinite(en.n) ? Math.max(0, Math.min(enCap, Math.floor(en.n))) : enCap,
+      at: num0(en.at) <= Date.now() + 864e5 ? num0(en.at) : 0, seen: en.seen === true };
   }
   // S.skins also arrives in transfer codes: an unknown color becomes forest, seen keeps known ids only
   function cleanSkins(k) {
@@ -435,6 +442,171 @@
   // "יום חופש אחד" / "2 ימי חופש"
   function daysOffText(n) { return n === 1 ? 'יום חופש אחד לרצף' : fmt(n) + ' ימי חופש לרצף'; }
 
+  // ---------- Battery (0.14, config.energy) ----------
+  // Like Duolingo (Jonathan, 29.10): each finished lesson uses one bar, a bar comes back every refillMinutes, and at zero
+  // a new lesson waits. A started lesson can always be finished; mistakes cost nothing; practice, missions, the daily
+  // check, the streak rescue and the tools never use it. New people are never stopped: the first day in the app and the
+  // first freeLessons lessons are free. S.energy = { n: bars at the time `at`, at: when the refill clock started (ms) }.
+  function enOn() { return !!(EN.enabled && EN.max > 0 && EN.refillMinutes > 0); }
+  function enMax() { return Math.max(1, Math.floor(EN.max || 5)); }
+  function enRefillMs() { return Math.max(1, EN.refillMinutes || 180) * 60000; }
+  // free for now: the first day in the app, or before the first freeLessons lessons are done
+  function enFree() {
+    if (!enOn()) return true;
+    return (EN.freeFirstDay && S.firstDay === dayKey()) || doneCount() < (EN.freeLessons || 0);
+  }
+  // the bars now, and the stored state moved up to now (keeps the time already charged toward the next bar)
+  function enSync(now) {
+    now = now || Date.now();
+    var e = S.energy, max = enMax(), R = enRefillMs();
+    if (e.n >= max) { e.n = max; e.at = now; return max; }
+    if (!(e.at > 0) || e.at > now) e.at = now; // a clock moved back starts the bar again, never a free refill
+    var k = Math.floor((now - e.at) / R);
+    if (k > 0) { e.n = Math.min(max, e.n + k); e.at = e.n >= max ? now : e.at + k * R; }
+    return e.n;
+  }
+  function enNow() { return enOn() ? enSync() : enMax(); }
+  // ms until the next bar (0 when full)
+  function enNextMs() {
+    if (!enOn() || enSync() >= enMax()) return 0;
+    return Math.max(0, enRefillMs() - (Date.now() - S.energy.at));
+  }
+  function enFullMs() {
+    var n = enNow(), max = enMax();
+    return n >= max ? 0 : enNextMs() + (max - n - 1) * enRefillMs();
+  }
+  // a new lesson can start now (resuming a started lesson never asks)
+  function enCanStart() { return enFree() || enNow() > 0; }
+  // the lesson just finished uses a bar; returns what happened, for the done screen and the data
+  function enSpend() {
+    if (!enOn()) return null;
+    if (enFree()) return { free: true, left: enMax() };
+    var n = enSync(), max = enMax();
+    if (n >= max) S.energy.at = Date.now();
+    S.energy.n = Math.max(0, n - 1);
+    return { free: false, left: S.energy.n };
+  }
+  // "2:41:07" / "41:07", always left to right
+  function enClock(ms) {
+    var s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+    return (h ? h + ':' + ('0' + m).slice(-2) : m) + ':' + ('0' + x).slice(-2);
+  }
+  // "שעתיים ו-41 דקות" style words, for sentences
+  function enWords(ms) {
+    var min = Math.max(1, Math.ceil(ms / 60000)), h = Math.floor(min / 60), m = min % 60;
+    var hw = h === 0 ? '' : h === 1 ? 'שעה' : h === 2 ? 'שעתיים' : h + ' שעות';
+    var mw = m === 0 ? '' : m === 1 ? 'דקה' : m + ' דקות';
+    return hw && mw ? hw + ' ו-' + mw : hw || mw;
+  }
+  // a live countdown: the ticker below rewrites it every second. kind 'next' = the next bar, 'full' = a full battery
+  function enTimer(kind) {
+    var ms = kind === 'full' ? enFullMs() : enNextMs();
+    return '<bdi dir="ltr" class="etimer" data-etimer="' + kind + '">' + enClock(ms) + '</bdi>';
+  }
+  function enLevel(n) { return n <= 0 ? 'empty' : n === 1 ? 'low' : 'ok'; }
+  // a standing battery (fills from the bottom, so it reads the same in Hebrew and English)
+  function batteryIcon(n, max, inf) {
+    var segs = '', h = 15 / max;
+    for (var i = 0; i < max; i++) {
+      var y = 21 - (i + 1) * h;
+      if (inf || i < n) segs += '<rect x="7.4" y="' + (y + 0.6).toFixed(2) + '" width="9.2" height="' + Math.max(0.8, h - 1.2).toFixed(2) + '" rx=".8" fill="currentColor"/>';
+    }
+    return '<svg class="batt" viewBox="0 0 24 24" aria-hidden="true"><rect x="9.5" y="1.6" width="5" height="2.4" rx=".9" fill="currentColor" opacity=".7"/>' +
+      '<rect x="5.6" y="4.2" width="12.8" height="18.6" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9" opacity="' + (n > 0 || inf ? '.6' : '.95') + '"/>' + segs + '</svg>';
+  }
+  // the top bar's battery
+  function energyStat() {
+    if (!enOn()) return '';
+    var free = enFree(), n = enNow(), max = enMax();
+    var label = free ? 'סוללה: בלי הגבלה כרגע' : 'סוללה: ' + n + ' מתוך ' + max;
+    return '<button class="stat energy ' + (free ? 'free' : enLevel(n)) + '" data-act="explain" data-what="energy" aria-label="' + label + '">' +
+      batteryIcon(n, max, free) + '<span data-enum>' + (free ? '∞' : n) + '</span></button>';
+  }
+  // what to do while the battery is empty: practice is free (and the daily check, if one is waiting)
+  function enMeanwhile(from) {
+    var b = '';
+    if (doneCount()) b += '<button class="btn gold" data-act="practice" data-from="' + from + '">' + ICON.dumbbell + 'לתרגל בינתיים (בלי סוללה)</button>';
+    var t = checkToday();
+    if (t && t.state === 'open') b += '<button class="btn ghost" data-act="dcheck" data-id="' + esc(t.check.id) + '" data-from="' + from + '">' + ICON.shieldCheck + 'הבדיקה של היום (' + checkMins(t.check) + ')</button>';
+    return b;
+  }
+  function energyEmptySheet(from, lessonId) {
+    track('energy_empty', { from: from || null, lesson_id: lessonId || null, next_in_min: Math.ceil(enNextMs() / 60000), lessons_done: doneCount() });
+    openSheet('<div class="energy-hero empty">' + batteryIcon(0, enMax()) + '</div>' +
+      '<h3>הסוללה ריקה</h3>' +
+      '<p class="lead">עבדת יפה. ככה בונים הרגל: קצת כל יום, והידע נשאר בראש יותר מאשר בחרישה של ערב אחד.</p>' +
+      '<div class="card tight energy-next"><span>' + ICON.clock + 'פס חדש בעוד</span>' + enTimer('next') + '</div>' +
+      '<p class="fine center">סוללה מלאה בעוד ' + enWords(enFullMs()) + '. שיעור שכבר התחלת תמיד אפשר לסיים.</p>' +
+      enMeanwhile('energy_empty') +
+      '<button class="btn text" data-act="close-sheet">סגירה</button>', 'energy-sheet');
+  }
+  function energyExplain() {
+    var free = enFree(), n = enNow(), max = enMax(), hrs = enWords(enRefillMs());
+    var top = free
+      ? '<h3>סוללה: בלי הגבלה כרגע</h3><p class="lead">' + (EN.freeFirstDay && S.firstDay === dayKey()
+          ? 'היום הראשון שלך כאן, אז אין הגבלה. מחר ' : 'עד שיעור ' + (EN.freeLessons + 1) + ' אין הגבלה. משם ') +
+        'יש סוללה של ' + max + ' שיעורים, ופס חוזר כל ' + hrs + '.</p>'
+      : '<h3>סוללה: ' + n + ' מתוך ' + max + '</h3>' +
+        (n < max ? '<div class="card tight energy-next"><span>' + ICON.clock + 'פס חדש בעוד</span>' + enTimer('next') + '</div>' +
+          '<p class="fine center">סוללה מלאה בעוד ' + enWords(enFullMs()) + '.</p>' : '<p class="lead">הסוללה מלאה. יאללה לשיעור.</p>');
+    openSheet('<div class="energy-hero ' + (free ? 'free' : enLevel(n)) + '">' + batteryIcon(n, max, free) + '</div>' + top +
+      '<ul class="rules">' +
+        '<li><span>כל שיעור שמסיימים, חדש או חוזר</span><b>פס אחד</b></li>' +
+        '<li><span>פס חוזר לבד</span><b>כל ' + hrs + '</b></li>' +
+        '<li><span>טעויות</span><b>חינם</b></li>' +
+        '<li><span>תרגול, תיקון טעויות, משימות וכלים</span><b>חינם</b></li>' +
+      '</ul>' +
+      '<p class="fine">למה סוללה? כי כסף לומדים כמו כושר: קצת כל יום עדיף על הכל ביום אחד. שיעור שכבר התחלת תמיד אפשר לסיים.</p>' +
+      (!free && n === 0 ? enMeanwhile('energy_sheet') : '') +
+      '<button class="btn" data-act="close-sheet">הבנתי</button>', 'energy-sheet');
+  }
+  // the home card while the battery is empty (only when a new lesson is waiting, never over a lesson to resume)
+  function energyHomeCard() {
+    if (!enOn() || enCanStart() || !currentLesson() && !doneCount()) return '';
+    return '<div class="card energy-card"><div class="rc-head"><span class="rc-ic">' + batteryIcon(0, enMax()) + '</span><div>' +
+      '<b>הסוללה ריקה</b><span>השיעור הבא בעוד ' + enTimer('next') + '. תרגול לא צורך סוללה.</span></div></div>' +
+      (doneCount() ? '<div class="row"><button class="btn gold" data-act="practice" data-from="energy_home">לתרגל בינתיים</button>' +
+        '<button class="btn text" data-act="explain" data-what="energy">איך זה עובד</button></div>' : '') + '</div>';
+  }
+  // the done screen's battery line, and a one-time "new" note the first time the battery counts
+  function energyDoneCard(s) {
+    if (!s.energy) return '';
+    var free = enFree(), n = enNow(), max = enMax();
+    // the first lesson the battery counts (or the one after which it starts) shows a one-time "new" note
+    if (s.enIntro == null) {
+      s.enIntro = !S.energy.seen && !free;
+      if (s.enIntro) { S.energy.seen = true; save(); }
+    }
+    if (free) {
+      if (!(s.firstTime && doneCount() === 1)) return '';
+      return '<div class="card tight energy-done free"><span class="ed-ic">' + batteryIcon(max, max, true) + '</span><span><b>בלי הגבלה ' + (EN.freeFirstDay && S.firstDay === dayKey() ? 'היום' : 'בינתיים') + '</b>' +
+        '<span>בהמשך יש סוללה של ' + max + ' שיעורים, ופס חוזר לבד כל ' + enWords(enRefillMs()) + '.</span></span></div>';
+    }
+    return '<div class="card tight energy-done ' + enLevel(n) + '"><span class="ed-ic">' + batteryIcon(n, max) + '</span><span>' +
+      (s.enIntro ? '<b><i class="chip-new">חדש</i>סוללה: ' + n + ' מתוך ' + max + '</b><span>מעכשיו כל שיעור צורך פס אחד, ופס חוזר לבד כל ' + enWords(enRefillMs()) + '. תרגול וטעויות חינם.</span>'
+        : n === 0 ? '<b>הסוללה התרוקנה</b><span>פס חדש בעוד ' + enTimer('next') + '. בינתיים אפשר לתרגל בלי סוללה.</span>'
+        : '<b>סוללה: ' + n + ' מתוך ' + max + '</b><span>' + (n < max ? 'פס חדש בעוד ' + enTimer('next') + '.' : 'מלאה.') + '</span>') +
+      '</span></div>';
+  }
+  // one ticker for every countdown on screen; when a bar comes back, the screen redraws (never inside a lesson)
+  var enLast = null;
+  function enTick() {
+    if (!enOn() || document.hidden) return;
+    var timers = document.querySelectorAll('[data-etimer]');
+    for (var i = 0; i < timers.length; i++) {
+      var k = timers[i].getAttribute('data-etimer');
+      timers[i].textContent = enClock(k === 'full' ? enFullMs() : enNextMs());
+    }
+    var n = enFree() ? -1 : enNow();
+    if (enLast !== null && n !== enLast) {
+      if (n > enLast) save();
+      var sh = document.querySelector('#sheet .energy-sheet');
+      if (sh && enLast === 0 && n > 0) closeSheet();
+      if (view !== 'lesson' && view !== 'done' && !sheetOpen && S.onboarded) render();
+    }
+    enLast = n;
+  }
+
   // ---------- Content ----------
   var DATA = null, UNITS = [], LESSONS = [], BY_ID = {}, QUESTIONS = {}, SOURCES = Object.create(null);
   // official pages behind fact questions (lessons.json "sources", a question's "src"): https only, on these sites only
@@ -529,6 +701,24 @@
     // v13 (21.10, a friend who did not get going): the first lessons of each path got one simple explanation screen.
     // A saved session in one of them gets the new screen slotted in, so the person resumes where they were.
     if ((S.contentV || 0) < 13 && v >= 13 && S.inProgress) addScreenV13(S.inProgress);
+    // v16 (29.10, Jonathan: "הכי קל שזה יכול להיות"): 2.1, 3.1 and 4.4 were rewritten as short cards with a question
+    // after each one. A saved session in them (or holding one of their old questions as a review) starts over.
+    if ((S.contentV || 0) < 16 && v >= 16 && S.inProgress && (['2.1', '3.1', '4.4'].indexOf(S.inProgress.lessonId) >= 0 ||
+        (S.inProgress.steps || []).some(function (x) { return x && x.k === 'q' && !QUESTIONS[x.id]; }))) S.inProgress = null;
+    // v17 (29.10, "תמשיך על כל הפרויקט"): every other lesson got the same rewrite, so any saved session starts over
+    if ((S.contentV || 0) < 17 && v >= 17) S.inProgress = null;
+    // v18 (29.10, "לך על זה"): three new lessons (1.5 card types, unit 10 trip and home). Like v10: an unfinished lesson
+    // that now sits after the next lesson in the path is dropped, so "להמשיך" never skips ahead of the path.
+    if ((S.contentV || 0) < 18 && v >= 18 && S.inProgress) {
+      var ip18 = BY_ID[S.inProgress.lessonId], cur18 = currentLesson();
+      if (ip18 && cur18 && !isDone(ip18.id) && shown(ip18) && ip18.order > cur18.order) S.inProgress = null;
+    }
+    // v19 (30.10, Jonathan: "קודם כל ליצור הוק"): the path was re-ordered so personal lessons (gambling, scams, installments,
+    // the trip) come before the market. Like v10 and v18: an unfinished lesson that now sits after the next lesson is dropped.
+    if ((S.contentV || 0) < 19 && v >= 19 && S.inProgress) {
+      var ip19 = BY_ID[S.inProgress.lessonId], cur19 = currentLesson();
+      if (ip19 && cur19 && !isDone(ip19.id) && shown(ip19) && ip19.order > cur19.order) S.inProgress = null;
+    }
     S.contentV = v;
     save();
   }
@@ -563,11 +753,29 @@
   function missionState(id) { return S.missions[id] || { steps: [], done: false }; }
   function openMissions() { return LESSONS.filter(function (l) { return isDone(l.id) && !missionState(l.id).done; }); }
   function maxLessonPoints(l) {
-    return l.vQuestions.length * P.correct + (hasReviewQuestion(l) ? P.review : 0) + P.lessonDone + P.perfect + P.speed;
+    return l.vQuestions.filter(scored).length * P.correct + (hasReviewQuestion(l) ? P.review : 0) + P.lessonDone + P.perfect + P.speed;
   }
   // startLesson adds one review question from an earlier finished lesson (not a match question): the same test
   function hasReviewQuestion(l) {
-    return LESSONS.some(function (x) { return x.order < l.order && isDone(x.id) && x.vQuestions.some(function (q) { return q.type !== 'match'; }); });
+    return LESSONS.some(function (x) { return x.order < l.order && isDone(x.id) && x.vQuestions.some(reviewable); });
+  }
+  // 0.15: a "guess" question opens a lesson before anything was explained. It earns no points, never counts as a mistake
+  // and never comes back in practice, reviews or the streak rescue test.
+  function scored(q) { return !q.guess; }
+  function reviewable(q) { return q.type !== 'match' && !q.guess; }
+  // 0.15 lessons with "flow": each question sits right after the card it is about ("at" = that card's id, "start" = before
+  // the first card, none = after the last). Older lessons keep every card first and then every question.
+  function lessonSteps(l) {
+    var screenStep = function (sc) { return { kind: 'screen', s: sc, n: l.vScreens.indexOf(sc), of: l.vScreens.length }; };
+    if (!l.flow) return l.vScreens.map(screenStep).concat(l.vQuestions.map(function (q) { return buildQuestionStep(q); }));
+    var at = {}, steps = [];
+    l.vQuestions.forEach(function (q) { var k = q.at || '_end'; (at[k] = at[k] || []).push(q); });
+    var add = function (k) { (at[k] || []).forEach(function (q) { steps.push(buildQuestionStep(q)); }); delete at[k]; };
+    add('start');
+    // a card shown to one status only (2.1: soldiers vs. the discharged) can share its id with the other status's card
+    l.screens.forEach(function (sc) { if (l.vScreens.indexOf(sc) < 0) return; steps.push(screenStep(sc)); if (sc.id) add(sc.id); });
+    Object.keys(at).forEach(add); // "_end", or a card id that does not exist
+    return steps;
   }
   function lessonMinutes(l) {
     return Math.max(3, Math.round((l.vScreens.length * 45 + l.vQuestions.length * 30) / 60));
@@ -828,7 +1036,7 @@
   // the next lesson is what people came for: bring it into view, unless a resume, repair or reminder card leads
   // the page; then the page starts at that card (the previous screen may have been scrolled down)
   function revealCurrent() {
-    var lead = root.querySelector('.resume-card, .repair-card, .reminder-card');
+    var lead = root.querySelector('.resume-card, .repair-card, .energy-card, .reminder-card');
     if (lead) {
       var lr = lead.getBoundingClientRect();
       if (lr.top < 0 || lr.bottom > window.innerHeight) window.scrollTo(0, 0);
@@ -857,6 +1065,7 @@
       '<div class="stats">' +
         '<button class="stat flame' + (st ? '' : ' off') + '" data-act="explain" data-what="streak" aria-label="' + (st ? 'רצף: ' + plural(st, 'יום אחד', 'ימים') : 'אין רצף') + (k ? '. ימי חופש לרצף: ' + k : '') + '">' +
           ICON.flame + st + (k ? '<i class="off-badge" aria-hidden="true">' + ICON.dayoff + k + '</i>' : '') + '</button>' +
+        energyStat() +
         '<button class="stat xp" data-act="explain" data-what="points" aria-label="נקודות: ' + S.xp + '. בשביל מה הן?">' + ICON.coin + fmt(S.xp) + '</button>' +
         '<button class="stat goal" data-act="explain" data-what="goal" aria-label="יעד יומי: ' + todayXp() + ' מתוך ' + S.goalXp + '">' + goalRing(28) + '</button>' +
       '</div></header>';
@@ -914,6 +1123,8 @@
         '<span>אפשר להציל אותו ' + (rep.daysLeft > 0 ? 'עוד ' + plural(rep.daysLeft + 1, 'יום אחד', 'ימים') : 'רק היום') + ': ' + CFG.streakRepair.questions + ' שאלות, ' + CFG.streakRepair.toPass + ' נכונות לפחות.</span></div></div>' +
         '<button class="btn gold" data-act="repair">להציל את הרצף</button></div>';
     }
+    // 0.14: an empty battery says when the next lesson opens (not while a started lesson waits: that one is free to finish)
+    if (!html) html += energyHomeCard();
     // one ask at a time: resume, then the streak rescue, then the reminder, then the install card
     if (!html) {
       var rs = reminderCardState();
@@ -976,9 +1187,9 @@
         var state = isDone(l.id) ? 'done' : (cur && cur.id === l.id ? 'current' : 'locked');
         var dx = Math.round(Math.sin(i * 1.1) * 70);
         var icon = state === 'done' ? ICON.check : state === 'current' ? ICON.star : ICON.lock;
-        var tip = S.inProgress && S.inProgress.lessonId === l.id ? 'להמשיך' : doneCount() ? 'המשך כאן' : 'מתחילים';
+        var tip = S.inProgress && S.inProgress.lessonId === l.id ? 'להמשיך' : !enCanStart() ? batteryIcon(0, enMax()) + enTimer('next') : doneCount() ? 'המשך כאן' : 'מתחילים';
         html += '<div class="node-wrap ' + state + '" style="--dx:' + dx + 'px">' +
-          (state === 'current' ? '<div class="start-tip">' + tip + '</div>' : '') +
+          (state === 'current' ? '<div class="start-tip' + (tip.indexOf('etimer') >= 0 ? ' wait' : '') + '">' + tip + '</div>' : '') +
           '<button class="node ' + state + '" data-act="preview" data-id="' + esc(l.id) + '" aria-label="' + esc(l.title) + '">' + icon + '</button>' +
           '<div class="node-label">' + esc(l.title) + '</div></div>';
       });
@@ -1002,7 +1213,8 @@
     document.body.appendChild(wrap);
     sheetOpen = true;
     if (topIsSheet) histReplace({ view: view, sheet: true }); else histEnter({ view: view, sheet: true });
-    var btn = wrap.querySelector('button.btn, a.btn'); // not the color preview's look-alike button
+    // not the color preview's look-alike button, and never a partner's link
+    var btn = Array.prototype.filter.call(wrap.querySelectorAll('button.btn, a.btn'), function (b) { return !b.closest('.offer'); })[0];
     if (btn) { try { btn.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
   }
   // keepEntry: the caller is about to reuse the sheet's history entry (a view change or another sheet)
@@ -1040,13 +1252,17 @@
     var main = ip
       ? '<button class="btn" data-act="start" data-id="' + esc(l.id) + '">להמשיך (מסך ' + (resumeAt(ip) + 1) + ' מתוך ' + ip.steps.length + ')</button>' +
         '<button class="btn ghost" data-act="restart" data-id="' + esc(l.id) + '">להתחיל מההתחלה</button>'
-      : '<button class="btn' + (replay ? ' gold' : '') + '" data-act="start" data-id="' + esc(l.id) + '">' + (replay ? 'לעשות שוב' : 'התחל שיעור') + '</button>';
+      : !enCanStart()
+        ? '<div class="card tight energy-next">' + batteryIcon(0, enMax()) + '<span>הסוללה ריקה. השיעור נפתח בעוד</span>' + enTimer('next') + '</div>' + enMeanwhile('preview')
+        : '<button class="btn' + (replay ? ' gold' : '') + '" data-act="start" data-id="' + esc(l.id) + '">' + (replay ? 'לעשות שוב' : 'התחל שיעור') + '</button>';
+    var enChip = !enOn() ? '' : enFree() ? '<span class="chip">' + batteryIcon(1, 1, true) + 'בלי סוללה ' + (EN.freeFirstDay && S.firstDay === dayKey() ? 'היום' : 'בינתיים') + '</span>'
+      : ip || !enNow() ? '' : '<span class="chip">' + batteryIcon(1, 1) + 'צורך פס אחד (יש לך ' + enNow() + ')</span>';
     openSheet('<div class="eyebrow">יחידה ' + l.unit.n + ' · שיעור ' + l.n + '</div>' +
       '<h3>' + esc(l.title) + '</h3>' +
       '<p class="lead">' + esc(l.what) + '</p>' +
       '<div class="chips"><span class="chip">' + ICON.clock + 'כ-' + lessonMinutes(l) + ' דקות</span>' +
-      '<span class="chip">' + l.vScreens.length + ' הסברים · ' + l.vQuestions.length + ' שאלות</span>' +
-      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + '</div>' +
+      '<span class="chip">' + l.vScreens.length + ' הסברים · ' + l.vQuestions.filter(scored).length + ' שאלות</span>' +
+      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + enChip + '</div>' +
       '<div class="pts-box"><div class="pts-head">' + ICON.coin + '<b>נקודות בשיעור הזה</b><span>עד ' + Math.round(maxLessonPoints(l) * bx) + '</span></div>' + pointsList(l, bx) + '</div>' +
       main +
       (replay ? '<button class="btn text" data-act="notes" data-id="' + esc(l.id) + '">לקרוא שוב את ההסברים</button>' : ''), 'tall');
@@ -1098,6 +1314,8 @@
           (DO.friendGift ? ' חבר חדש מקבל ' + DO.friendGift + ' ימי חופש.' : '') + '</p>' : '') +
         '<p class="fine">הנקודות ממלאות גם את היעד היומי (העיגול למעלה).</p>' +
         '<button class="btn" data-act="close-sheet">הבנתי</button>', 'tall');
+    } else if (what === 'energy') {
+      energyExplain();
     } else if (what === 'streak') {
       var st = currentStreak(), R = CFG.streakRepair;
       var repairLine = 'רצף של ' + R.minStreak + ' ימים ומעלה שנשבר אפשר להציל עד ' + R.withinDays + ' ימים אחרי, במבחן של ' + R.questions + ' שאלות (' + R.toPass + ' נכונות לפחות).';
@@ -1129,16 +1347,20 @@
   }
 
   // ---------- Partners (config.partner) ----------
-  // a partner is "live" only with the master switch on, a signed contract, approved wording, a name and an https link
+  // a partner is "live" only with the master switch on, approved wording, a name, an https link, and a basis:
+  // a signed contract, or a personal refer-a-friend link that the company OK'd (friendReferral + referralOk)
   var partnerWarned = {};
-  function partnerLive(p) { return !!(p && p.enabled && p.contractSigned && p.textApproved && p.name && /^https:\/\//.test(p.url || '')); }
+  function partnerLive(p) {
+    return !!(p && p.enabled && p.textApproved && p.name && /^https:\/\//.test(p.url || '') &&
+      (p.contractSigned || (p.friendReferral && p.referralOk)));
+  }
   function livePartners(optionId) {
     var P = CFG.partner;
     if (!P || !P.enabled) return [];
     return (P.partners || []).filter(function (p) {
       if (!p || !p.enabled) return false;
       if (!partnerLive(p)) {
-        if (!partnerWarned[p.id]) { partnerWarned[p.id] = true; console.warn('dribit: partner "' + p.id + '" is enabled but not live (needs contractSigned, textApproved, name and an https url)'); }
+        if (!partnerWarned[p.id]) { partnerWarned[p.id] = true; console.warn('dribit: partner "' + p.id + '" is enabled but not live (needs textApproved, a name, an https url, and contractSigned or friendReferral with referralOk)'); }
         return false;
       }
       return !optionId || p.optionId === optionId;
@@ -1150,7 +1372,102 @@
     livePartners().forEach(function (p) { var d = p.disclosure || CFG.partner.disclosure; if (d && out.indexOf(d) < 0) out.push(d); });
     return out;
   }
-  // the neutral three-options comparison on the unit page (never on the done screen, in lessons or in the home cards)
+  // ---------- A partner's offer card (config.partner.partners[].offer, 0.13.4) ----------
+  // Order: who and what (logo, name, both 400s), what it takes (two tiles + the other terms), a self-check, and only after
+  // "yes" the disclosure and the link on one panel. Official terms, then risk and regulation (folded, its key fact visible).
+  // In the comparison it is a folded tray; on the 5.2 done screen it is open. place (unit_sheet / lesson_done) goes with
+  // every event. offer strings may use {bonus} {deposit} {months} {name} {who}.
+  var offerCheckAns = {};   // partner id -> 'yes' / 'no' for this session (never saved, never sent as a person property)
+  function offerFill(p, t) {
+    var o = p.offer || {};
+    return fillIn(t, { bonus: o.bonus || '', deposit: o.deposit || '', months: o.months || '', name: p.name || '', who: contactName() || '' });
+  }
+  function offerData(p, optionId, place) {
+    return 'data-id="' + esc(p.id) + '" data-option="' + esc(optionId) + '" data-place="' + esc(place) + '"';
+  }
+  function partnerLogo(p) {
+    var mono = esc(p.monogram || String(p.name || '').charAt(0));
+    return p.logo
+      ? '<span class="offer-logo"><img src="' + esc(p.logo) + '" alt="" width="48" height="48" decoding="async" data-mono="' + mono + '"></span>'
+      : '<span class="offer-logo mono" aria-hidden="true">' + mono + '</span>';
+  }
+  // the self-check, the "not now" answer, or (after "yes", or with no check in the config) the disclosure and the link
+  function offerGate(p, optionId, place) {
+    var o = p.offer, c = o.check, d = offerData(p, optionId, place), ans = c ? offerCheckAns[p.id] : 'yes';
+    if (!ans) {
+      return '<div class="offer-gate offer-q" ' + d + '><b>' + offerFill(p, c.q) + '</b>' +
+        (c.hint ? '<p>' + offerFill(p, c.hint) + '</p>' : '') +
+        '<div class="rate-btns"><button class="chip-btn" data-act="partner-check" data-v="yes" ' + d + '>' + esc(c.yes) + '</button>' +
+        '<button class="chip-btn" data-act="partner-check" data-v="no" ' + d + '>' + esc(c.no) + '</button></div></div>';
+    }
+    if (ans === 'no') {
+      var nl = BY_ID[c.noLessonId];
+      return '<div class="offer-gate offer-no" ' + d + '>' + ICON.check + '<div><b>' + offerFill(p, c.noTitle) + '</b><p>' + offerFill(p, c.noText) + '</p>' +
+        (shown(nl) ? '<button class="link" data-act="preview" data-id="' + esc(nl.id) + '">לשיעור "' + esc(nl.title) + '"</button>' : '') +
+        '<button class="link quiet" data-act="partner-check" data-v="undo" ' + d + '>' + esc(c.undo) + '</button></div></div>';
+    }
+    return '<div class="offer-gate offer-act" ' + d + '>' +
+      '<p class="offer-disc">' + ICON.user + '<span><b>גילוי נאות:</b> ' + offerFill(p, o.disclosure) + '</span></p>' +
+      '<a class="btn ghost" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" ' + d + '>' +
+        '<span>' + offerFill(p, o.cta) + '</span>' + ICON.ext + '<span class="sr-only"> (' + offerFill(p, o.ctaNote) + ')</span></a>' +
+      '<p class="offer-note" aria-hidden="true">' + offerFill(p, o.ctaNote) + '</p>' +
+      (c ? '<button class="link quiet" data-act="partner-check" data-v="undo" ' + d + '>' + esc(c.undo) + '</button>' : '') + '</div>';
+  }
+  function partnerOffer(p, optionId, place) {
+    var o = p.offer;
+    if (!o) return '';
+    var d = offerData(p, optionId, place), fold = place === 'unit_sheet';
+    var head = '<span class="offer-top">' + partnerLogo(p) +
+        '<span class="offer-id"><b>' + esc(p.name) + '</b><span>' + offerFill(p, o.kind) + '</span></span>' + (fold ? ICON.chevron : '') + '</span>' +
+      '<span class="offer-lead">' + offerFill(p, o.summary) + '</span>';
+    var tile = function (t, cls) {
+      return '<div class="offer-tile ' + cls + '"><span>' + offerFill(p, t.label) + '</span><b>' + ltr(offerFill(p, t.value)) + '</b><span>' + offerFill(p, t.note) + '</span></div>';
+    };
+    var body = '<div class="offer-body">' +
+      (o.need && o.get ? '<div class="offer-tiles">' + tile(o.need, 'need') + tile(o.get, 'get') + '</div>' : '') +
+      ((o.terms || []).length ? '<ul class="offer-terms">' + o.terms.map(function (t) { return '<li>' + offerFill(p, t) + '</li>'; }).join('') + '</ul>' : '') +
+      (o.caution && !o.check ? '<p class="offer-caution">' + ICON.info + '<span>' + offerFill(p, o.caution) + '</span></p>' : '') +
+      offerGate(p, optionId, place) +
+      (/^https:\/\//.test(p.termsUrl || '') ? '<div class="offer-foot">' +
+        (p.termsChecked ? '<p>התנאים נבדקו ב-' + ltr(esc(p.termsChecked)) + '.' + (o.change ? ' ' + offerFill(p, o.change) : '') + '</p>' : '') +
+        '<a class="offer-link" href="' + esc(p.termsUrl) + '" target="_blank" rel="noopener" data-act="partner-terms" ' + d + '>' + offerFill(p, o.termsLink || 'התנאים המלאים') + ICON.ext + '</a></div>' : '') +
+      ((o.more || []).length ? '<details class="offer-more"><summary data-act="partner-more" ' + d + '><span>' + offerFill(p, o.moreTitle) + '</span>' + ICON.chevron + '</summary>' +
+        o.more.map(function (t) { return '<p>' + offerFill(p, t) + '</p>'; }).join('') + '</details>' : '') +
+      '</div>';
+    return fold
+      ? '<details class="offer fold" ' + d + '><summary class="offer-head" data-act="partner-offer-open" ' + d + '>' + head + '</summary>' + body + '</details>'
+      : '<div class="offer open" ' + d + '><div class="offer-head">' + head + '</div>' + body + '</div>';
+  }
+  // the offer on the done screen of offerLessons: only right after someone answered "כן, בקרוב" to the trading-account
+  // question in this visit (not on every replay); "אולי בהמשך" gets one line that points to the comparison
+  var offerSeen = {}, offerFresh = {};
+  function offerCard(l) {
+    var P = CFG.partner;
+    if (!P || (P.offerLessons || []).indexOf(l.id) < 0 || !session || offerFresh[l.id] !== session) return '';
+    var ps = livePartners().filter(function (p) { return p.offer; });
+    if (!ps.length) return '';
+    var a = S.intent[l.id];
+    var back = '<button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">' + esc(P.doneBack || 'להשוואה בין שלוש האפשרויות') + '</button>';
+    if (a === 'later') return '<div class="intent later">' + ICON.info + '<span>' + esc(P.doneLater || '') + ' <button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">להשוואה</button></span></div>';
+    if (a !== 'soon') return '';
+    ps.forEach(function (p) {
+      if (offerSeen[p.id + l.id]) return;
+      offerSeen[p.id + l.id] = true;
+      track('partner_offer_viewed', { partner_id: p.id, place: 'lesson_done', lesson_id: l.id, intent: a });
+    });
+    return '<section class="compare on-done"><div class="eyebrow">' + esc(P.doneEyebrow || 'לא המלצה') + '</div>' +
+      (P.doneLead ? '<p class="lead">' + esc(P.doneLead) + '</p>' : '') +
+      ps.map(function (p) { return partnerOffer(p, p.optionId, 'lesson_done'); }).join('') + back + '</section>';
+  }
+  // a missing or broken logo file (offline before it was cached) turns into the letter tile
+  document.addEventListener('error', function (e) {
+    var im = e.target, t = im && im.parentNode;
+    if (!im || im.tagName !== 'IMG' || !t || !t.classList || !t.classList.contains('offer-logo')) return;
+    t.classList.add('mono'); t.setAttribute('aria-hidden', 'true'); t.textContent = im.getAttribute('data-mono') || '';
+  }, true);
+
+  // the neutral three-options comparison on the unit page (in lessons and in the home cards never; on the done screen
+  // only the offer, through offerCard). In each option: title, text, who earns, the lesson, and an offer tray last.
   var partnerCardSeen = false;
   function compareCard(u) {
     var P = CFG.partner;
@@ -1158,15 +1475,20 @@
     var all = livePartners();
     var items = P.options.map(function (o) {
       var ps = all.filter(function (p) { return p.optionId === o.id; }), l = BY_ID[o.lessonId];
+      var plain = ps.filter(function (p) { return !p.offer; }), offers = ps.filter(function (p) { return p.offer; });
       return '<li class="cmp-opt"><b>' + esc(o.title) + '</b><p>' + esc(o.text) + '</p>' +
-        (ps.length ? '<p class="cmp-partners">אפשר לפתוח אצל: ' + ps.map(function (p) {
-          return '<a class="link" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" data-id="' + esc(p.id) + '" data-option="' + esc(o.id) + '">' + esc(p.name) + '</a>';
-        }).join(', ') + '</p><p class="fine">זה לא דירוג. כדאי להשוות תעריפונים לפני שבוחרים.</p>' : '') +
         '<span class="chip ' + (ps.length ? 'gold' : 'plain') + '">' + esc(ps.length ? P.paidLine : P.unpaidLine) + '</span>' +
-        (shown(l) ? '<button class="link" data-act="preview" data-id="' + esc(l.id) + '">לשיעור "' + esc(l.title) + '"</button>' : '') + '</li>';
+        (shown(l) ? '<button class="link" data-act="preview" data-id="' + esc(l.id) + '">לשיעור "' + esc(l.title) + '"</button>' : '') +
+        (plain.length ? '<p class="cmp-partners">אפשר לפתוח אצל: ' + plain.map(function (p) {
+          return '<a class="link" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" data-id="' + esc(p.id) + '" data-option="' + esc(o.id) + '" data-place="unit_sheet">' + esc(p.name) + '</a>';
+        }).join(', ') + '</p>' : '') +
+        (ps.length ? '<p class="fine">' + esc(P.notRanking || 'זה לא דירוג. כדאי להשוות תעריפונים לפני שבוחרים.') + '</p>' : '') +
+        offers.map(function (p) { return partnerOffer(p, o.id, 'unit_sheet'); }).join('') + '</li>';
     }).join('');
     if (!partnerCardSeen) { partnerCardSeen = true; track('partner_card_viewed', { unit_id: u.id, partners: all.length, comparison_only: !all.length }); }
-    var disc = partnerDisclosures();
+    // partners with an offer card carry their disclosure next to their link, so it is not repeated here
+    var disc = [];
+    all.forEach(function (p) { var t = p.disclosure || P.disclosure; if (!p.offer && t && disc.indexOf(t) < 0) disc.push(t); });
     return '<section class="compare"><div class="eyebrow">השוואה · לא המלצה</div><b>' + esc(P.title) + '</b><p class="lead">' + esc(P.intro) + '</p>' +
       '<ul class="cmp-list">' + items + '</ul>' +
       (disc.length ? '<p class="fine">' + disc.map(esc).join(' ') + '</p>' : '') +
@@ -1195,7 +1517,7 @@
     var reviewed = rv.name ? fillIn(a.reviewedBy, { name: rv.name, role: rv.role || '' }) : esc(a.notReviewed);
     var names = live.map(function (p) { return p.name; });
     var earn = !live.length ? esc(a.earnNow)
-      : live.length === 1 ? fillIn(a.earnPartner, { partner: names[0] })
+      : live.length === 1 ? fillIn(live[0].about || a.earnPartner, { partner: names[0] })
       : fillIn(a.earnPartners || a.earnPartner, { partners: names.join(', '), partner: names.join(', ') });
     var wa = waNumber();
     openSheet('<h3>' + esc(a.title) + '</h3>' +
@@ -1507,12 +1829,13 @@
         return;
       }
     }
-    var steps = l.vScreens.map(function (sc, i) { return { kind: 'screen', s: sc, n: i, of: l.vScreens.length }; });
-    l.vQuestions.forEach(function (q) { steps.push(buildQuestionStep(q)); });
+    // 0.14: a new lesson needs a bar in the battery (the lesson in progress never does, restarted or not)
+    if (!(S.inProgress && S.inProgress.lessonId === id) && !enCanStart()) { energyEmptySheet(startFrom || 'lesson', id); return; }
+    var steps = lessonSteps(l);
     // one review question from an earlier finished lesson, for spaced repetition
     var pool = [];
     LESSONS.forEach(function (x) {
-      if (x.order < l.order && isDone(x.id)) x.vQuestions.forEach(function (q) { if (q.type !== 'match') pool.push(q); });
+      if (x.order < l.order && isDone(x.id)) x.vQuestions.forEach(function (q) { if (reviewable(q)) pool.push(q); });
     });
     if (pool.length) {
       pool = shuffle(pool).sort(function (a, b) { return (S.mistakes[b.id] || 0) - (S.mistakes[a.id] || 0); });
@@ -1526,7 +1849,7 @@
   function startPractice(onlyMistakes) {
     var pool = [];
     LESSONS.forEach(function (l) {
-      if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (!onlyMistakes || S.mistakes[q.id] > 0) pool.push(q); });
+      if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (scored(q) && (!onlyMistakes || S.mistakes[q.id] > 0)) pool.push(q); });
     });
     if (!pool.length) return;
     pool = shuffle(pool).sort(function (a, b) { return (S.mistakes[b.id] || 0) - (S.mistakes[a.id] || 0); });
@@ -1539,7 +1862,7 @@
   function startRepair() {
     var R = CFG.streakRepair, pool = [];
     LESSONS.forEach(function (l) {
-      if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (q.type !== 'match') pool.push(q); });
+      if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (reviewable(q)) pool.push(q); });
     });
     if (!pool.length || !S.lostStreak) return;
     var n = Math.min(R.questions, pool.length);
@@ -1673,7 +1996,7 @@
           '<div class="dots" aria-hidden="true">' + dots + '</div>' +
           legalLine(false) +
         '</div>' +
-        '<div class="player-foot gutter"><button class="btn" data-act="next">' + (st.n + 1 === st.of ? 'לשאלות' : 'המשך') + '</button></div></div>';
+        '<div class="player-foot gutter"><button class="btn" data-act="next">' + (st.n + 1 === st.of && !session.lesson.flow ? 'לשאלות' : 'המשך') + '</button></div></div>';
     }
     return '<div class="' + cls + ' qt' + (session.idx % 4) + '">' + playerTop() +
       '<div class="stage gutter">' + questionHead(st) + questionBody(st) + legalLine(true) + '</div>' + questionFoot(st) + '</div>';
@@ -1698,14 +2021,16 @@
   function questionHead(st) {
     var q = st.q;
     var label = session.mode === 'repair' ? 'הצלת רצף · ' + (session.idx + 1) + ' מתוך ' + stepCount()
-      : st.review ? 'חזרה' + (BY_ID[q.lessonId] && (!session.lesson || BY_ID[q.lessonId] !== session.lesson) ? ' · ' + esc(BY_ID[q.lessonId].title) : '')
+      : q.guess ? 'ניחוש · אין כאן טעויות'
       : st.retry ? 'עוד ניסיון'
+      : q.label && !st.review ? esc(q.label)
+      : st.review ? 'חזרה' + (BY_ID[q.lessonId] && (!session.lesson || BY_ID[q.lessonId] !== session.lesson) ? ' · ' + esc(BY_ID[q.lessonId].title) : '')
       : q.type === 'trueFalse' ? 'נכון או לא נכון?'
       : q.type === 'match' ? 'התאמה'
       : q.type === 'order' ? 'סידור לפי הסדר'
       : q.type === 'numeric' ? 'חישוב'
       : 'בחרו את התשובה הנכונה';
-    var peek = session.lesson && !st.review ? '<button class="peek" data-act="peek">' + ICON.book + 'להציץ בהסבר</button>' : '';
+    var peek = session.lesson && !st.review && !q.guess && seenScreens().length ? '<button class="peek" data-act="peek">' + ICON.book + 'להציץ בהסבר</button>' : '';
     return '<div class="q-head"><div class="kicker' + (st.review || st.retry ? ' review' : '') + '">' + label + '</div>' + peek + '</div>' +
       (q.scenario ? '<div class="scenario"><span class="sc-ic">' + ICON.user + '</span><p>' + esc(q.scenario) + '</p></div>' : '') +
       '<h2 class="q-prompt">' + esc(q.prompt) + '</h2>';
@@ -1755,7 +2080,7 @@
       var c = 'opt';
       if (st.checked) {
         if (oi === q.correctIndex) c += ' right';
-        else if (oi === st.sel) c += ' wrong';
+        else if (oi === st.sel) c += q.guess ? ' sel' : ' wrong'; // a guess is never marked wrong
       } else if (oi === st.sel) c += ' sel';
       return '<button class="' + c + '" data-act="pick" data-i="' + oi + '"' + (st.checked ? ' disabled' : '') + '>' +
         (tf ? '' : '<span class="key">' + HEB_LETTERS[pos] + '</span>') + '<span>' + esc(q.options[oi]) + '</span></button>';
@@ -1789,18 +2114,33 @@
       return '<div class="player-foot gutter">' + hint + '<button class="btn" data-act="check"' + (ready ? '' : ' disabled') + '>בדיקה</button></div>';
     }
     var right = st.right, ct = correctText(q);
-    var title = right ? st.praise : q.type === 'match' ? 'הותאם, עם ' + plural(st.m.mistakes, 'טעות אחת', 'טעויות') : 'לא בדיוק';
+    var title = right ? st.praise : q.type === 'match' ? 'הותאם, עם ' + plural(st.m.mistakes, 'טעות אחת', 'טעויות') : st.oops || 'לא בדיוק';
     var fix = '';
     if (!right && ct) fix = '<p>התשובה הנכונה: <span class="ans">' + esc(ct) + '</span></p>';
+    // 0.15: an answer can have its own reply ("feedback", one per option), shown instead of the general explanation
+    var said = q.feedback && st.sel !== null && q.feedback[st.sel] ? q.feedback[st.sel] : q.explanation;
+    if (q.guess) {
+      var guessTitle = st.sel === q.correctIndex ? 'ניחוש מעולה!' : 'ניחוש טוב, והתשובה מפתיעה';
+      return '<div class="player-foot gutter ok guess">' +
+        '<div class="verdict"><div class="badge">' + ICON.check + '</div><div>' +
+        '<h3>' + guessTitle + '</h3>' + (st.sel === q.correctIndex ? '' : '<p>התשובה: <span class="ans">' + esc(ct) + '</span></p>') +
+        '<p>' + esc(said) + '</p></div></div>' +
+        '<button class="btn ok" data-act="next">בואו נראה למה</button></div>';
+    }
     if (!right && q.type === 'order') fix = '<p>הסדר הנכון:</p><ol class="ans-list">' + q.items.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>';
     return '<div class="player-foot gutter ' + (right ? 'ok' : 'bad') + '">' +
       '<div class="verdict"><div class="badge">' + (right ? ICON.check : ICON.x) + '</div><div>' +
       '<h3>' + title + (st.gain ? ' <span class="gain">' + plus(st.gain) + '</span>' : '') + '</h3>' +
-      fix + '<p>' + esc(q.explanation) + '</p>' + srcLink(q, 'answer') + '</div></div>' +
+      fix + '<p>' + esc(said) + '</p>' + srcLink(q, 'answer') + '</div></div>' +
       '<button class="btn ' + (right ? 'ok' : 'bad') + '" data-act="next">המשך</button></div>';
   }
 
-  var lastPraise = '';
+  var lastPraise = '', lastOops = '';
+  function oops() {
+    var c = ['לא בדיוק', 'כמעט', 'אופס, לא', 'קרוב, אבל לא', 'לא הפעם'].filter(function (x) { return x !== lastOops; });
+    lastOops = c[Math.floor(Math.random() * c.length)];
+    return lastOops;
+  }
   function praise() {
     var c = ['מצוין!', 'בול!', 'נכון!', 'יפה מאוד!', 'בדיוק!', 'אלוף!', 'וואו, נכון!'].filter(function (x) { return x !== lastPraise; });
     lastPraise = c[Math.floor(Math.random() * c.length)];
@@ -1822,6 +2162,15 @@
   function resolve(st, right) {
     st.checked = true;
     st.right = right;
+    if (st.q.guess) { // no points, no mistake, no combo change, not part of the lesson's accuracy
+      st.gain = 0;
+      track('question_answered', { mode: session.mode, lesson_id: session.lesson ? session.lesson.id : st.q.lessonId, question_id: st.q.id,
+        question_type: st.q.type, correct: right, retry: false, review: false, guess: true, is_first_try: !(session.lesson && isDone(session.lesson.id)),
+        option_index: st.sel, option_pos: st.order ? st.order.indexOf(st.sel) : st.sel, option_count: st.q.options.length });
+      sfx.pair();
+      save();
+      return;
+    }
     S.answered++;
     if (!st.retry) {
       session.firstTry++;
@@ -1840,6 +2189,7 @@
       sfx.right(session.combo);
     } else {
       session.combo = 0;
+      st.oops = oops();
       S.mistakes[st.q.id] = (S.mistakes[st.q.id] || 0) + 1;
       // a wrong answer comes back once at the end (not matching, and not in the streak rescue test)
       if (!st.retry && st.q.type !== 'match' && session.mode !== 'repair') session.steps.push(buildQuestionStep(st.q, { retry: true }));
@@ -1943,6 +2293,7 @@
       s.perfectBonus = perfect ? P.perfect : 0;
       s.speedBonus = s.time <= s.target && acc >= 80 ? P.speed : 0;
       s.xp += s.bonus + s.perfectBonus + s.speedBonus;
+      s.energy = enSpend();
       var rec = S.lessons[l.id] || { done: false, best: 0, plays: 0 };
       s.firstTime = !rec.done;
       rec.done = true; rec.plays++;
@@ -1997,6 +2348,7 @@
     if (s.mode === 'lesson') {
       props.lesson_id = l.id; props.unit_id = l.unit.id; props.perfect = perfect;
       props.speed_bonus = !!s.speedBonus; props.first_time = s.firstTime;
+      if (s.energy) { props.energy_free = s.energy.free; props.energy_left = s.energy.free ? null : s.energy.left; }
       var ntl = nextTool();
       if (toolList().length) { props.next_tool = ntl ? ntl.id : null; props.to_next_band = ntl ? pointsBand(toolPointsTo(ntl)) : null; }
       if (skinList().length) { var nsl = nextSkin(); props.next_skin = nsl ? nsl.id : null; }
@@ -2044,7 +2396,8 @@
     if ((CFG.investIntentLessons || []).indexOf(l.id) < 0) return '';
     var a = S.intent[l.id];
     if (a) return '<div class="intent done">' + ICON.check + '<span>תודה! התשובה עוזרת לנו להבין מה מעניין אתכם.</span></div>';
-    return '<div class="intent"><b>חושבים לפתוח תיק מסחר בזמן הקרוב?</b><span>זו לא המלצה. רק שאלה, כדי שנדע מה מעניין אתכם.</span><div class="rate-btns">' +
+    var sub = livePartners().some(function (p) { return p.offer; }) ? 'זו לא המלצה. התשובה עוזרת לנו להבין מה מעניין אתכם.' : 'זו לא המלצה. רק שאלה, כדי שנדע מה מעניין אתכם.';
+    return '<div class="intent"><b>חושבים לפתוח תיק מסחר בזמן הקרוב?</b><span>' + sub + '</span><div class="rate-btns">' +
       [['soon', 'כן, בקרוב'], ['later', 'אולי בהמשך'], ['no', 'לא']].map(function (r) {
         return '<button class="chip-btn" data-act="intent" data-v="' + r[0] + '" data-id="' + esc(l.id) + '">' + r[1] + '</button>';
       }).join('') + '</div></div>';
@@ -2105,11 +2458,12 @@
         '<p class="fine">' + (r.last ? '' : doneNextLine(r, s, l, nextAt) + ' ') +
           'היעד היומי: ' + fmt(todayXp()) + ' מתוך ' + fmt(S.goalXp) + '. <button class="link" data-act="explain" data-what="points">בשביל מה הנקודות?</button></p>' +
       '</div>' +
+      (s.mode === 'lesson' ? energyDoneCard(s) : '') +
       (s.mode === 'lesson' && s.firstTime && doneCount() === 1 ? firstExplainer() : '');
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-        ratingRow(l) + intentCard(l) + amountCard(l) + missionCard(l, true);
+        ratingRow(l) + intentCard(l) + amountCard(l) + missionCard(l, true) + offerCard(l);
     }
     // iPhone: the install ask comes right after the first lesson, while the win is fresh (Android keeps the home card)
     if (s.mode === 'lesson' && s.firstTime && INSTALL.showOnDone && IS_IOS && doneCount() === INSTALL.afterLessons) {
@@ -2123,8 +2477,19 @@
       html += '<button class="btn ghost" data-act="invite" data-from="done" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + 'להזמין חבר</button>';
       html += inviteNote();
     }
+    if (s.mode === 'lesson') html += nextUpCard(l);
     html += '<button class="btn" data-act="home">המשך</button></div>';
     return html;
+  }
+  // 0.17 (30.10, "קודם כל ליצור הוק"): the done screen names the next lesson and asks its opening guess, so there is
+  // an open question to come back for. Only when a next lesson exists and it is not the one just finished.
+  function nextUpCard(l) {
+    var nx = currentLesson();
+    if (!nx || (l && nx.id === l.id)) return '';
+    var g = (nx.vQuestions || []).filter(function (q) { return q.guess; })[0];
+    var teaser = g && g.prompt && g.prompt.length <= 120 && !g.scenario ? g.prompt : nx.what;
+    return '<div class="next-up u' + esc(nx.unit.id) + '"><span class="eyebrow">השיעור הבא</span><b>' + esc(nx.title) + '</b>' +
+      (teaser ? '<span class="nu-teaser">' + esc(teaser) + '</span>' : '') + '</div>';
   }
 
   // ---------- Missions ----------
@@ -2283,9 +2648,17 @@
     return links.length ? '<div class="src-list"><h2 class="sec">לבדוק במקור</h2>' + links.join('') + '</div>' : '';
   }
 
+  // the cards already shown in this lesson (in a flow lesson, the later ones are still a surprise)
+  function seenScreens() {
+    var l = session.lesson;
+    if (!l.flow) return l.vScreens;
+    var out = [];
+    session.steps.slice(0, session.idx).forEach(function (x) { if (x.kind === 'screen' && out.indexOf(x.s) < 0) out.push(x.s); });
+    return out;
+  }
   function peekSheet() {
     var l = session.lesson;
-    var screens = l.vScreens.map(function (s) {
+    var screens = seenScreens().map(function (s) {
       return '<div class="peek-item"><b>' + esc(s.title) + '</b>' + (s.lead ? '<p class="lead-line">' + esc(s.lead) + '</p>' : '') + '<p>' + esc(s.body) + '</p>' +
         (s.example ? '<p class="ex">' + (s.exampleLabel ? '<b>' + esc(s.exampleLabel) + ': </b>' : '') + esc(s.example) + '</p>' : '') + '</div>';
     }).join('');
@@ -2478,8 +2851,8 @@
       '<p class="lead">שתי בחירות, והאפליקציה מחשבת. בלי הרשמה, והמספר נשאר רק בטלפון שלך.</p>' +
       calcWidget('onboard', onboardMoreOpen) +
       (est ? '<p class="calc-hook">' + ICON.shieldCheck + '<span>' + (post
-          ? 'זה הכסף שנכנס, או ייכנס, לחשבון שלך. השיעור הראשון: איך לוקחים לך ממנו בלי שאתה שם לב.'
-          : 'רוב החיילים מגלים את המספר הזה רק כשהכסף כבר בחשבון. השיעור הראשון: איך לא לתת לו לברוח.') + '</span></p>' : '') +
+          ? 'זה הכסף שנכנס, או ייכנס, לחשבון שלך. השיעור הראשון: על מה מותר להשתמש בפיקדון, ומתי הוא נהיה חופשי.'
+          : 'רוב החיילים מגלים את המספר הזה רק כשהכסף כבר בחשבון. השיעור הראשון: על מה מותר להשתמש בפיקדון, ומתי הוא נהיה חופשי.') + '</span></p>' : '') +
       '<div class="spacer"></div>' +
       '<button class="btn gold" data-act="onboard-status">' + (est ? 'לשיעור הראשון' : 'לדלג ולהתחיל') + '</button>' +
       (fl ? '<p class="fine center">' + esc(fl.lesson.title) + ' · כ-' + fl.minutes + ' דקות</p>' : '') + '</div>';
@@ -4274,6 +4647,7 @@
         break;
       case 'intent':
         S.intent[id] = el.getAttribute('data-v'); save();
+        offerFresh[id] = session; // the offer shows on this done screen only, not on later replays
         track('invest_intent', { lesson_id: id, answer: S.intent[id], $set: { invest_intent: S.intent[id] } });
         sfx.pair(); render();
         break;
@@ -4288,9 +4662,29 @@
       }
       case 'partner-link': {
         var pp = partnerById(id);
-        track('partner_link_clicked', { option_id: el.getAttribute('data-option'), partner_id: id, partner: pp ? pp.name : null, unit_id: CFG.partner && CFG.partner.unitId, $set: { partner_link_clicked: true } });
+        track('partner_link_clicked', { option_id: el.getAttribute('data-option'), partner_id: id, partner: pp ? pp.name : null, place: el.getAttribute('data-place') || null, referral: !!(pp && pp.friendReferral), selfcheck: offerCheckAns[id] || null, unit_id: CFG.partner && CFG.partner.unitId, lesson_id: view === 'done' && session && session.lesson ? session.lesson.id : null, $set: { partner_link_clicked: true } });
         flush();
         break; // no preventDefault: the link opens
+      }
+      case 'partner-terms':
+        track('partner_terms_clicked', { partner_id: id, place: el.getAttribute('data-place') || null });
+        flush();
+        break; // the link opens
+      case 'partner-offer-open': // the <summary> of the folded tray: count opening only, the <details> toggles by itself
+      case 'partner-more': {
+        var dt = el.parentNode;
+        if (dt && !dt.open) track(act === 'partner-more' ? 'partner_more_opened' : 'partner_offer_opened', { partner_id: id, place: el.getAttribute('data-place') || null });
+        break;
+      }
+      case 'partner-check': {
+        // the self-check before the link: redraw only this block, so an open tray and the scroll stay as they are
+        var pc = partnerById(id), v = el.getAttribute('data-v'), gate = el.closest('.offer-gate');
+        if (!pc || !pc.offer || !gate) break;
+        if (v === 'undo') delete offerCheckAns[id]; else offerCheckAns[id] = v === 'yes' ? 'yes' : 'no';
+        if (v !== 'undo') track('partner_selfcheck', { partner_id: id, answer: offerCheckAns[id], place: el.getAttribute('data-place') || null });
+        sfx.pair();
+        gate.outerHTML = offerGate(pc, el.getAttribute('data-option'), el.getAttribute('data-place'));
+        break;
       }
       case 'reset':
         openSheet('<h3>לאפס את כל ההתקדמות?</h3><p class="lead">הנקודות, הרצף, השיעורים והמשימות יימחקו מהמכשיר הזה.</p>' +
@@ -4365,7 +4759,7 @@
     // a sheet outside a lesson (a mission, the calculator, a code to paste), a practice or rescue run (no card to
     // continue from), and a share or link the app opened. A sheet with typed text is never thrown away.
     var keep = byApp || (sheetOpen && view !== 'lesson') || (view === 'lesson' && session && session.mode !== 'lesson') ||
-      (view === 'done' && !!root.querySelector('.done-wrap .intent:not(.done)')); // a one-time question still waiting
+      (view === 'done' && !!root.querySelector('.done-wrap .intent:not(.done):not(.later), .done-wrap .compare.on-done')); // a one-time question or the one-shot offer still waiting
     var limit = keep ? AWAY_KEEP_MS : AWAY_HOME_MS;
     if (sheetOpen && sheetHasText()) limit = Infinity;
     if (away >= limit && S.onboarded && S.status && (view !== 'home' || sheetOpen)) {
@@ -4439,6 +4833,7 @@
     window.addEventListener('pagehide', function () { markHidden(); if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('online', flush);
+    setInterval(enTick, 1000); // 0.14: battery countdowns
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredInstall = e; });
     window.addEventListener('appinstalled', function () { track('app_installed', { method: 'appinstalled' }); S.installHidden = true; S.installSeen = true; save(); if (view === 'home') render(); });
     // iOS starts audio only from a touch
