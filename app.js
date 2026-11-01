@@ -719,6 +719,12 @@
       var ip19 = BY_ID[S.inProgress.lessonId], cur19 = currentLesson();
       if (ip19 && cur19 && !isDone(ip19.id) && shown(ip19) && ip19.order > cur19.order) S.inProgress = null;
     }
+    // v20 (1.11, Jonathan: "הרבה חיילים משאירים את הכסף בעו"ש... זה אמור להיות השיעור הראשון"): a new opening lesson 0.2
+    // for everyone. Anyone who has not done it gets it next. Like v19: an unfinished lesson that now sits after it is dropped.
+    if ((S.contentV || 0) < 20 && v >= 20 && S.inProgress) {
+      var ip20 = BY_ID[S.inProgress.lessonId], cur20 = currentLesson();
+      if (ip20 && cur20 && !isDone(ip20.id) && shown(ip20) && ip20.order > cur20.order) S.inProgress = null;
+    }
     S.contentV = v;
     save();
   }
@@ -2851,8 +2857,8 @@
       '<p class="lead">שתי בחירות, והאפליקציה מחשבת. בלי הרשמה, והמספר נשאר רק בטלפון שלך.</p>' +
       calcWidget('onboard', onboardMoreOpen) +
       (est ? '<p class="calc-hook">' + ICON.shieldCheck + '<span>' + (post
-          ? 'זה הכסף שנכנס, או ייכנס, לחשבון שלך. השיעור הראשון: על מה מותר להשתמש בפיקדון, ומתי הוא נהיה חופשי.'
-          : 'רוב החיילים מגלים את המספר הזה רק כשהכסף כבר בחשבון. השיעור הראשון: על מה מותר להשתמש בפיקדון, ומתי הוא נהיה חופשי.') + '</span></p>' : '') +
+          ? 'זה הכסף שנכנס, או ייכנס, לחשבון שלך. השיעור הראשון: למה כסף כזה לא אמור לישון בעו"ש, ולאן מעבירים אותו.'
+          : 'רוב החיילים מגלים את המספר הזה רק כשהכסף כבר בחשבון. השיעור הראשון: למה כסף כזה לא אמור לישון בעו"ש, ולאן מעבירים אותו.') + '</span></p>' : '') +
       '<div class="spacer"></div>' +
       '<button class="btn gold" data-act="onboard-status">' + (est ? 'לשיעור הראשון' : 'לדלג ולהתחיל') + '</button>' +
       (fl ? '<p class="fine center">' + esc(fl.lesson.title) + ' · כ-' + fl.minutes + ' דקות</p>' : '') + '</div>';
