@@ -1,8 +1,8 @@
-/* Landing page report: how many people came (from TikTok and elsewhere), how far down they scrolled, and how many
+/* Landing page report: how many people came (from TikTok and elsewhere), how far they got, and how many
    signed up. Reads PostHog with a HogQL query, the same way tools/send-reminders.js does.
    Prints only counts: never a phone, email, name or person id (the Actions log of this repository is public).
    Needs: POSTHOG_API_KEY (personal API key with query:read). Optional: POSTHOG_PROJECT_ID, SINCE (YYYY-MM-DD, default
-   2026-10-25, the day the current landing page went live), POSTHOG_API_HOST.
+   2026-10-25, the day the long landing page went live), POSTHOG_API_HOST.
    Run: node tools/landing-report.js   (or Actions > Landing report > Run workflow) */
 'use strict';
 
@@ -26,7 +26,7 @@ async function hogql(query) {
 }
 
 // events the landing page sends (landing/index.html). The app never sends these names.
-const LANDING = `('landing_view','landing_stamp','landing_quiz','landing_cta','landing_scroll','landing_form_start','landing_seen_form','landing_leave','waitlist_signup')`;
+const LANDING = `('landing_view','landing_stamp','landing_quiz','landing_cta','landing_form_start','landing_leave','waitlist_signup')`;
 const WHEN = `timestamp >= toDateTime('${SINCE} 00:00:00')`;
 const TT = `(properties.source = 'tiktok' OR properties.in_app = 'tiktok')`;
 const has = (cond) => `max(if(${cond}, 1, 0))`;
@@ -36,14 +36,10 @@ const PER_VISITOR = `
   SELECT distinct_id,
     ${has(`event = 'landing_view' AND ${TT}`)} AS tt,
     ${has(`event = 'landing_view'`)} AS viewed,
-    ${has(`event = 'landing_scroll' AND toInt(properties.depth) >= 25`)} AS d25,
+    ${has(`event = 'landing_view' AND properties.landing_version = 'landing-3'`)} AS v3,
     ${has(`event = 'landing_stamp' AND properties.station = 'pikadon'`)} AS s_pikadon,
-    ${has(`event = 'landing_scroll' AND toInt(properties.depth) >= 50`)} AS d50,
     ${has(`event = 'landing_stamp' AND properties.station = 'race'`)} AS s_race,
-    ${has(`event = 'landing_scroll' AND toInt(properties.depth) >= 75`)} AS d75,
     ${has(`event = 'landing_quiz'`)} AS quiz,
-    ${has(`event = 'landing_seen_form'`)} AS seen_form,
-    ${has(`event = 'landing_scroll' AND toInt(properties.depth) >= 100`)} AS d100,
     ${has(`event = 'landing_form_start'`)} AS form_start,
     ${has(`event = 'waitlist_signup'`)} AS signed,
     ${has(`event = 'landing_cta' AND properties.cta IN ('joined_try', 'footer_try')`)} AS to_app,
@@ -55,15 +51,10 @@ const PER_VISITOR = `
 
 const STEPS = [
   ['viewed', 'נכנסו לדף'],
-  ['d25', 'גללו 25% מהדף (חדש)'],
-  ['s_pikadon', 'עברו את תחנה 1: על מה מותר להוציא את הפיקדון'],
-  ['d50', 'גללו 50% מהדף (חדש)'],
-  ['s_race', 'סיימו את תחנה 2: המרוץ של מאיה ועומר'],
-  ['quiz', 'ענו על שאלת המס (תחנה 3)'],
-  ['d75', 'גללו 75% מהדף (חדש)'],
-  ['seen_form', 'הגיעו לטופס ההרשמה (חדש)'],
-  ['d100', 'גללו עד הסוף (חדש)'],
-  ['form_start', 'התחילו למלא את הטופס (חדש)'],
+  ['s_pikadon', 'הדף הארוך הישן: עברו את תחנה 1 (פיקדון)'],
+  ['s_race', 'הדף הארוך הישן: סיימו את תחנה 2 (המרוץ)'],
+  ['quiz', 'הדף הארוך הישן: ענו על שאלת המס'],
+  ['form_start', 'התחילו למלא את הטופס (נמדד מ-landing-3)'],
   ['signed', 'השאירו פרטים'],
   ['to_app', 'לחצו לפתוח את האפליקציה']
 ];
@@ -85,7 +76,7 @@ function table(title, rows) {
     PROJECT = String(list[0].id);
   }
   console.log(`Landing report since ${SINCE} (dates in UTC). Includes your own visits and test signups.`);
-  console.log('Steps marked (חדש) are measured only from the version that adds them (landing-2.4); before that they show 0.');
+  console.log('landing-3 = the one-screen page (from 1.11.2026). landing-2.x = the long page with the stations.');
 
   const sums = STEPS.map(([k]) => `sum(${k})`).join(', ');
   const agg = await hogql(`
@@ -100,6 +91,12 @@ function table(title, rows) {
     console.log(`  זמן חציוני בדף (מהאירוע הראשון לאחרון): ${r[1 + STEPS.length]} שניות`);
     console.log(`  יצאו בלי לעשות כלום אחרי הכניסה: ${r[2 + STEPS.length]}`);
   }
+
+  const ver = await hogql(`
+    SELECT if(v3 = 1, 'landing-3 (מסך אחד)', 'landing-2 (הדף הארוך)'), count(), sum(form_start), sum(signed), quantile(0.5)(if(n > 1, secs, 0)), countIf(n = 1)
+    FROM (${PER_VISITOR}) WHERE viewed = 1 GROUP BY 1 ORDER BY 1 DESC`);
+  console.log('\n=== לפי גרסת הדף: נכנסו / התחילו טופס / השאירו פרטים / זמן חציוני / יצאו בלי לעשות כלום ===');
+  for (const [v, n, fs, sg, md, idle] of ver) console.log(`  ${v}: ${n} / ${fs} / ${sg} (${n ? Math.round((100 * sg) / n) : 0}%) / ${md} שניות / ${idle}`);
 
   const src = await hogql(`
     SELECT coalesce(properties.source, '?'), coalesce(properties.in_app, '-'), count(DISTINCT distinct_id)
