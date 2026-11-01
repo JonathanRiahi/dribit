@@ -4,14 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#062E25">
-<title>דריבית: חינוך פיננסי לחיילים</title>
+<title>דריבית (Dribit): חינוך פיננסי לחיילים</title>
 <meta name="description" content="חינוך פיננסי לחיילים, כמה דקות ביום ובחינם: פיקדון, מענק שחרור, משכורת ראשונה ומה עושים איתם. האפליקציה יוצאת לפי הסדר ברשימה.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="he_IL">
 <meta property="og:title" content="דריבית: חינוך פיננסי לחיילים, כמה דקות ביום">
 <meta property="og:description" content="פיקדון, מענק, משכורת ראשונה: מה עושים עם הכסף מהצבא. בחינם. האפליקציה יוצאת לפי הסדר ברשימה.">
 <meta property="og:image" content="https://jonathanriahi.github.io/dribit/landing/media/og.jpg?v=logo2">
-<meta property="og:url" content="https://jonathanriahi.github.io/dribit/landing/">
+<meta property="og:url" content="https://dribit.app/">
+<meta property="og:site_name" content="דריבית">
+<link rel="canonical" href="https://dribit.app/">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"דריבית","alternateName":["Dribit","dribit.app","דריבית אפליקציה"],"url":"https://dribit.app/","inLanguage":"he","description":"חינוך פיננסי לחיילים: פיקדון, מענק שחרור ומשכורת ראשונה, כמה דקות ביום ובחינם."}</script>
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="../icons/icon.svg?v=logo2">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png?v=logo2">
@@ -85,6 +88,15 @@ h1 em { font-style: normal; color: var(--gold); }
 }
 .cta:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--gold-deep); }
 .cta:disabled { opacity: .7; }
+a.cta { display: flex; align-items: center; justify-content: center; margin-top: 0; text-decoration: none; }
+.or { margin: 12px 0 8px; font-size: 14px; color: var(--cream-2); }
+.inapp { display: none; margin: 8px 0 0; font-size: 12.5px; color: var(--cream-3); }
+.inapp.on { display: block; }
+.sec {
+  flex: none; height: 50px; padding: 0 18px; border-radius: 12px; cursor: pointer;
+  border: 1.5px solid var(--gold); background: transparent; color: var(--gold); font-family: var(--display); font-weight: 800; font-size: 16px;
+}
+.sec:disabled { opacity: .7; }
 .consent { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 13px; color: var(--cream-2); cursor: pointer; line-height: 1.35; }
 .consent input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--gold); }
 .swap { background: none; border: 0; padding: 4px 0 0; color: var(--cream-3); font-size: 13px; text-decoration: underline; cursor: pointer; }
@@ -96,7 +108,7 @@ h1 em { font-style: normal; color: var(--gold); }
 .fallback.on { display: block; }
 
 .done { display: none; text-align: center; }
-.join.signed form { display: none; }
+.join.signed form, .join.signed .or, .join.signed #startBtn, .join.signed .inapp { display: none; }
 .join.signed .done { display: block; }
 .done h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 22px; }
 .done p { margin: 4px 0 10px; color: var(--cream-2); font-size: 15px; }
@@ -156,16 +168,21 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
 
   <section class="join" id="join" aria-labelledby="joinTitle">
     <h2 id="joinTitle" class="hp">הרשמה לרשימת ההמתנה</h2>
+    <a class="cta" id="startBtn" href="https://jonathanriahi.github.io/dribit/?source=landing_start" data-app data-cta="start_now">להתחיל עכשיו בחינם</a>
+    <p class="inapp" id="inappHint">כדי שההתקדמות תישמר, כדאי לפתוח בדפדפן: שלוש הנקודות למעלה ואז "פתיחה בדפדפן".</p>
+    <p class="or">או להשאיר מספר, ונודיע לך כשהאפליקציה יוצאת לחנויות:</p>
     <form id="joinForm" novalidate>
+      <div class="row">
       <div class="field" id="phoneField">
         <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="מספר וואטסאפ" aria-label="מספר וואטסאפ" aria-describedby="contactErr">
       </div>
       <div class="field" id="emailField" hidden>
         <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="אימייל" aria-label="אימייל" aria-describedby="contactErr">
       </div>
+      <button class="sec" type="submit" id="joinBtn" data-cta="sign">להירשם</button>
+      </div>
       <p class="err" id="contactErr" role="alert"></p>
       <label class="hp" aria-hidden="true">חברה<input type="text" name="company" id="company" tabindex="-1" autocomplete="off"></label>
-      <button class="cta" type="submit" id="joinBtn" data-cta="sign">לתפוס מקום ברשימה</button>
       <label class="consent"><input type="checkbox" id="consent"><span>מאשר/ת לקבל מדריבית הודעה כשהאפליקציה יוצאת, ועדכונים מדי פעם. אפשר להסיר בכל רגע.</span></label>
       <p class="err" id="consentErr" role="alert"></p>
       <button type="button" class="swap" id="toEmail">מעדיפים אימייל?</button>
@@ -282,6 +299,7 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
     var el = e.target.closest && e.target.closest('[data-cta]');
     if (el) track('landing_cta', { cta: el.getAttribute('data-cta') }, true);
   });
+  if (inApp) $('inappHint').classList.add('on');
   var more = $('more');
   $('moreBtn').onclick = function () { if (more.showModal) more.showModal(); else more.setAttribute('open', ''); };
 
@@ -356,13 +374,13 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
       device: device, consent: true, consent_text: 'הודעה כשהאפליקציה יוצאת ועדכונים מדי פעם, אפשר להסיר', my_code: code, seconds: secs(),
       $set: { waitlist: true, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_at: new Date().toISOString(), waitlist_source: source, waitlist_code: code }
     };
-    btn.disabled = true; btn.textContent = 'שומרים...';
+    btn.disabled = true; btn.textContent = '...';
     var ph = send('waitlist_signup', props).then(function () { return true; });
     var sh = sheet('POST', row);
     Promise.all([ph.catch(function () { return false; }), sh.catch(function () { return null; })]).then(function (res) {
       var phOk = res[0], s = res[1];
       if (!phOk && !s && !PREVIEW) {
-        btn.disabled = false; btn.textContent = 'לתפוס מקום ברשימה';
+        btn.disabled = false; btn.textContent = 'להירשם';
         var msg = 'היי, אשמח להצטרף לרשימת ההמתנה של דריבית' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : '');
         if (WA) { $('waJoin').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(msg); fallback.classList.add('on'); }
         else errEl.textContent = 'לא הצלחנו לשמור כרגע. נסו שוב בעוד רגע.';

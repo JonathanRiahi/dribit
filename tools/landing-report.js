@@ -42,7 +42,7 @@ const PER_VISITOR = `
     ${has(`event = 'landing_quiz'`)} AS quiz,
     ${has(`event = 'landing_form_start'`)} AS form_start,
     ${has(`event = 'waitlist_signup'`)} AS signed,
-    ${has(`event = 'landing_cta' AND properties.cta IN ('joined_try', 'footer_try')`)} AS to_app,
+    ${has(`event = 'landing_cta' AND properties.cta IN ('start_now', 'joined_try', 'footer_try')`)} AS to_app,
     dateDiff('second', min(timestamp), max(timestamp)) AS secs,
     count() AS n
   FROM events
@@ -56,7 +56,7 @@ const STEPS = [
   ['quiz', 'הדף הארוך הישן: ענו על שאלת המס'],
   ['form_start', 'התחילו למלא את הטופס (נמדד מ-landing-3)'],
   ['signed', 'השאירו פרטים'],
-  ['to_app', 'לחצו לפתוח את האפליקציה']
+  ['to_app', 'לחצו לפתוח את האפליקציה (להתחיל עכשיו / בינתיים בדפדפן)']
 ];
 
 function table(title, rows) {
