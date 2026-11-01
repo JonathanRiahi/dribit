@@ -11,6 +11,9 @@
   // tools that open by level (config.tools, 0.10): read by cleanState(), so it is set before the state loads
   // the lesson battery (config.energy, 0.14): read by freshState(), so it is set before the state loads
   var EN = CFG.energy || { enabled: false };
+  // 0.19 (1.11, Daniel's feedback "משימות לבטל לבינתיים"): config.missions.enabled false hides the missions tab, the mission
+  // cards and the mission row in the points list. Ticks people already made stay in the state, so turning it back on loses nothing.
+  var MISSIONS_ON = !(CFG.missions && CFG.missions.enabled === false);
   var TOOLS = CFG.tools || { enabled: false, list: [] };
   var TOOL_IDS = ['discharge', 'pikadon_check', 'time_machine', 'fees', 'my_plan'];
   // colors that open by level (config.skins, 0.12): read by cleanState(), so they are set before the state loads.
@@ -554,7 +557,7 @@
         '<li><span>כל שיעור שמסיימים, חדש או חוזר</span><b>פס אחד</b></li>' +
         '<li><span>פס חוזר לבד</span><b>כל ' + hrs + '</b></li>' +
         '<li><span>טעויות</span><b>חינם</b></li>' +
-        '<li><span>תרגול, תיקון טעויות, משימות וכלים</span><b>חינם</b></li>' +
+        '<li><span>תרגול, תיקון טעויות' + (MISSIONS_ON ? ', משימות' : '') + ' וכלים</span><b>חינם</b></li>' +
       '</ul>' +
       '<p class="fine">למה סוללה? כי כסף לומדים כמו כושר: קצת כל יום עדיף על הכל ביום אחד. שיעור שכבר התחלת תמיד אפשר לסיים.</p>' +
       (!free && n === 0 ? enMeanwhile('energy_sheet') : '') +
@@ -578,10 +581,11 @@
       if (s.enIntro) { S.energy.seen = true; save(); }
     }
     if (free) {
-      if (!(s.firstTime && doneCount() === 1)) return '';
+      return ''; // 0.19: nothing to say while lessons are free (the top bar shows ∞)
       return '<div class="card tight energy-done free"><span class="ed-ic">' + batteryIcon(max, max, true) + '</span><span><b>בלי הגבלה ' + (EN.freeFirstDay && S.firstDay === dayKey() ? 'היום' : 'בינתיים') + '</b>' +
         '<span>בהמשך יש סוללה של ' + max + ' שיעורים, ופס חוזר לבד כל ' + enWords(enRefillMs()) + '.</span></span></div>';
     }
+    if (!s.enIntro && n > 1) return ''; // 0.19: the top bar shows the bars; the card only when they run low
     return '<div class="card tight energy-done ' + enLevel(n) + '"><span class="ed-ic">' + batteryIcon(n, max) + '</span><span>' +
       (s.enIntro ? '<b><i class="chip-new">חדש</i>סוללה: ' + n + ' מתוך ' + max + '</b><span>מעכשיו כל שיעור צורך פס אחד, ופס חוזר לבד כל ' + enWords(enRefillMs()) + '. תרגול וטעויות חינם.</span>'
         : n === 0 ? '<b>הסוללה התרוקנה</b><span>פס חדש בעוד ' + enTimer('next') + '. בינתיים אפשר לתרגל בלי סוללה.</span>'
@@ -650,6 +654,7 @@
   }
   function indexContent() {
     UNITS = []; LESSONS = []; BY_ID = {}; QUESTIONS = {}; SOURCES = cleanSources(DATA.sources);
+    glossInit(DATA.glossary);
     orderedUnits(S.startUnit).forEach(function (u) {
       u.lessons.forEach(function (l) {
         l.unit = u;
@@ -672,6 +677,76 @@
     });
   }
   function shown(l) { return !!l && LESSONS.indexOf(l) >= 0; }
+
+  // ---------- Glossary (0.19) ----------
+  // Daniel (1.11): "בשאלות הוא ישר קופץ לקרן כספית, אשראי מתגלגל... אבל לא מסביר מה זה". Every term in lessons.json
+  // "glossary" turns into a dotted word the first time it shows up in a lesson (a card or a question); a tap opens its meaning.
+  // A word may carry ו/ה/ב/ל/מ/ש/כ in front ("בעו"ש", "והמינוס"). The longest spelling wins ("ריבית דריבית" before "ריבית").
+  var GL = [], GL_RE = null, GL_FORM = Object.create(null);
+  function glossInit(list) {
+    GL = []; GL_FORM = Object.create(null); GL_RE = null;
+    var forms = [];
+    (Array.isArray(list) ? list : []).forEach(function (g) {
+      if (!isRec(g) || typeof g.t !== 'string' || typeof g.d !== 'string' || !Array.isArray(g.forms)) return;
+      var i = GL.length;
+      GL.push({ t: g.t, d: g.d });
+      g.forms.forEach(function (f) { if (typeof f === 'string' && f && !(f in GL_FORM)) { GL_FORM[f] = i; forms.push(f); } });
+    });
+    if (!forms.length) return;
+    forms.sort(function (a, b) { return b.length - a.length; });
+    var alt = forms.map(function (f) { return f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|');
+    GL_RE = new RegExp('(^|[^\u05D0-\u05EAA-Za-z0-9])([\u05D5\u05D4\u05D1\u05DC\u05DE\u05E9\u05DB]{0,3})(' + alt + ')(?![\u05D0-\u05EAA-Za-z0-9])', 'g');
+  }
+  // marks every term in the text as already explained (a card title, or an earlier step of the lesson)
+  function glossScan(text, seen) {
+    if (!GL_RE || !text) return;
+    GL_RE.lastIndex = 0;
+    var m;
+    while ((m = GL_RE.exec(String(text)))) seen[GL_FORM[m[3]]] = true;
+  }
+  // the text, escaped, with each term not seen yet as a tap target. seen: null = plain text
+  function gl(text, seen) {
+    text = String(text == null ? '' : text);
+    if (!GL_RE || !seen) return esc(text);
+    var out = '', last = 0, m;
+    GL_RE.lastIndex = 0;
+    while ((m = GL_RE.exec(text))) {
+      var i = GL_FORM[m[3]];
+      if (seen[i]) continue;
+      seen[i] = true;
+      var start = m.index + m[1].length, word = m[2] + m[3];
+      out += esc(text.slice(last, start)) + '<button type="button" class="term" data-act="term" data-i="' + i + '">' + esc(word) + '</button>';
+      last = start + word.length;
+    }
+    return out + esc(text.slice(last));
+  }
+  function stepTexts(x) {
+    if (!x) return [];
+    return x.kind === 'screen' ? [x.s.title, x.s.lead, x.s.body, x.s.example] : x.q ? [x.q.scenario, x.q.prompt] : [];
+  }
+  // the terms the lesson already showed before the current step: those are plain text now
+  function glossSeen() {
+    var seen = Object.create(null);
+    if (!GL_RE || !session) return seen;
+    for (var i = 0; i < session.idx; i++) stepTexts(session.steps[i]).forEach(function (t) { glossScan(t, seen); });
+    return seen;
+  }
+  function termSheet(i) {
+    var g = GL[i];
+    if (!g) return;
+    track('term_opened', { term: g.t, view: view, lesson_id: session && session.lesson ? session.lesson.id : null });
+    openSheet('<div class="eyebrow term-eyebrow">' + ICON.book + 'מילון</div><h3>' + esc(g.t) + '</h3><p class="lead">' + esc(g.d) + '</p>' +
+      '<button class="btn" data-act="close-sheet">הבנתי</button>', 'term-sheet');
+  }
+  // 0.19 (Daniel: "להוסיף תמונות"): each card names a picture in assets/pics (Fluent Emoji, MIT). The one-file preview
+  // carries them inline in window.DRIBIT_PICS.
+  function picHtml(s) {
+    var p = s && s.pic;
+    if (typeof p !== 'string' || !/^[a-z0-9-]{1,40}$/.test(p)) return '';
+    var src = (window.DRIBIT_PICS && window.DRIBIT_PICS[p]) || 'assets/pics/' + p + '.svg';
+    return '<div class="pic" aria-hidden="true"><img src="' + esc(src) + '" alt="" draggable="false"></div>';
+  }
+
   function migrateContent() {
     var v = DATA.version || 0;
     if ((S.contentV || 0) < 5 && v >= 5) {
@@ -725,6 +800,17 @@
       var ip20 = BY_ID[S.inProgress.lessonId], cur20 = currentLesson();
       if (ip20 && cur20 && !isDone(ip20.id) && shown(ip20) && ip20.order > cur20.order) S.inProgress = null;
     }
+    // v21 (1.11, Daniel's feedback): the guess question that opened each lesson is gone. A saved session drops it and keeps its
+    // place; anything else that no longer fits (6.4 lost a card) makes restoreSession start the lesson over.
+    if ((S.contentV || 0) < 21 && v >= 21 && S.inProgress && Array.isArray(S.inProgress.steps)) {
+      var ip21 = S.inProgress, idx21 = ip21.idx || 0, kept21 = [];
+      ip21.steps.forEach(function (x, i) {
+        if (x && x.k === 'q' && !QUESTIONS[x.id] && (x.id === 'Q32' || /-g$/.test(String(x.id)))) { if (i < (ip21.idx || 0)) idx21--; return; }
+        kept21.push(x);
+      });
+      ip21.steps = kept21;
+      ip21.idx = Math.max(0, idx21);
+    }
     S.contentV = v;
     save();
   }
@@ -757,7 +843,7 @@
   }
   function doneCount() { return LESSONS.filter(function (l) { return isDone(l.id); }).length; }
   function missionState(id) { return S.missions[id] || { steps: [], done: false }; }
-  function openMissions() { return LESSONS.filter(function (l) { return isDone(l.id) && !missionState(l.id).done; }); }
+  function openMissions() { return MISSIONS_ON ? LESSONS.filter(function (l) { return isDone(l.id) && !missionState(l.id).done; }) : []; }
   function maxLessonPoints(l) {
     return l.vQuestions.filter(scored).length * P.correct + (hasReviewQuestion(l) ? P.review : 0) + P.lessonDone + P.perfect + P.speed;
   }
@@ -1026,7 +1112,7 @@
     if (view === 'lesson' && session) { root.innerHTML = renderPlayer(); afterPlayerRender(); return; }
     if (view === 'done' && session) { root.innerHTML = renderDone(); return; }
     if (view === 'notes' && notesId && BY_ID[notesId]) { root.innerHTML = renderNotes(BY_ID[notesId]); return; }
-    var body = view === 'practice' ? renderPractice() : view === 'missions' ? renderMissions()
+    var body = view === 'practice' ? renderPractice() : view === 'missions' && MISSIONS_ON ? renderMissions()
       : view === 'profile' ? renderProfile() : view === 'tools' && toolsTab() ? renderTools() : renderPath();
     root.innerHTML = renderTopbar() + '<main class="screen gutter">' + body + '</main>' + renderLegalBar() + renderNav();
     if (view === 'home') revealCurrent();
@@ -1087,10 +1173,10 @@
       return '<button data-act="nav" data-to="' + id + '"' + (view === id ? ' aria-current="page"' : '') + '>' +
         '<span class="ic">' + icon + (badge ? '<i class="badge">' + badge + '</i>' : '') + '</span>' + label + '</button>';
     }
-    var tools = toolsTab();
-    return '<nav class="nav"><div class="nav-inner' + (tools ? ' n5' : '') + '">' +
+    var tools = toolsTab(), n = 3 + (tools ? 1 : 0) + (MISSIONS_ON ? 1 : 0);
+    return '<nav class="nav"><div class="nav-inner n' + n + '">' +
       b('home', ICON.path, 'מסלול') + b('practice', ICON.dumbbell, 'תרגול') +
-      b('missions', ICON.target, 'משימות', pending) + (tools ? b('tools', ICON.toolbox, 'כלים', newToolsCount()) : '') + b('profile', ICON.user, 'פרופיל', view === 'profile' ? 0 : newSkinsCount()) +
+      (MISSIONS_ON ? b('missions', ICON.target, 'משימות', pending) : '') + (tools ? b('tools', ICON.toolbox, 'כלים', newToolsCount()) : '') + b('profile', ICON.user, 'פרופיל', view === 'profile' ? 0 : newSkinsCount()) +
       '</div></nav>';
   }
 
@@ -1232,7 +1318,7 @@
     if (was && !keepEntry && topIsSheet) { topIsSheet = false; histBack(1); }
   }
 
-  function pointsList(l, bx) {
+  function pointsList(l, bx) { // 0.19: no longer on the lesson preview (Daniel: "יותר מידי אופציות"); kept for later use
     return '<ul class="rules compact">' +
       '<li><span>כל תשובה נכונה</span><b>' + plus(P.correct) + '</b></li>' +
       '<li><span>סיום השיעור</span><b>' + plus(P.lessonDone) + '</b></li>' +
@@ -1267,9 +1353,9 @@
       '<h3>' + esc(l.title) + '</h3>' +
       '<p class="lead">' + esc(l.what) + '</p>' +
       '<div class="chips"><span class="chip">' + ICON.clock + 'כ-' + lessonMinutes(l) + ' דקות</span>' +
-      '<span class="chip">' + l.vScreens.length + ' הסברים · ' + l.vQuestions.filter(scored).length + ' שאלות</span>' +
+      '<span class="chip">' + l.vQuestions.filter(scored).length + ' שאלות</span>' +
+      '<span class="chip pts">' + ICON.coin + 'עד ' + Math.round(maxLessonPoints(l) * bx) + ' נקודות</span>' +
       (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + enChip + '</div>' +
-      '<div class="pts-box"><div class="pts-head">' + ICON.coin + '<b>נקודות בשיעור הזה</b><span>עד ' + Math.round(maxLessonPoints(l) * bx) + '</span></div>' + pointsList(l, bx) + '</div>' +
       main +
       (replay ? '<button class="btn text" data-act="notes" data-id="' + esc(l.id) + '">לקרוא שוב את ההסברים</button>' : ''), 'tall');
   }
@@ -1295,7 +1381,7 @@
           '<li><span>סיום שיעור</span><b>' + plus(P.lessonDone) + '</b></li>' +
           '<li><span>שיעור בלי אף טעות</span><b>' + plus(P.perfect) + '</b></li>' +
           '<li><span>מסיימים בזמן שכתוב בתחילת השיעור</span><b>' + plus(P.speed) + '</b></li>' +
-          '<li><span>משימה מחוץ לאפליקציה</span><b>' + plus(P.mission) + '</b></li>' +
+          (MISSIONS_ON ? '<li><span>משימה מחוץ לאפליקציה</span><b>' + plus(P.mission) + '</b></li>' : checksOn() ? '<li><span>בדיקה יומית בטלפון</span><b>' + plus(P.mission) + '</b></li>' : '') +
           sbTiers().map(function (t) { return '<li class="streak-x"><span>' + ICON.flame + 'רצף של ' + t.days + ' ימים ומעלה, על שיעור ותרגול</span><b>' + timesText(t.times) + '</b></li>'; }).join('') +
         '</ul>';
       var tl = toolList(), sk = skinList().length > 0;
@@ -1544,7 +1630,7 @@
          'לוחצים על כפתור השיתוף ' + ICON.share + ' בתחתית המסך.',
          'גוללים ובוחרים "הוספה למסך הבית" ' + ICON.addHome + '.',
          'לוחצים "הוספה". האייקון של ' + name + ' יופיע במסך הבית.',
-         'פותחים את ' + name + ' רק מהאייקון. אם יש קוד העברה, מדביקים אותו במסך הפתיחה ("יש לי קוד העברה").']
+         'פותחים את ' + name + ' רק מהאייקון. אם יש קוד העברה, מדביקים אותו בפרופיל, ב"יש לי קוד".']
       : ['פותחים את הקישור בכרום.',
          'לוחצים על ' + ICON.dots + ' בפינה של המסך.',
          'בוחרים "התקנת אפליקציה" או "הוספה למסך הבית".',
@@ -1554,7 +1640,7 @@
     var warn = IS_IOS ? '<p class="nudge warn">' + ICON.info + '<span>חשוב: באייפון האפליקציה המותקנת מתחילה מאפס. מה שעשית בספארי לא עובר לבד. ' +
       (S.giftPending && !hasProgress() ? 'יש לך מתנה מחבר, אז עושים קודם את השיעור הראשון כאן, ורק אז מתקינים עם קוד ההעברה.' : 'מתקינים קודם, ואז משחקים. כבר התחלת? מעתיקים את קוד ההעברה שלמטה ומדביקים אותו באפליקציה המותקנת.') + '</span></p>' : '';
     var code = IS_IOS && hasProgress()
-      ? '<div class="transfer-box"><p><b>קוד העברה:</b> לוחצים "להעתיק קוד", ואחרי ההתקנה מדביקים אותו במסך הפתיחה של האפליקציה.</p>' +
+      ? '<div class="transfer-box"><p><b>קוד העברה:</b> לוחצים "להעתיק קוד", ואחרי ההתקנה מדביקים אותו באפליקציה, בפרופיל, ב"יש לי קוד".</p>' +
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="sheet">להעתיק קוד</button>' +
         (navigator.share ? '<button class="btn ghost" data-act="export" data-method="share" data-placement="sheet">לשלוח לעצמי</button>' : '') + '</div></div>'
       : '';
@@ -1757,42 +1843,23 @@
       gain = g.added > 1 ? 'קיבלת ' + g.added + ' ימי חופש לרצף. יש לך עכשיו ' + g.held + '.'
         : 'קיבלת יום חופש לרצף. יש לך עכשיו ' + (g.held === 1 ? 'יום חופש אחד.' : g.held + ' ימי חופש לרצף.');
     } else if (g && g.atCap) gain = 'יש לך כבר ' + DO.maxHeld + ' ימי חופש לרצף, המקסימום, אז הפעם לא נוסף עוד אחד.';
-    var toolLine = nextRewardLine();
-    if (opened.length) {
-      var t = opened[0];
-      buzz([30, 40, 70]);
-      openSheet('<div class="level-up tool-unlock"><div class="lvl-coin unlock t-' + t.id + '">' + toolIcon(t.id) + '<i class="unlock-lock" aria-hidden="true">' + ICON.lock + '</i></div>' +
-        '<div class="eyebrow">עלית שלב · ' + esc(levelLabel(r)) + '</div><h3>נפתח כלי חדש</h3>' +
-        toolCard(t, 'level_up', true) + (sk ? skinRow(sk.id) : '') +
-        (opened[1] ? '<p class="fine">ועוד: ' + esc(toolName(opened[1].id)) + '</p>' : '') +
-        (skMore ? '<p class="fine">ועוד צבע: ' + esc(skinName(skMore.id)) + '</p>' : '') +
-        (gain ? '<p class="fine off-line">' + ICON.dayoff + '<span>' + gain + '</span></p>' : '') +
-        (toolLine ? '<p class="fine">' + toolLine + '</p>' : '') + '</div>' +
-        '<button class="btn gold" data-act="tool" data-id="' + t.id + '" data-from="level_up">לפתוח את הכלי</button>' +
-        '<button class="btn text" data-act="close-sheet">אחר כך</button>');
-      var coin = document.querySelector('#sheet .lvl-coin');
-      if (coin) setTimeout(function () { if (document.body.contains(coin)) burst(coin); }, 700);
-      return;
-    }
-    if (sk) {
-      buzz([30, 40, 70]);
-      openSheet('<div class="level-up skin-unlock"><div class="lvl-coin skin unlock" data-skin="' + sk.id + '">' + (SKIN_ICON[sk.id] || '').replace('<svg', '<svg style="width:54px;height:54px"') +
-          '<i class="unlock-lock" aria-hidden="true">' + ICON.lock + '</i></div>' +
-        '<div class="eyebrow">עלית שלב · ' + esc(levelLabel(r)) + '</div><h3>נפתח צבע חדש: <span class="skin-name">' + esc(skinName(sk.id)) + '</span></h3>' +
-        (gain ? '<p class="lead">' + gain + '</p>' : '') +
-        (skMore ? '<p class="fine">ועוד צבע: ' + esc(skinName(skMore.id)) + '</p>' : '') +
-        (r.last ? '<p class="fine">זה השלב האחרון. כל הכבוד.</p>' : toolLine ? '<p class="fine">' + toolLine + '</p>' : '') + '</div>' +
-        '<div class="lu-actions"><button class="btn" data-act="skin-try" data-id="' + sk.id + '">לנסות את הצבע</button><button class="btn text" data-act="close-sheet">אחר כך</button></div>', '', sk.id);
-      var coin2 = document.querySelector('#sheet .lvl-coin');
-      if (coin2) setTimeout(function () { if (document.body.contains(coin2)) burst(coin2); }, 700);
-      return;
-    }
-    openSheet('<div class="level-up"><div class="lvl-coin">' + (g && g.added ? ICON.dayoff : ICON.coins) + '</div>' +
-      '<div class="eyebrow">עלית שלב</div><h3>' + esc(levelLabel(r)) + '</h3>' +
-      (gain ? '<p class="lead">' + gain + '</p>' : '') +
-      '<p class="fine">' + (r.last ? 'זה השלב האחרון. כל הכבוד.' : 'לשלב הבא: עוד ' + fmt(r.toNext) + ' נקודות.') + '</p>' +
-      (toolLine ? '<p class="fine">' + toolLine + '</p>' : '') + '</div>' +
-      '<button class="btn gold" data-act="close-sheet">יאללה, ממשיכים</button>');
+    // 0.19 (Daniel: "המסך עלית לשלב הבא מבולגן"): one sheet for every level: the coin, the level, what opened as small
+    // chips, and one button. The tool or the color is one tap away under it.
+    var t = opened[0] || null, gets = '';
+    if (t) gets += '<li><span class="lu-ic t-' + t.id + '">' + toolIcon(t.id) + '</span>' + esc(toolShort(t.id)) + '</li>';
+    if (opened[1]) gets += '<li><span class="lu-ic t-' + opened[1].id + '">' + toolIcon(opened[1].id) + '</span>' + esc(toolShort(opened[1].id)) + '</li>';
+    colors.slice().reverse().forEach(function (c) { gets += '<li><span class="lu-ic">' + skinSw(c.id, '', 22) + '</span>צבע ' + esc(skinName(c.id)) + '</li>'; });
+    if (g && g.added) gets += '<li><span class="lu-ic off">' + ICON.dayoff + '</span>' + (g.added > 1 ? g.added + ' ימי חופש לרצף' : 'יום חופש לרצף') + '</li>';
+    buzz(t || sk ? [30, 40, 70] : 30);
+    openSheet('<div class="level-up clean"><div class="lvl-coin">' + ICON.star + '</div>' +
+      '<h3>עלית לשלב ' + r.n + '!</h3>' +
+      '<p class="fine">' + (r.last ? 'זה השלב האחרון. כל הכבוד.' : 'שלב ' + r.n + ' מתוך ' + r.total) + '</p>' +
+      (gets ? '<div class="eyebrow">נפתח לך</div><ul class="lu-gets">' + gets + '</ul>' : '') + '</div>' +
+      '<button class="btn gold" data-act="close-sheet">יאללה, ממשיכים</button>' +
+      (t ? '<button class="btn text" data-act="tool" data-id="' + t.id + '" data-from="level_up">לפתוח את ' + esc(toolShort(t.id)) + '</button>'
+        : sk ? '<button class="btn text" data-act="skin-try" data-id="' + sk.id + '">לנסות את הצבע</button>' : ''), '');
+    var coin = document.querySelector('#sheet .lvl-coin');
+    if (coin) setTimeout(function () { if (document.body.contains(coin)) burst(coin); }, 600);
   }
 
   // ---------- Lesson session ----------
@@ -1980,24 +2047,27 @@
   // an explanation screen: an optional bold opening line ("lead"), the body, and the box under it.
   // The box is "דוגמה" unless the screen names it ("exampleLabel", 0.13.3: "שים לב להבדל", "מה עושים?").
   // Line breaks in body and example show as paragraphs (white-space: pre-line in styles.css).
-  function screenText(s) {
-    return (s.lead ? '<p class="lead-line">' + esc(s.lead) + '</p>' : '') + '<p>' + esc(s.body) + '</p>';
+  // seen (0.19): the glossary terms already shown; the card's own title counts as explaining its terms
+  function screenText(s, seen) {
+    if (seen) glossScan(s.title, seen);
+    return (s.lead ? '<p class="lead-line">' + gl(s.lead, seen) + '</p>' : '') + '<p>' + gl(s.body, seen) + '</p>';
   }
-  function screenBox(s) {
-    return s.example ? '<div class="example"><span class="eyebrow">' + esc(s.exampleLabel || 'דוגמה') + '</span><p>' + esc(s.example) + '</p></div>' : '';
+  function screenBox(s, seen) {
+    return s.example ? '<div class="example"><span class="eyebrow">' + esc(s.exampleLabel || 'דוגמה') + '</span><p>' + gl(s.example, seen) + '</p></div>' : '';
   }
 
   function renderPlayer() {
     var st = step();
     var cls = 'player u' + unitOfStep(st);
+    var seen = glossSeen();
     if (st.kind === 'screen') {
       var dots = '';
       for (var i = 0; i < st.of; i++) dots += '<i class="' + (i === st.n ? 'on' : '') + '"></i>';
       return '<div class="' + cls + '">' + playerTop() +
         '<div class="stage gutter">' +
           '<div class="kicker">' + esc(session.lesson.title) + ' · הסבר ' + (st.n + 1) + ' מתוך ' + st.of + '</div>' +
-          '<article class="explain-card' + (st.s.type === 'calculator' ? ' calc-screen' : '') + '"><h2>' + esc(st.s.title) + '</h2>' + screenText(st.s) +
-            (st.s.type === 'calculator' ? calcWidget('lesson') : screenBox(st.s)) +
+          '<article class="explain-card' + (st.s.type === 'calculator' ? ' calc-screen' : '') + (st.s.pic ? ' has-pic' : '') + '">' + picHtml(st.s) + '<h2>' + esc(st.s.title) + '</h2>' + screenText(st.s, seen) +
+            (st.s.type === 'calculator' ? calcWidget('lesson') : screenBox(st.s, seen)) +
           '</article>' +
           '<div class="dots" aria-hidden="true">' + dots + '</div>' +
           legalLine(false) +
@@ -2005,7 +2075,7 @@
         '<div class="player-foot gutter"><button class="btn" data-act="next">' + (st.n + 1 === st.of && !session.lesson.flow ? 'לשאלות' : 'המשך') + '</button></div></div>';
     }
     return '<div class="' + cls + ' qt' + (session.idx % 4) + '">' + playerTop() +
-      '<div class="stage gutter">' + questionHead(st) + questionBody(st) + legalLine(true) + '</div>' + questionFoot(st) + '</div>';
+      '<div class="stage gutter">' + questionHead(st, seen) + questionBody(st) + legalLine(true) + '</div>' + questionFoot(st) + '</div>';
   }
 
   function afterPlayerRender() {
@@ -2024,7 +2094,7 @@
     focusPlayer();
   }
 
-  function questionHead(st) {
+  function questionHead(st, seen) {
     var q = st.q;
     var label = session.mode === 'repair' ? 'הצלת רצף · ' + (session.idx + 1) + ' מתוך ' + stepCount()
       : q.guess ? 'ניחוש · אין כאן טעויות'
@@ -2038,8 +2108,8 @@
       : 'בחרו את התשובה הנכונה';
     var peek = session.lesson && !st.review && !q.guess && seenScreens().length ? '<button class="peek" data-act="peek">' + ICON.book + 'להציץ בהסבר</button>' : '';
     return '<div class="q-head"><div class="kicker' + (st.review || st.retry ? ' review' : '') + '">' + label + '</div>' + peek + '</div>' +
-      (q.scenario ? '<div class="scenario"><span class="sc-ic">' + ICON.user + '</span><p>' + esc(q.scenario) + '</p></div>' : '') +
-      '<h2 class="q-prompt">' + esc(q.prompt) + '</h2>';
+      (q.scenario ? '<div class="scenario"><span class="sc-ic">' + ICON.user + '</span><p>' + gl(q.scenario, seen) + '</p></div>' : '') +
+      '<h2 class="q-prompt">' + gl(q.prompt, seen) + '</h2>';
   }
 
   function questionBody(st) {
@@ -2457,19 +2527,20 @@
         '<div class="tile acc"><div class="t-label">נכונות</div><div class="t-val">' + s.acc + '%</div></div>' +
         '<div class="tile time"><div class="t-label">זמן</div><div class="t-val">' + ltr(clock(s.time)) + '</div></div>' +
       '</div>' +
-      '<div class="card tight"><ul class="rules">' + rows + '</ul>' +
+      // 0.19 (Daniel: "המסך מבולגן"): the level bar and one line; where the points came from opens on a tap
+      '<div class="card tight done-level">' +
         '<div class="progress-row"><span>שלב ' + r.n + '</span><span class="bar gold"><i data-w="' + Math.round(r.pct * 100) + '" style="width:' + Math.round(s.pctBefore * 100) + '%"></i></span><span>' + (r.last ? '' : 'שלב ' + (r.n + 1)) +
           (nextAt ? '<i class="pr-tool t-' + nextAt.id + '" aria-hidden="true">' + toolIcon(nextAt.id) + '</i>' : '') +
           (nextSk ? '<i class="pr-skin" data-skin="' + nextSk.id + '" aria-hidden="true"></i>' : '') + '</span></div>' +
-        '<p class="fine">' + (r.last ? '' : doneNextLine(r, s, l, nextAt) + ' ') +
-          'היעד היומי: ' + fmt(todayXp()) + ' מתוך ' + fmt(S.goalXp) + '. <button class="link" data-act="explain" data-what="points">בשביל מה הנקודות?</button></p>' +
+        (r.last ? '' : '<p class="fine">' + doneNextLine(r, s, l, nextAt) + '</p>') +
+        '<details class="pts-details"><summary>פירוט הנקודות</summary><ul class="rules">' + rows + '</ul>' +
+          '<p class="fine">היעד היומי: ' + fmt(todayXp()) + ' מתוך ' + fmt(S.goalXp) + '. <button class="link" data-act="explain" data-what="points">בשביל מה הנקודות?</button></p></details>' +
       '</div>' +
-      (s.mode === 'lesson' ? energyDoneCard(s) : '') +
-      (s.mode === 'lesson' && s.firstTime && doneCount() === 1 ? firstExplainer() : '');
+      (s.mode === 'lesson' ? energyDoneCard(s) : '');
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-        ratingRow(l) + intentCard(l) + amountCard(l) + missionCard(l, true) + offerCard(l);
+        ratingRow(l) + intentCard(l) + amountCard(l) + (MISSIONS_ON ? missionCard(l, true) : '') + offerCard(l);
     }
     // iPhone: the install ask comes right after the first lesson, while the win is fresh (Android keeps the home card)
     if (s.mode === 'lesson' && s.firstTime && INSTALL.showOnDone && IS_IOS && doneCount() === INSTALL.afterLessons) {
@@ -2477,23 +2548,21 @@
       if (ic && !s.installShown) { s.installShown = true; track('install_card_shown', { placement: 'done', lessons_done: doneCount() }); }
       html += ic;
     }
+    if (s.mode === 'lesson') html += nextUpCard(l);
     html += legalLine(false) + '<div class="spacer"></div>';
     // after a lesson (or a rescued streak), not after practice: the win is worth sending to friends
     if (INVITE.enabled && doneCount() >= INVITE.afterLessons && (s.mode === 'lesson' || (s.mode === 'repair' && s.passed))) {
-      html += '<button class="btn ghost" data-act="invite" data-from="done" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + 'להזמין חבר</button>';
-      html += inviteNote();
+      html += '<button class="btn text invite-link" data-act="invite" data-from="done" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + 'להזמין חבר</button>';
     }
-    if (s.mode === 'lesson') html += nextUpCard(l);
     html += '<button class="btn" data-act="home">המשך</button></div>';
     return html;
   }
-  // 0.17 (30.10, "קודם כל ליצור הוק"): the done screen names the next lesson and asks its opening guess, so there is
-  // an open question to come back for. Only when a next lesson exists and it is not the one just finished.
+  // 0.17 (30.10, "קודם כל ליצור הוק"): the done screen names the next lesson, so there is something to come back for.
+  // Only when a next lesson exists and it is not the one just finished.
   function nextUpCard(l) {
     var nx = currentLesson();
     if (!nx || (l && nx.id === l.id)) return '';
-    var g = (nx.vQuestions || []).filter(function (q) { return q.guess; })[0];
-    var teaser = g && g.prompt && g.prompt.length <= 120 && !g.scenario ? g.prompt : nx.what;
+    var teaser = nx.what; // 0.19: no guess questions any more, so the lesson's own line
     return '<div class="next-up u' + esc(nx.unit.id) + '"><span class="eyebrow">השיעור הבא</span><b>' + esc(nx.title) + '</b>' +
       (teaser ? '<span class="nu-teaser">' + esc(teaser) + '</span>' : '') + '</div>';
   }
@@ -2624,16 +2693,17 @@
 
   // ---------- Notes (reread a finished lesson) ----------
   function renderNotes(l) {
+    var seen = Object.create(null);
     var screens = l.vScreens.map(function (s) {
-      return '<article class="explain-card flat"><h2>' + esc(s.title) + '</h2>' + screenText(s) +
+      return '<article class="explain-card flat' + (s.pic ? ' has-pic' : '') + '">' + picHtml(s) + '<h2>' + esc(s.title) + '</h2>' + screenText(s, seen) +
         (s.type === 'calculator' ? '<button class="btn ghost" data-act="calc-open" data-from="notes">לפתוח את המחשבון</button>'
-          : screenBox(s)) + '</article>';
+          : screenBox(s, seen)) + '</article>';
     }).join('');
     return '<div class="notes u' + l.unit.id + '"><div class="player-top gutter"><button class="icon-btn" data-act="notes-close" aria-label="חזרה">' + ICON.back + '</button>' +
       '<div class="notes-title"><span class="eyebrow">יחידה ' + l.unit.n + ' · שיעור ' + l.n + '</span><b>' + esc(l.title) + '</b></div></div>' +
       '<div class="stage gutter">' + screens +
       '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-      missionCard(l, true) + notesSources(l) +
+      (MISSIONS_ON ? missionCard(l, true) : '') + notesSources(l) +
       (l.source ? '<p class="source">מקורות: ' + esc(l.source) + '</p>' : '') +
       legalLine(false) +
       '<button class="btn" data-act="restart" data-id="' + esc(l.id) + '">לתרגל את השיעור שוב</button></div></div>';
@@ -2770,8 +2840,8 @@
         statBox(ICON.flame, 'var(--flame)', currentStreak(), 'ימים ברצף') +
         statBox(ICON.coin, 'var(--gold)', fmt(S.xp), 'נקודות') +
         statBox(ICON.book, 'var(--brand)', doneCount() + '/' + LESSONS.length, 'שיעורים') +
-        statBox(ICON.target, 'var(--brand)', missionsDone, 'משימות בוצעו') +
-        (DO.enabled ? statBox(ICON.dayoff, 'var(--q-blue)', S.daysOff, 'ימי חופש לרצף') : statBox(ICON.trophy, 'var(--gold)', S.bestStreak, 'שיא רצף')) +
+        (MISSIONS_ON ? statBox(ICON.target, 'var(--brand)', missionsDone, 'משימות בוצעו') : statBox(ICON.trophy, 'var(--gold)', S.bestStreak, 'שיא רצף')) +
+        (DO.enabled ? statBox(ICON.dayoff, 'var(--q-blue)', S.daysOff, 'ימי חופש לרצף') : MISSIONS_ON ? statBox(ICON.trophy, 'var(--gold)', S.bestStreak, 'שיא רצף') : '') +
         statBox(ICON.check, 'var(--ok)', acc + '%', 'תשובות נכונות') +
       '</div>' +
       '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">ימי למידה ב-7 הימים האחרונים: ' + learned7() + ' מתוך 7. הקו המקווקו הוא היעד היומי.' +
@@ -2782,7 +2852,7 @@
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
       (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
-      '<div class="card transfer-card"><h2>להעביר התקדמות</h2><p>עוברים לאפליקציה המותקנת או לטלפון אחר? מעתיקים קוד, ומדביקים אותו שם במסך הפתיחה.</p>' +
+      '<div class="card transfer-card"><h2>להעביר התקדמות</h2><p>עוברים לאפליקציה המותקנת או לטלפון אחר? מעתיקים קוד כאן, ומדביקים אותו שם בפרופיל, ב"יש לי קוד".</p>' +
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="profile">להעתיק קוד</button><button class="btn ghost" data-act="import" data-source="profile">יש לי קוד</button></div></div>' +
       (CFG.pilot ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
@@ -2821,11 +2891,12 @@
         '<ul class="promises">' +
           '<li><b>איפה הכסף שלך בורח</b><span>מינוס, עמלות, דמי ניהול ומי שמבטיח לך רווח: איך לוקחים לך כסף בלי שאתה שם לב, ואיך עוצרים.</span></li>' +
           '<li><b>מה עושים עם הכסף לפני שהוא נעלם</b><span>פיקדון, מענק שחרור, משכורת ראשונה: תוכנית לפני שהכסף מגיע לחשבון.</span></li>' +
-          '<li><b>כמה דקות ביום, בלי חישובים</b><span>שיעור קצר עם סיפור, ובדיקה של 2 דקות בטלפון, כמו כמה עמלות ירדו לך החודש.</span></li>' +
+          '<li><b>כמה דקות ביום, בלי חישובים</b><span>שיעור קצר עם סיפור מהחיים, ושאלות שבודקות שהבנת. כל מילה קשה מוסברת בלחיצה.</span></li>' +
         '</ul>' +
         '<div class="spacer"></div>' +
         '<button class="btn gold" data-act="onboard-next">יאללה, מתחילים</button>' +
-        '<p class="fine center"><button class="link" data-act="import">יש לי קוד העברה</button></p>' +
+        // 0.19 (1.11, Jonathan: "בכניסה לאפליקציה יש משהו שנקרא קוד העברה... למחוק"): no code link on the first screen.
+        // Pasting a code stays in the profile ("להעביר התקדמות"), so moving progress to the installed app still works.
         '<p class="fine center">' + esc(CFG.disclaimer) + '.</p></div>';
     }
     if (onboardStep === 2 && !onlyStatus && pickedStatus && onboardCalcFor(pickedStatus)) return renderOnboardCalc();
@@ -3122,7 +3193,7 @@
          'מעכשיו פותחים את ' + name + ' מהאייקון.'];
     // iPhone: the home-screen app starts with its own empty storage, so progress made here travels by code
     var code = IS_IOS && hasProgress()
-      ? '<div class="transfer-box"><p><b>ההתקדמות לא עוברת לבד.</b> מעתיקים את קוד ההעברה, ובאפליקציה שבמסך הבית מדביקים אותו ב"יש לי קוד העברה".</p>' +
+      ? '<div class="transfer-box"><p><b>ההתקדמות לא עוברת לבד.</b> מעתיקים את קוד ההעברה, ובאפליקציה שבמסך הבית מדביקים אותו בפרופיל, ב"יש לי קוד".</p>' +
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="popup">להעתיק קוד</button>' +
         (navigator.share ? '<button class="btn ghost" data-act="export" data-method="share" data-placement="popup">לשלוח לעצמי</button>' : '') + '</div></div>'
       : '';
@@ -3988,7 +4059,7 @@
   }
   // the done screen: what the next level brings, or the mission that gets there
   function doneNextLine(r, s, l, nt) {
-    var m = s.mode === 'lesson' && l && l.mission && !missionState(l.id).done && r.toNext <= P.mission ? l.mission : null;
+    var m = MISSIONS_ON && s.mode === 'lesson' && l && l.mission && !missionState(l.id).done && r.toNext <= P.mission ? l.mission : null;
     var ns = m ? skinsAtLevel(r.n + 1)[0] : null;
     if (m) return 'המשימה של השיעור, ' + (m.minutes > 2 ? m.minutes + ' דקות' : 'דקה או שתיים') + ', ' + (nt ? 'פותחת לך את ' + esc(toolShort(nt.id)) + (ns ? ' וצבע חדש' : '')
       : ns ? 'פותחת לך צבע חדש' : nextLevelDayOff() ? 'מביאה לך יום חופש לרצף' : 'מעלה אותך לשלב ' + (r.n + 1)) + '.';
@@ -4455,13 +4526,14 @@
       case 'next': next(); break;
       case 'back': back(); break;
       case 'peek': peekSheet(); break;
+      case 'term': termSheet(+el.getAttribute('data-i')); break;
       case 'quit': quitSheet(); break;
       case 'quit-confirm':
         leaveSession('quit');
         setView('home');
         break;
       case 'home': session = null; setView('home'); break;
-      case 'mission': missionSheet(id); break;
+      case 'mission': if (MISSIONS_ON) missionSheet(id); break;
       case 'dcheck': checkSheet(id, el.getAttribute('data-from')); break;
       case 'dcheck-done': checkDoneNow(id); break;
       case 'mstep': {
@@ -4824,6 +4896,12 @@
     document.documentElement.dir = 'rtl';
     document.addEventListener('click', onClick);
     document.addEventListener('input', onInput);
+    // 0.19 (Daniel: "שאי אפשר יהיה להעתיק טקסט"): no selecting, copying or long-press menu outside the boxes people type
+    // in (the transfer code and the message to copy by hand stay copyable). styles.css turns off selection too.
+    var typingBox = function (t) { return !!(t && t.closest && t.closest('input, textarea')); };
+    ['copy', 'cut', 'selectstart', 'contextmenu', 'dragstart'].forEach(function (ev) {
+      document.addEventListener(ev, function (e) { if (!typingBox(e.target)) e.preventDefault(); });
+    });
     document.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVisibility);
     document.addEventListener('pointerdown', function () { lastTouchAt = Date.now(); }, { capture: true, passive: true });

@@ -1463,3 +1463,63 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
   .stat { padding: 6px 3px; }
 }
 @media (prefers-reduced-motion: reduce) { .stat.energy.empty svg.batt { animation: none; } }
+
+/* ---------- 0.19 (1.11, Daniel's feedback) ---------- */
+/* the lesson fills the screen, so the answer bar sits at the bottom with no empty white block under it */
+.player, .notes { flex: 1 0 auto; }
+.player .stage { flex: 1 0 auto; }
+
+/* no selecting or copying text (Daniel: "שאי אפשר יהיה להעתיק טקסט"); typing boxes stay selectable */
+#app, #sheet { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#app input, #app textarea, #sheet input, #sheet textarea { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+img { -webkit-user-drag: none; }
+
+/* a picture on every explanation card */
+.explain-card .pic {
+  align-self: center; width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; margin-bottom: -2px;
+  background: color-mix(in srgb, var(--u, var(--brand)) 13%, var(--surface));
+  animation: pop .45s cubic-bezier(.2, 1.5, .4, 1);
+}
+.explain-card .pic img { width: 60px; height: 60px; display: block; }
+.explain-card.flat .pic { width: 64px; height: 64px; animation: none; }
+.explain-card.flat .pic img { width: 42px; height: 42px; }
+.explain-card.has-pic > h2 { text-align: center; }
+.explain-card.has-pic > .lead-line { text-align: center; }
+
+/* a word from the glossary: dotted underline, a tap shows what it means */
+.term {
+  display: inline; border: 0; padding: 0; margin: 0; background: none; font: inherit; color: inherit; cursor: help;
+  text-decoration: underline dotted; text-decoration-color: var(--u, var(--brand)); text-decoration-thickness: 2px; text-underline-offset: 4px;
+  border-radius: 4px;
+}
+.term:active { background: color-mix(in srgb, var(--u, var(--brand)) 14%, transparent); }
+.term-sheet .term-eyebrow { display: inline-flex; align-items: center; gap: 5px; color: var(--brand); }
+.term-sheet .term-eyebrow svg { width: 15px; height: 15px; }
+.term-sheet .lead { font-size: 18px; line-height: 1.65; }
+
+/* the done screen: the level bar, one line, and the points behind a tap */
+.done-level { display: flex; flex-direction: column; gap: 8px; }
+.pts-details summary { cursor: pointer; font-size: 14.5px; font-weight: 700; color: var(--brand); list-style: none; display: inline-flex; align-items: center; gap: 4px; }
+.pts-details summary::-webkit-details-marker { display: none; }
+.pts-details summary::after { content: '▾'; font-size: 12px; transition: transform .15s; }
+.pts-details[open] summary::after { transform: rotate(180deg); }
+.pts-details[open] summary { margin-bottom: 6px; }
+.pts-details .fine { margin-top: 6px; }
+.invite-link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: var(--brand); font-weight: 700; }
+.invite-link svg { width: 18px; height: 18px; }
+
+/* the level-up sheet: coin, level, what opened, one button */
+.level-up.clean { gap: 6px; padding-bottom: 6px; }
+.level-up.clean .lvl-coin { margin-bottom: 10px; }
+.level-up.clean .eyebrow { margin-top: 10px; }
+.lu-gets { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+.lu-gets li { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border-radius: 999px; background: var(--surface-2); font-weight: 700; font-size: 15px; color: var(--ink); }
+.lu-gets .lu-ic { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--brand); flex: none; }
+.lu-gets .lu-ic svg { width: 18px; height: 18px; }
+.lu-gets .lu-ic .sw { border-radius: 50%; }
+.lu-gets .lu-ic.off { color: var(--q-blue, #2F6FB3); }
+
+/* the bottom bar with 3 or 4 tabs (missions off) */
+.nav-inner.n3 { grid-template-columns: repeat(3, 1fr); }
+.nav-inner.n4 { grid-template-columns: repeat(4, 1fr); }
+.chip.pts svg { color: var(--gold); }
