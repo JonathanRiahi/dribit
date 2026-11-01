@@ -314,6 +314,7 @@
   }
   function save() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ }
+    carrySoon();
   }
   var S = load();
   applySkin(); // before the first render, so the page never flashes green
@@ -1191,7 +1192,7 @@
       ? 'סיימת שיעור ראשון. עכשיו הזמן: אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.'
       : 'אייקון במסך הבית, נפתח במסך מלא ועובד גם בלי קליטה.';
     // iPhone: Safari keeps a site's data separate from the home-screen app, and can clear it after days without a visit
-    if (IS_IOS) text += ' באייפון ההתקדמות נשמרת בבטחה רק במסך הבית. מה שעשית בספארי עובר לשם בקוד העברה שבהוראות.';
+    if (IS_IOS) text += ' באייפון ההתקדמות נשמרת בבטחה רק במסך הבית, ומה שעשית בספארי עובר לשם לבד.';
     return '<div class="card install-card"><div class="rc-head"><span class="rc-ic">' + ICON.phone + '</span><div>' +
       '<b>להתקין את ' + esc(CFG.appName) + ' בטלפון</b><span>' + text + '</span></div></div>' +
       '<div class="row"><button class="btn" data-act="install" data-placement="' + placement + '">להתקנה</button>' +
@@ -1623,6 +1624,44 @@
   }
 
   function hasProgress() { return S.xp > 0 || !!S.inProgress || doneCount() > 0; }
+
+  // ---------- Progress that goes along to the home-screen app (0.19, iPhone) ----------
+  // Jonathan (1.11): "ברגע שאתה מוסיף את האפליקציה לדף הבית... שזה פשוט יעביר". On iPhone the home-screen app starts with
+  // its own empty storage. While the app runs in Safari with progress, the page address and the manifest's start address
+  // carry it (#i=<transfer code>), so the icon added from here opens with it and the installed app takes it in by itself
+  // (boot). iOS takes the icon's address from the page or from the manifest, depending on the version, so both carry it.
+  // The code box in the profile stays as a fallback.
+  var carryTimer = null, carried = '', manifestJson = null, manifestUrl = '';
+  function carrySoon() {
+    if (!IS_IOS || IN_FRAME || isStandalone()) return;
+    clearTimeout(carryTimer);
+    carryTimer = setTimeout(carryProgress, 400);
+  }
+  function carryProgress() {
+    if (!S.onboarded || !LESSONS.length || !hasProgress()) return;
+    var code = exportCode();
+    if (code === carried) return;
+    carried = code;
+    try { history.replaceState(history.state, '', '#i=' + code); } catch (e) { /* ignore */ }
+    carryManifest(code);
+  }
+  function carryManifest(code) {
+    var link = document.querySelector('link[rel="manifest"]');
+    if (!link || !window.fetch || !window.Blob || !window.URL || !URL.createObjectURL) return;
+    var apply = function () {
+      try {
+        var abs = function (x) { return new URL(x || './', manifestUrl).href; };
+        var m = JSON.parse(JSON.stringify(manifestJson));
+        m.start_url = abs(m.start_url).split('#')[0] + '#i=' + code;
+        m.scope = abs(m.scope); m.id = abs(m.id);
+        m.icons = (m.icons || []).map(function (ic) { var c = {}; for (var k in ic) c[k] = ic[k]; c.src = abs(ic.src); return c; });
+        link.href = URL.createObjectURL(new Blob([JSON.stringify(m)], { type: 'application/manifest+json' }));
+      } catch (e) { /* the page address still carries it */ }
+    };
+    if (manifestJson) { apply(); return; }
+    manifestUrl = link.href;
+    fetch(manifestUrl).then(function (r) { return r.json(); }).then(function (j) { manifestJson = j; apply(); }, function () { /* ignore */ });
+  }
   function installBody() {
     var name = esc(CFG.appName);
     var steps = IS_IOS
@@ -1630,20 +1669,17 @@
          'לוחצים על כפתור השיתוף ' + ICON.share + ' בתחתית המסך.',
          'גוללים ובוחרים "הוספה למסך הבית" ' + ICON.addHome + '.',
          'לוחצים "הוספה". האייקון של ' + name + ' יופיע במסך הבית.',
-         'פותחים את ' + name + ' רק מהאייקון. אם יש קוד העברה, מדביקים אותו בפרופיל, ב"יש לי קוד".']
+         'פותחים את ' + name + ' רק מהאייקון. ההתקדמות שלך כבר שם.']
       : ['פותחים את הקישור בכרום.',
          'לוחצים על ' + ICON.dots + ' בפינה של המסך.',
          'בוחרים "התקנת אפליקציה" או "הוספה למסך הבית".',
          'מאשרים. האייקון של ' + name + ' יופיע במסך הבית.'];
     // iPhone: the installed app starts with its own empty storage, so progress made in Safari travels by code
     // a friend's gift waits for lesson 1 in this browser: installing before it would lose the gift
-    var warn = IS_IOS ? '<p class="nudge warn">' + ICON.info + '<span>חשוב: באייפון האפליקציה המותקנת מתחילה מאפס. מה שעשית בספארי לא עובר לבד. ' +
-      (S.giftPending && !hasProgress() ? 'יש לך מתנה מחבר, אז עושים קודם את השיעור הראשון כאן, ורק אז מתקינים עם קוד ההעברה.' : 'מתקינים קודם, ואז משחקים. כבר התחלת? מעתיקים את קוד ההעברה שלמטה ומדביקים אותו באפליקציה המותקנת.') + '</span></p>' : '';
-    var code = IS_IOS && hasProgress()
-      ? '<div class="transfer-box"><p><b>קוד העברה:</b> לוחצים "להעתיק קוד", ואחרי ההתקנה מדביקים אותו באפליקציה, בפרופיל, ב"יש לי קוד".</p>' +
-        '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="sheet">להעתיק קוד</button>' +
-        (navigator.share ? '<button class="btn ghost" data-act="export" data-method="share" data-placement="sheet">לשלוח לעצמי</button>' : '') + '</div></div>'
-      : '';
+    // 0.19: progress made in Safari goes along in the icon's address (carryProgress); no code to copy
+    var warn = IS_IOS && S.giftPending && !hasProgress()
+      ? '<p class="nudge warn">' + ICON.info + '<span>יש לך מתנה מחבר, אז עושים קודם את השיעור הראשון כאן, ורק אז מוסיפים למסך הבית.</span></p>' : '';
+    var code = IS_IOS && hasProgress() ? '<p class="nudge">' + ICON.check + '<span>מה שעשית כאן עובר לבד לאפליקציה שבמסך הבית.</span></p>' : '';
     return warn +
       '<ol class="install-steps">' + steps.map(function (s, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + s + '</span></li>'; }).join('') + '</ol>' + code +
       '<p class="fine">' + (IS_IOS ? 'אחרי ההתקנה פותחים את ' + name + ' רק מהאייקון: שם ההתקדמות נשמרת בבטחה, וספארי עלול למחוק אותה אחרי כמה ימים בלי כניסה. היא נשמרת בטלפון, לא בענן.'
@@ -1737,7 +1773,7 @@
     track('progress_imported', { ok: true, reason: null, lessons_done: doneCount(), xp: S.xp, source: source, $set: { transferred: true } });
     pickedStatus = null; onboardStep = 0; session = null;
     setView('home');
-    if (source === 'hash') { clearTimeout(askTimer); openAsked = true; } // a link with a code: the import toast is enough for this open
+    if (source === 'hash' || source === 'install') { clearTimeout(askTimer); openAsked = true; } // a link with a code: the import toast is enough for this open
     toast(ICON.check + '<b>ההתקדמות עברה</b><span>' + plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '</span>', 'info', 3200);
     return r;
   }
@@ -2852,7 +2888,7 @@
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
       (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
-      '<div class="card transfer-card"><h2>להעביר התקדמות</h2><p>עוברים לאפליקציה המותקנת או לטלפון אחר? מעתיקים קוד כאן, ומדביקים אותו שם בפרופיל, ב"יש לי קוד".</p>' +
+      '<div class="card transfer-card"><h2>להעביר התקדמות</h2><p>עוברים לטלפון אחר? מעתיקים קוד כאן, ומדביקים אותו שם בפרופיל, ב"יש לי קוד".</p>' +
         '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="profile">להעתיק קוד</button><button class="btn ghost" data-act="import" data-source="profile">יש לי קוד</button></div></div>' +
       (CFG.pilot ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
@@ -2886,7 +2922,7 @@
         '<p class="tag">' + esc(CFG.tagline) + '</p>' +
         (S.giftPending && DO.enabled && DO.friendGift
           ? '<p class="gift-banner">' + ICON.dayoff + '<span><b>חבר שלח לך מתנה: ' + DO.friendGift + ' ימי חופש לרצף.</b> אלה ימים שאפשר לפספס בלי שהרצף נשבר' + minStreakNote() + '. הם אצלך אחרי השיעור הראשון.' +
-            (IS_IOS && !isStandalone() ? ' באייפון: עושים את השיעור הראשון כאן, ורק אז מוסיפים למסך הבית עם קוד ההעברה, והימים עוברים איתך.' : '') + '</span></p>'
+            (IS_IOS && !isStandalone() ? ' באייפון: עושים את השיעור הראשון כאן, ורק אז מוסיפים למסך הבית, והימים עוברים איתך.' : '') + '</span></p>'
           : '') + art +
         '<ul class="promises">' +
           '<li><b>איפה הכסף שלך בורח</b><span>מינוס, עמלות, דמי ניהול ומי שמבטיח לך רווח: איך לוקחים לך כסף בלי שאתה שם לב, ואיך עוצרים.</span></li>' +
@@ -3192,11 +3228,7 @@
          'בוחרים "התקנת אפליקציה" או "הוספה למסך הבית", ומאשרים.',
          'מעכשיו פותחים את ' + name + ' מהאייקון.'];
     // iPhone: the home-screen app starts with its own empty storage, so progress made here travels by code
-    var code = IS_IOS && hasProgress()
-      ? '<div class="transfer-box"><p><b>ההתקדמות לא עוברת לבד.</b> מעתיקים את קוד ההעברה, ובאפליקציה שבמסך הבית מדביקים אותו בפרופיל, ב"יש לי קוד".</p>' +
-        '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="popup">להעתיק קוד</button>' +
-        (navigator.share ? '<button class="btn ghost" data-act="export" data-method="share" data-placement="popup">לשלוח לעצמי</button>' : '') + '</div></div>'
-      : '';
+    var code = IS_IOS && hasProgress() ? '<p class="nudge">' + ICON.check + '<span>מה שעשית כאן עובר לבד לאפליקציה שבמסך הבית.</span></p>' : '';
     return '<ol class="install-steps">' + steps.map(function (t, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + t + '</span></li>'; }).join('') + '</ol>' + code +
       '<p class="fine">נפתח בתוך וואטסאפ, אינסטגרם או טיקטוק? פותחים קודם את הקישור ב' + (IS_IOS ? 'ספארי' : 'כרום') + '.</p>';
   }
@@ -4944,9 +4976,17 @@
     if (S.inProgress && !(S.onboarded && S.status && restoreSession(S.inProgress))) { S.inProgress = null; save(); }
     // a transfer code can also arrive in the link (#p=D1....), for example pasted into the address bar
     var hashCode = /^#p=(.+)$/.exec(location.hash || '');
-    if (hashCode || OPEN_SOURCE === 'push') openAsked = true; // 0.12: no popup in an open from a reminder or a code link, also after a later visit home
+    // 0.19: progress carried from Safari in the home-screen icon's address (#i=, see carryProgress). Taken in only by the
+    // installed app with nothing in it yet; anywhere else (a shared link, Safari itself) it is just removed from the address.
+    var carryIn = /^#i=(.+)$/.exec(location.hash || ''), carryCode = '';
+    if (carryIn) {
+      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) { /* ignore */ }
+      if (isStandalone() && !hasProgress()) { try { carryCode = decodeURIComponent(carryIn[1]); } catch (e) { carryCode = ''; } }
+      if (carryCode && !parseCode(carryCode).ok) carryCode = '';
+    }
+    if (hashCode || carryCode || OPEN_SOURCE === 'push') openAsked = true; // 0.12: no popup in an open from a reminder or a code link, also after a later visit home
     // existing users meet days off once, over home; one sheet per open, so no toast that day (none can apply on update day)
-    var showIntro = DO.enabled && !hashCode && S.onboarded && S.status && !S.offIntroSeen;
+    var showIntro = DO.enabled && !hashCode && !carryCode && S.onboarded && S.status && !S.offIntroSeen;
     if (showIntro) offToast = null;
     render();
     if (hashCode) {
@@ -4959,6 +4999,8 @@
         if (!imp.ok) toast(ICON.x + '<b>הקוד לא תקין</b>', '', 2600);
       }
     }
+    if (carryCode) importProgress(carryCode, 'install');
+    carrySoon();
     if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
     else if (!hashCode && OPEN_SOURCE !== 'push') maybeAsk();
     registerSW();
