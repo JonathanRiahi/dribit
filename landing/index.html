@@ -99,7 +99,6 @@ h1 em { font-style: normal; color: var(--gold); }
 .join.signed form { display: none; }
 .join.signed .done { display: block; }
 .done h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 22px; }
-.done h2 .no { color: var(--gold); }
 .done p { margin: 4px 0 10px; color: var(--cream-2); font-size: 15px; }
 .btn2 {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 16px; border-radius: 12px;
@@ -178,8 +177,8 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
     </form>
 
     <div class="done" id="done" aria-live="polite" tabindex="-1">
-      <h2 id="doneTitle">אתם ברשימה<span class="no" id="doneNo"></span></h2>
-      <p>האפליקציה יוצאת לפי הסדר ברשימה. מכירים מישהו שזה יעזור לו?</p>
+      <h2 id="doneTitle">נרשמת בהצלחה!</h2>
+      <p>נודיע לך ברגע שהאפליקציה יוצאת. יש לך חבר שזה יעזור לו?</p>
       <div class="row">
         <a class="btn2 wa" id="shareWa" href="#" target="_blank" rel="noopener" data-cta="share_whatsapp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>לשלוח לחבר</a>
         <button class="btn2" type="button" id="copyLink" data-cta="share_copy">להעתיק קישור</button>
@@ -233,7 +232,6 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
     for (var j = 0; j < 6; j++) out += abc[b[j] % abc.length];
     return out;
   }
-  function fmt(n) { return Math.round(n).toLocaleString('en-US'); }
   function secs() { return Math.round((Date.now() - t0) / 1000); }
   var t0 = Date.now();
 
@@ -322,7 +320,6 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
   function shareText() { return 'מצאתי אפליקציה שמלמדת חינוך פיננסי לחיילים, כמה דקות ביום: פיקדון, מענק, משכורת ראשונה. היא יוצאת לפי הסדר ברשימה:'; }
   function showDone(j, animate) {
     join.classList.add('signed');
-    $('doneNo').textContent = j.position ? ', מקום ' + fmt(j.position) : '';
     var url = j.code ? shareUrl(j.code) : SITE + '?source=friend';
     $('shareWa').href = 'https://wa.me/?text=' + encodeURIComponent(shareText() + ' ' + url);
     $('copyLink').onclick = function () {
@@ -335,10 +332,6 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
 
   var joined = readJSON(JOINED_KEY);
   if (joined && joined.at) showDone(joined, false);
-  // a returning visitor sees the updated place in line
-  if (joined && joined.code && SHEET) {
-    sheet('GET', { code: joined.code }).then(function (j) { joined.position = j.position; joined.refs = j.refs; store(JOINED_KEY, JSON.stringify(joined)); showDone(joined, false); }).catch(function () {});
-  }
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
