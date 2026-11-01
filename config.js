@@ -138,10 +138,12 @@ window.DRIBIT_CONFIG = {
     vapidPublicKey: 'BMwrT7BZQpvx3UGBsw5khdO5ZkwERNxRXz1slfXdwAWv0tMwhybKF6r25OJ3Ca_xqDKUoHllMRY82gacM79Nr6g'
   },
 
-  // משוב: כשאין מפתח מדידה, או כשהמשתמש כיבה שיתוף נתונים, המשוב נפתח בוואטסאפ.
+  // משוב: email true = כל משוב נשלח לסקריפט של רשימת ההמתנה (waitlist.sheetUrl), שכותב אותו בגיליון "משובים" ושולח
+  // אימייל ליהונתן ולנהוראי (יהונתן, 1.11). הכתובות נמצאות רק בסקריפט שבגוגל, לא כאן. אם השליחה נכשלת, או כש-email false,
+  // חוזרים לדרך הישנה: PostHog, ומי שכיבה שיתוף נתונים שולח בוואטסאפ.
   // whatsapp: ספרות בלבד בפורמט בינלאומי, בלי + ובלי אפס מוביל (050-1234567 ← 972501234567). ריק = ההודעה מוצגת להעתקה.
   // contactName: שם פרטי שמופיע בהסבר ("המשוב נשלח בוואטסאפ ליהונתן"). לא חובה.
-  feedback: { whatsapp: '972547679158', contactName: 'יהונתן' },
+  feedback: { email: true, whatsapp: '972547679158', contactName: 'יהונתן' },
 
   // רשימת ההמתנה בדף הנחיתה (landing/). כל הרשמה נשלחת ל-PostHog (אירוע waitlist_signup), וגם לגיליון Google Sheets
   // כשיש sheetUrl: כתובת ה-Web App של Apps Script (הוראות ב-landing/waitlist/README.md). הכתובת אינה סוד.

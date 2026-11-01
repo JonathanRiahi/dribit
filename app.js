@@ -1809,6 +1809,21 @@
   // without an analytics key, or when usage-data sharing is off, feedback goes out by WhatsApp instead of PostHog
   function feedbackViaWhatsApp() { return !(CFG.analytics && CFG.analytics.posthogKey) || !S.share; }
   function contactName() { return (CFG.feedback && CFG.feedback.contactName) || ''; }
+  // 0.19 (Jonathan, 1.11: "אני מעדיף במייל, ושיגיע גם לנהוראי"): feedback goes to the waitlist Apps Script, which keeps
+  // a row in the "משובים" sheet and emails both of them. Resolves true only when the script says it took it.
+  function feedbackMailUrl() { return CFG.feedback && CFG.feedback.email && CFG.waitlist && CFG.waitlist.sheetUrl || ''; }
+  function mailFeedback(data) {
+    var url = feedbackMailUrl();
+    if (!url || !window.fetch || !navigator.onLine) return Promise.resolve(false);
+    var req = fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(data), redirect: 'follow' })
+      .then(function (r) { return r.json(); }).then(function (j) { return !!(j && j.ok); }, function () { return false; });
+    var late = new Promise(function (res) { setTimeout(function () { res(false); }, 9000); });
+    return Promise.race([req, late]);
+  }
+  function fbThanks() {
+    openSheet('<h3>תודה!</h3><p class="lead">המשוב הגיע. ככה ' + esc(CFG.appName) + ' משתפרת.</p><button class="btn" data-act="close-sheet">סגירה</button>');
+    sfx.pair();
+  }
   // copies text from a click handler; done(ok) says whether the clipboard took it
   function copyText(text, done) {
     var fallback = function () {
@@ -1843,7 +1858,7 @@
     fbRating = 0;
     var faces = ['😣', '🙁', '😐', '🙂', '🤩'];
     var note = '';
-    if (feedbackViaWhatsApp()) {
+    if (feedbackViaWhatsApp() && !feedbackMailUrl()) {
       note = waNumber()
         ? 'המשוב נשלח בוואטסאפ' + (contactName() ? ' ל' + esc(contactName()) : '') + '. ההודעה תיפתח מוכנה, ונשאר רק ללחוץ שליחה.'
         : 'המשוב לא נשלח אוטומטית מהגרסה הזו. אחרי "שליחה" תוכלו להעתיק אותו ולשלוח לנו.';
@@ -4725,15 +4740,28 @@
         var ta = document.getElementById('fb-text'), text = ta ? ta.value.trim() : '';
         if (!fbRating && !text) { if (ta) { ta.classList.add('shake'); setTimeout(function () { ta.classList.remove('shake'); }, 400); } break; }
         var ctx = el.getAttribute('data-ctx'), lid = el.getAttribute('data-id'), via = feedbackViaWhatsApp();
-        track('feedback_sent', { rating: fbRating || null, text: text, context: ctx, lesson_id: lid || null, channel: via ? 'whatsapp' : 'posthog' });
-        flush();
-        if (!via) {
-          openSheet('<h3>תודה!</h3><p class="lead">המשוב הגיע. ככה ' + esc(CFG.appName) + ' משתפרת.</p><button class="btn" data-act="close-sheet">סגירה</button>');
-          sfx.pair();
+        fbMessage = 'משוב על ' + CFG.appName + ' ' + CFG.version + (fbRating ? ' (' + fbRating + '/5)' : '') + (lid && BY_ID[lid] ? ' · שיעור "' + BY_ID[lid].title + '"' : '') + ':\n' + text;
+        if (feedbackMailUrl()) {
+          // email first; PostHog too when sharing is on. If the email can't go, the old way takes over.
+          var mailRating = fbRating;
+          openSheet('<h3>שולחים…</h3><p class="lead">רגע אחד.</p>');
+          mailFeedback({ kind: 'feedback', rating: mailRating || 0, text: text, context: ctx || '', lesson: lid ? lid + (BY_ID[lid] ? ' ' + BY_ID[lid].title : '') : '',
+            status: S.status || '', v: CFG.version, uid: S.share ? S.uid : '' }).then(function (ok) {
+            // track() sends nothing when sharing is off
+            track('feedback_sent', { rating: mailRating || null, text: text, context: ctx, lesson_id: lid || null, channel: ok ? 'email' : 'posthog' });
+            flush();
+            if (ok || !via) { fbThanks(); return; }
+            var wa2 = waNumber();
+            openSheet('<h3>זה לא נשלח</h3><p class="lead">' + (wa2 ? 'אפשר לשלוח את אותה הודעה בוואטסאפ' + (contactName() ? ' ל' + esc(contactName()) : '') + '.' : 'העתיקו את ההודעה ושלחו אותה למי שהעביר לכם את ' + esc(CFG.appName) + '.') + '</p>' +
+              (wa2 ? '<button class="btn" data-act="fb-wa">לשלוח בוואטסאפ</button>' : '') +
+              '<button class="btn' + (wa2 ? ' ghost' : '') + '" data-act="fb-copy">להעתיק את ההודעה</button><button class="btn text" data-act="close-sheet">סגירה</button>');
+          });
           break;
         }
+        track('feedback_sent', { rating: fbRating || null, text: text, context: ctx, lesson_id: lid || null, channel: via ? 'whatsapp' : 'posthog' });
+        flush();
+        if (!via) { fbThanks(); break; }
         // WhatsApp: the message opens ready to send; without a number (or when the browser blocks the popup) it is copied by hand
-        fbMessage = 'משוב על ' + CFG.appName + ' ' + CFG.version + (fbRating ? ' (' + fbRating + '/5)' : '') + (lid && BY_ID[lid] ? ' · שיעור "' + BY_ID[lid].title + '"' : '') + ':\n' + text;
         var wa = waNumber(), opened = null;
         if (wa) { markStepOut(); try { opened = window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(fbMessage), '_blank'); } catch (e) { opened = null; } }
         var copyBtn = '<button class="btn" data-act="fb-copy">להעתיק את ההודעה</button><button class="btn text" data-act="close-sheet">סגירה</button>';
@@ -4741,6 +4769,12 @@
         else if (!wa) openSheet('<h3>תודה!</h3><p class="lead">עדיין אין מספר וואטסאפ בגרסה הזו. העתיקו את ההודעה ושלחו אותה למי שהעביר לכם את ' + esc(CFG.appName) + '.</p>' + copyBtn);
         else openSheet('<h3>הדפדפן חסם את וואטסאפ</h3><p class="lead">העתיקו את ההודעה ושלחו אותה בוואטסאפ למספר ' + ltr(esc(wa)) + '.</p>' + copyBtn);
         sfx.pair();
+        break;
+      }
+      case 'fb-wa': {
+        var waN = waNumber();
+        if (waN) { markStepOut(); try { window.open('https://wa.me/' + waN + '?text=' + encodeURIComponent(fbMessage), '_blank'); } catch (e) { /* ignore */ } }
+        closeSheet();
         break;
       }
       case 'fb-copy':
