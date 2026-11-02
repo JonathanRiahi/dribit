@@ -1,0 +1,42 @@
+# Retention report: of the new people who opened the app, how many came back the next day (D1) and after a week (D7),
+# split by where they came from (dribit.app / a friend's invite link / other).
+# Actions > Retention report > Run workflow. The log shows only counts (no phones, emails, names or ids).
+# "create_dashboard" also creates or refreshes the PostHog dashboard "דריבית: מי חוזר" (needs a key with insight:write).
+# Uses the same POSTHOG_API_KEY / POSTHOG_PROJECT_ID secrets as the daily reminders.
+name: Retention report
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'New people from this date (YYYY-MM-DD, Israel time). Empty: 2026-10-20'
+        type: string
+        required: false
+        default: ''
+      create_dashboard:
+        description: 'Also create or refresh the PostHog dashboard'
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: ['claude/project-thread-jclfsp']
+    paths: ['tools/retention-report.js', '.github/workflows/retention-report.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/retention-report.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          SINCE: ${{ inputs.since }}
+          CREATE_DASHBOARD: ${{ github.event_name == 'push' && '1' || inputs.create_dashboard }}
