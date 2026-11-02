@@ -4904,7 +4904,7 @@
     hiddenAt = 0; outByApp = false;
     if (away >= OPEN_AWAY_MS) {
       newOpen();
-      // 0.19.2: an app kept in memory (an iPhone home-screen app, a tab left open) never reloads, so coming back to it
+      // 0.19.3: an app kept in memory (an iPhone home-screen app, a tab left open) never reloads, so coming back to it
       // the next day sent nothing and the return was missing from Retention. Back after 10 minutes is a new open.
       track('app_opened', { returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: 'resume', away_min: Math.round(away / 60000) });
     }
