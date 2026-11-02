@@ -10,6 +10,7 @@
  *  - doGet?count=1: כמה אנשים ברשימה (הדף מציג את זה רק מעל 50), וגם איזו גרסה של הסקריפט פרוסה (v).
  *  - doGet?code=XXXXXX: המקום בתור של קוד אחד (בלי שום פרט אישי).
  *  - אימייל אליך על כל נרשם חדש (NOTIFY). נשלח מהחשבון שלך אל עצמך, ולכן אין בקוד שום כתובת.
+ *  - משוב מהאפליקציה (kind: 'feedback'): שורה בגיליון "משובים" ואימייל אליך (FEEDBACK_NOTIFY), וגם ל-NOTIFY_ALSO.
  *  - גיליון "סיכום": נוסחאות שמתעדכנות לבד (סך הכול, אנדרואיד/אייפון, לפי סטטוס ולפי מקור).
  *
  * התקנה: ראו README.md באותה תיקייה. אחרי כל שינוי בקוד: Deploy > Manage deployments > עריכה > New version.
@@ -20,8 +21,12 @@ var SUMMARY_NAME = 'סיכום';
 var NOTIFY = true; // אימייל על כל נרשם חדש. false = בלי אימיילים
 // עוד כתובות שיקבלו את האימייל על כל נרשם, מופרדות בפסיק. ריק במאגר הציבורי בכוונה: ממלאים רק בעותק שבגוגל.
 var NOTIFY_ALSO = '';
-var SCRIPT_VERSION = 'sheet-4'; // מופיע בכתובת ?count=1, כך רואים איזו גרסה של הסקריפט באמת פרוסה
+var FEEDBACK_NOTIFY = true; // אימייל על כל משוב מהאפליקציה. false = רק שורה בגיליון "משובים"
+var SCRIPT_VERSION = 'sheet-5'; // מופיע בכתובת ?count=1, כך רואים איזו גרסה של הסקריפט באמת פרוסה
 var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף', 'שם'];
+var FEEDBACK_NAME = 'משובים';
+var FB_HEADERS = ['תאריך', 'דירוג', 'משוב', 'איפה', 'שיעור', 'סטטוס', 'גרסה', 'מזהה'];
+var FB_WHERE = { lesson: 'בסוף שיעור', profile: 'בפרופיל', about: 'במסך אודות', home: 'במסך הבית' };
 var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12, name: 13 };
 
 var DEVICE_HE = { android: 'אנדרואיד', iphone: 'אייפון' };
@@ -36,6 +41,7 @@ function doPost(e) {
   }
   try {
     var d = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    if (d.kind === 'feedback') return feedback_(d);
     var contact = cleanContact_(d.contact);
     if (!contact) return json_({ ok: false, error: 'contact' });
     if (d.consent !== true) return json_({ ok: false, error: 'consent' });
@@ -230,8 +236,71 @@ function notify_(row, out) {
   } catch (err) {}
 }
 
+// ---------- feedback from the app (Jonathan, 1.11: "אני מעדיף במייל, ושיגיע גם לנהוראי") ----------
+// One row in "משובים" and one email to the owner + NOTIFY_ALSO. At most 30 in 10 minutes, so a flood can't eat the
+// daily email quota that the signup emails need too.
+function feedback_(d) {
+  var text = String(d.text || '').replace(/\r/g, '').trim().slice(0, 1500);
+  var rating = Math.round(Number(d.rating) || 0);
+  if (rating < 1 || rating > 5) rating = 0;
+  if (!text && !rating) return json_({ ok: false, error: 'empty' });
+  var cache = CacheService.getScriptCache(), n = Number(cache.get('fb-count') || 0);
+  if (n >= 30) return json_({ ok: false, error: 'busy' });
+  cache.put('fb-count', String(n + 1), 600);
+
+  var lesson = String(d.lesson || '').replace(/[^\w.\- ֐-׿"'?!,:]/g, '').slice(0, 90);
+  var row = [new Date(), rating || '', plain_(text), FB_WHERE[d.context] || safe_(d.context, 20), plain_(lesson),
+    STATUS_HE[d.status] || '', safe_(d.v, 20), safe_(d.uid, 40)];
+  var sh = feedbackSheet_();
+  var r = sh.getLastRow() + 1;
+  sh.getRange(r, 1, 1, row.length).setNumberFormat('@');
+  sh.getRange(r, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  sh.getRange(r, 1, 1, row.length).setValues([row]);
+  SpreadsheetApp.flush();
+
+  if (FEEDBACK_NOTIFY) {
+    try {
+      var to = recipients_();
+      if (to) {
+        var faces = ['😣', '🙁', '😐', '🙂', '🤩'];
+        var lines = [
+          text || '(בלי טקסט, רק דירוג)',
+          '',
+          'דירוג: ' + (rating ? faces[rating - 1] + ' ' + rating + '/5' : 'לא נבחר'),
+          'איפה: ' + (row[3] || 'לא ידוע') + (lesson ? ', שיעור ' + lesson : ''),
+          'סטטוס: ' + (row[5] || 'לא ידוע'),
+          'גרסה: ' + (row[6] || ''),
+          row[7] ? 'מזהה ב-PostHog: ' + row[7] : 'המשתמש כיבה שיתוף נתונים, אז אין מזהה',
+          '',
+          'כל המשובים: ' + SpreadsheetApp.getActiveSpreadsheet().getUrl() + '#gid=' + sh.getSheetId()
+        ];
+        MailApp.sendEmail({ to: to, subject: 'דריבית: משוב חדש' + (rating ? ' ' + faces[rating - 1] + ' ' + rating + '/5' : '') + (lesson ? ' · ' + lesson : ''),
+          body: lines.join('\n'), name: 'משוב מדריבית' });
+      }
+    } catch (err) {} // the row is saved even if the email fails
+  }
+  return json_({ ok: true });
+}
+
+function feedbackSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(FEEDBACK_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(FEEDBACK_NAME);
+    sh.getRange(1, 1, 1, FB_HEADERS.length).setValues([FB_HEADERS]).setFontWeight('bold').setBackground('#0E6E58').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    sh.setRightToLeft(true);
+    sh.setColumnWidth(3, 360);
+    sh.getRange(2, 3, sh.getMaxRows() - 1, 1).setWrap(true);
+  }
+  return sh;
+}
+
+// free text kept as typed, but never read as a formula
+function plain_(v) { var s = String(v || ''); return /^[=+\-@]/.test(s) ? "'" + s : s; }
+
 // optional: run once from the editor to create both sheets before the first signup
-function setup() { sheet_(); }
+function setup() { sheet_(); feedbackSheet_(); }
 
 // run once from the editor (choose testEmail at the top, then Run): Google asks to allow sending email,
 // and a test email arrives right away. After that every new signup sends one. Then: Deploy > Manage deployments > New version.

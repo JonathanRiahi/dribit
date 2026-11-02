@@ -17,7 +17,11 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"דריבית","alternateName":["Dribit","dribit.app","דריבית אפליקציה"],"url":"https://dribit.app/","inLanguage":"he","description":"חינוך פיננסי לחיילים: פיקדון, מענק שחרור ומשכורת ראשונה, כמה דקות ביום ובחינם."}</script>
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="../icons/icon.svg?v=logo2">
-<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png?v=logo2">
+<!-- the home-screen icon (1.11: added from dribit.app it showed a plain "ד" on green). Copies inside landing/, so they load
+     at dribit.app whatever the worker version, and a manifest, which Android reads for the home-screen icon -->
+<link rel="icon" type="image/png" sizes="192x192" href="media/app-icon-192.png?v=logo2">
+<link rel="apple-touch-icon" href="media/app-icon-180.png?v=logo2">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Rubik:wght@700;800;900&display=swap">
