@@ -1,0 +1,102 @@
+{
+  "_note": "Hebrew voiceover per video. 'scenes' = indexes in spec_tN.js that the line covers (their dur is stretched to fit the audio). Numbers and Latin terms are written as Hebrew words so the voice reads them right. Lines kept short: with eleven_v3 Hebrew runs ~8 characters a second, so ~110 characters fit in 15 s.",
+  "t1": [
+    {
+      "scenes": [
+        0
+      ],
+      "text": "בקבוצה של החבר'ה מדברים על אֶס אֶנְד פִּי חמש מאות. ואתם?"
+    },
+    {
+      "scenes": [
+        1
+      ],
+      "text": "נשמע לכם סינית? פשוט אף אחד לא לימד אתכם."
+    },
+    {
+      "scenes": [
+        2,
+        3
+      ],
+      "text": "בדְּרִיבִּית לומדים את זה בכמה דקות ביום."
+    },
+    {
+      "scenes": [
+        4
+      ],
+      "text": "כמו משחק."
+    },
+    {
+      "scenes": [
+        5
+      ],
+      "text": "דְּרִיבִּית נְקוּדָּה אַפּ. תפסו מקום ברשימה."
+    }
+  ],
+  "t2": [
+    {
+      "scenes": [
+        0
+      ],
+      "text": "אֶס אֶנְד פִּי, קרן מחקה, דמי ניהול. כולם מדברים על זה."
+    },
+    {
+      "scenes": [
+        1
+      ],
+      "text": "דְּרִיבִּית מלמדת את זה בכמה דקות ביום, כמו משחק."
+    },
+    {
+      "scenes": [
+        2
+      ],
+      "text": "שלושים ושלושה שיעורים."
+    },
+    {
+      "scenes": [
+        3,
+        4
+      ],
+      "text": "שאלה. תשובה. הסבר."
+    },
+    {
+      "scenes": [
+        5
+      ],
+      "text": "דְּרִיבִּית נְקוּדָּה אַפּ. תפסו מקום."
+    }
+  ],
+  "t3": [
+    {
+      "scenes": [
+        0
+      ],
+      "text": "בפעם הבאה שמישהו אומר קניתי אִי טִי אֶף, תדעו על מה הוא מדבר."
+    },
+    {
+      "scenes": [
+        1
+      ],
+      "text": "מדדים, דמי ניהול, הונאות, ומה לעשות עם הפיקדון."
+    },
+    {
+      "scenes": [
+        2
+      ],
+      "text": "מסלול שלם, לפי השלב שלכם."
+    },
+    {
+      "scenes": [
+        3,
+        4
+      ],
+      "text": "כל תשובה נכונה: נקודות, רצף ושלבים."
+    },
+    {
+      "scenes": [
+        5
+      ],
+      "text": "דְּרִיבִּית נְקוּדָּה אַפּ. תפסו מקום ברשימה."
+    }
+  ]
+}
