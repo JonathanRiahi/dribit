@@ -389,7 +389,8 @@ window.DRIBIT_CONFIG = {
         referralOk: 'התקנון לא אוסר שיתוף ציבורי. נציג מיטב יודע על האפליקציה (טלפון, 2026-10-30). אין אישור בכתב, ויהונתן החליט לא לבקש.',
         termsUrl: 'https://www.meitav.co.il/trade/takanon_haver_mevi_haver/',
         termsChecked: '2.11.2026',
-        monogram: 'מ',
+        // הלוגו הרשמי של מיטב (המילה "מיטב" עם הנקודתיים הירוקות), חתוך לריבוע 144px כמו של אינטראקטיב
+        logo: 'assets/images/partner-meitav.png', monogram: 'מ',
         // {bonus} = הטבת ההצטרפות לחבר (דף המבצע). {deposit} = מינימום לפתיחת חשבון. {hold} {months} = תנאי ההטבות.
         // יהונתן מקבל 200, 300 ואז 500 ₪ לחבר (תקנון 4.1-4.3), כזיכוי בחשבון המסחר שלו. אם זה משתנה: disclosure, about וגם summary.
         offer: {
