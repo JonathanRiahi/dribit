@@ -4902,7 +4902,12 @@
   function onShown() {
     var away = hiddenAt ? Date.now() - hiddenAt : 0, byApp = outByApp;
     hiddenAt = 0; outByApp = false;
-    if (away >= OPEN_AWAY_MS) newOpen();
+    if (away >= OPEN_AWAY_MS) {
+      newOpen();
+      // 0.19.2: an app kept in memory (an iPhone home-screen app, a tab left open) never reloads, so coming back to it
+      // the next day sent nothing and the return was missing from Retention. Back after 10 minutes is a new open.
+      track('app_opened', { returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: 'resume', away_min: Math.round(away / 60000) });
+    }
     checkForUpdate();
     if (S.onboarded) checkStreakBreak();
     // back after a while: start on home, like a fresh open (an iPhone app kept in memory never reloads by itself).

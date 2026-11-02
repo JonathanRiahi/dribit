@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#062E25">
 <title>דריבית (Dribit): חינוך פיננסי לחיילים</title>
-<meta name="description" content="חינוך פיננסי לחיילים, כמה דקות ביום ובחינם: פיקדון, מענק שחרור, משכורת ראשונה ומה עושים איתם. האפליקציה יוצאת לפי הסדר ברשימה.">
+<meta name="description" content="חינוך פיננסי לחיילים, כמה דקות ביום ובחינם: פיקדון, מענק שחרור, משכורת ראשונה ומה עושים איתם. נכנסים ומתחילים בדפדפן, בלי הרשמה.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="he_IL">
 <meta property="og:title" content="דריבית: חינוך פיננסי לחיילים, כמה דקות ביום">
-<meta property="og:description" content="פיקדון, מענק, משכורת ראשונה: מה עושים עם הכסף מהצבא. בחינם. האפליקציה יוצאת לפי הסדר ברשימה.">
+<meta property="og:description" content="פיקדון, מענק, משכורת ראשונה: מה עושים עם הכסף מהצבא. בחינם, בלי הרשמה.">
 <meta property="og:image" content="https://jonathanriahi.github.io/dribit/landing/media/og.jpg?v=logo2">
 <meta property="og:url" content="https://dribit.app/">
 <meta property="og:site_name" content="דריבית">
@@ -73,57 +73,23 @@ h1 em { font-style: normal; color: var(--gold); }
 .phone.r { transform: translateX(62%) rotate(6deg) scale(.86); }
 .phone.l { transform: translateX(-62%) rotate(-6deg) scale(.86); }
 
-/* the form */
-.join { background: var(--night-2); border: 1px solid rgba(246,241,228,.12); border-radius: 18px; padding: 14px; }
-.row { display: flex; gap: 8px; }
-.field { flex: 1; min-width: 0; }
-.field input {
-  width: 100%; height: 50px; border-radius: 12px; border: 1.5px solid rgba(246,241,228,.28); background: rgba(0,0,0,.18);
-  color: var(--cream); padding: 0 14px; font-size: 17px; direction: rtl;
-}
-.field input[type="tel"], .field input[type="email"] { text-align: right; }
-.field input::placeholder { color: var(--cream-3); }
-.field input:focus { outline: none; border-color: var(--gold); }
-.field input[aria-invalid="true"] { border-color: var(--red); }
+/* landing-4 (2.11.2026): one button straight into the app. The waiting list is gone: the app is already live. */
+.join { position: relative; background: var(--night-2); border: 1px solid rgba(246,241,228,.12); border-radius: 18px; padding: 14px; text-align: center; }
 .cta {
-  display: block; width: 100%; height: 52px; margin-top: 10px; border: 0; border-radius: 14px; cursor: pointer;
-  background: var(--gold); color: var(--gold-ink); font-family: var(--display); font-weight: 800; font-size: 18px;
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 56px; border: 0; border-radius: 14px; cursor: pointer; text-decoration: none;
+  background: var(--gold); color: var(--gold-ink); font-family: var(--display); font-weight: 800; font-size: 20px;
   box-shadow: 0 4px 0 var(--gold-deep); transition: transform .08s;
 }
 .cta:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--gold-deep); }
-.cta:disabled { opacity: .7; }
-a.cta { display: flex; align-items: center; justify-content: center; margin-top: 0; text-decoration: none; }
-.or { margin: 12px 0 8px; font-size: 14px; color: var(--cream-2); }
+.note { margin: 10px 0 0; font-size: 14.5px; color: var(--cream-2); }
 .inapp { display: none; margin: 8px 0 0; font-size: 12.5px; color: var(--cream-3); }
 .inapp.on { display: block; }
-.sec {
-  flex: none; height: 50px; padding: 0 18px; border-radius: 12px; cursor: pointer;
-  border: 1.5px solid var(--gold); background: transparent; color: var(--gold); font-family: var(--display); font-weight: 800; font-size: 16px;
+.later {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 4px; color: var(--cream-2); font-size: 14px;
+  text-decoration: underline; text-underline-offset: 3px;
 }
-.sec:disabled { opacity: .7; }
-.consent { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 13px; color: var(--cream-2); cursor: pointer; line-height: 1.35; }
-.consent input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--gold); }
-.swap { background: none; border: 0; padding: 4px 0 0; color: var(--cream-3); font-size: 13px; text-decoration: underline; cursor: pointer; }
-.err { margin: 6px 0 0; color: var(--red); font-size: 14px; min-height: 0; }
-.err:empty { display: none; }
+.later svg { width: 17px; height: 17px; color: var(--wa); flex: none; }
 .hp { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.join { position: relative; }
-.fallback { display: none; margin-top: 8px; }
-.fallback.on { display: block; }
-
-.done { display: none; text-align: center; }
-.join.signed form, .join.signed .or, .join.signed #startBtn, .join.signed .inapp { display: none; }
-.join.signed .done { display: block; }
-.done h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 22px; }
-.done p { margin: 4px 0 10px; color: var(--cream-2); font-size: 15px; }
-.btn2 {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 16px; border-radius: 12px;
-  border: 1.5px solid rgba(246,241,228,.3); background: transparent; color: var(--cream); font-weight: 700; font-size: 16px; text-decoration: none; cursor: pointer;
-}
-.btn2.wa { background: var(--wa); border-color: var(--wa); color: #05301A; }
-.btn2 svg { width: 20px; height: 20px; }
-.done .row { justify-content: center; flex-wrap: wrap; }
-.try { display: inline-block; margin-top: 10px; color: var(--gold); font-weight: 700; font-size: 15px; }
 
 .fine { margin: 0; text-align: center; font-size: 12px; color: var(--cream-3); }
 .fine button { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; text-decoration: underline; cursor: pointer; }
@@ -141,8 +107,7 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
   h1 { font-size: clamp(24px, 7.4vw, 32px); margin-top: 4px; }
   .sub { font-size: 14.5px; }
   .join { padding: 12px; }
-  .field input { height: 46px; }
-  .cta { height: 48px; margin-top: 8px; }
+  .cta { height: 50px; }
 }
 /* a computer: the phones get room next to the text */
 @media (min-width: 900px) and (min-height: 640px) {
@@ -171,41 +136,11 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
   </div>
 
   <section class="join" id="join" aria-labelledby="joinTitle">
-    <h2 id="joinTitle" class="hp">הרשמה לרשימת ההמתנה</h2>
+    <h2 id="joinTitle" class="hp">להתחיל ללמוד</h2>
     <a class="cta" id="startBtn" href="https://jonathanriahi.github.io/dribit/?source=landing_start" data-app data-cta="start_now">להתחיל עכשיו בחינם</a>
+    <p class="note">בלי הרשמה ובלי להוריד כלום. נכנסים ומתחילים.</p>
     <p class="inapp" id="inappHint">כדי שההתקדמות תישמר, כדאי לפתוח בדפדפן: שלוש הנקודות למעלה ואז "פתיחה בדפדפן".</p>
-    <p class="or">או להשאיר מספר, ונודיע לך כשהאפליקציה יוצאת לחנויות:</p>
-    <form id="joinForm" novalidate>
-      <div class="row">
-      <div class="field" id="phoneField">
-        <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="מספר וואטסאפ" aria-label="מספר וואטסאפ" aria-describedby="contactErr">
-      </div>
-      <div class="field" id="emailField" hidden>
-        <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="אימייל" aria-label="אימייל" aria-describedby="contactErr">
-      </div>
-      <button class="sec" type="submit" id="joinBtn" data-cta="sign">להירשם</button>
-      </div>
-      <p class="err" id="contactErr" role="alert"></p>
-      <label class="hp" aria-hidden="true">חברה<input type="text" name="company" id="company" tabindex="-1" autocomplete="off"></label>
-      <label class="consent"><input type="checkbox" id="consent"><span>מאשר/ת לקבל מדריבית הודעה כשהאפליקציה יוצאת, ועדכונים מדי פעם. אפשר להסיר בכל רגע.</span></label>
-      <p class="err" id="consentErr" role="alert"></p>
-      <button type="button" class="swap" id="toEmail">מעדיפים אימייל?</button>
-      <button type="button" class="swap" id="toPhone" hidden>מעדיפים וואטסאפ?</button>
-      <div class="fallback" id="fallback">
-        <p class="err">לא הצלחנו לשמור מהדפדפן הזה. אפשר להצטרף בהודעת וואטסאפ קצרה:</p>
-        <a class="btn2 wa" id="waJoin" href="#" target="_blank" rel="noopener" data-cta="fallback_whatsapp">להצטרף בוואטסאפ</a>
-      </div>
-    </form>
-
-    <div class="done" id="done" aria-live="polite" tabindex="-1">
-      <h2 id="doneTitle">נרשמת בהצלחה!</h2>
-      <p>נודיע לך ברגע שהאפליקציה יוצאת. יש לך חבר שזה יעזור לו?</p>
-      <div class="row">
-        <a class="btn2 wa" id="shareWa" href="#" target="_blank" rel="noopener" data-cta="share_whatsapp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>לשלוח לחבר</a>
-        <button class="btn2" type="button" id="copyLink" data-cta="share_copy">להעתיק קישור</button>
-      </div>
-      <a class="try" href="https://jonathanriahi.github.io/dribit/?source=landing_joined" data-app data-cta="joined_try">בינתיים אפשר להתחיל כבר עכשיו בדפדפן ←</a>
-    </div>
+    <a class="later" id="later" href="#" target="_blank" rel="noopener" data-cta="send_self"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.6-.3z"/></svg>אין זמן עכשיו? לשלוח לעצמך קישור בוואטסאפ</a>
   </section>
 
   <p class="fine">מידע כללי לחינוך פיננסי, לא ייעוץ השקעות. מגיל 18. <button type="button" id="moreBtn" data-cta="small_print">פרטיות ושאלות</button></p>
@@ -217,8 +152,8 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
     <dt>כמה זה עולה?</dt><dd>כלום. דריבית בחינם.</dd>
     <dt>זה ייעוץ השקעות?</dt><dd>לא. זה מידע כללי לחינוך פיננסי. אנחנו לא אומרים לאף אחד מה לקנות, ולא ממליצים על מוצר או גוף מסוים.</dd>
     <dt>מאיפה המספרים?</dt><dd>מהאתרים של משרד הביטחון, רשות המסים וביטוח לאומי. כל שיעור באפליקציה מקשר למקור הרשמי.</dd>
-    <dt>איפה נשמרים הפרטים שלי?</dt><dd>בגיליון פרטי של דריבית ב-Google ובשירות המדידה PostHog (שרתים באיחוד האירופי). רק לצורך עדכונים מדריבית, ולא מועברים לאף גוף אחר.</dd>
-    <dt>איך מוחקים אותם?</dt><dd>שולחים הודעה בוואטסאפ לדריבית (הכפתור "משוב" באפליקציה), ונמחק אותם מהרשימה.</dd>
+    <dt>צריך להירשם?</dt><dd>לא. אין הרשמה, ולא מבקשים שם, טלפון או מייל. ההתקדמות נשמרת בטלפון שלך.</dd>
+    <dt>מה אתם מודדים?</dt><dd>כמה נכנסים ומה לוחצים, בלי לדעת מי. המדידה בשירות PostHog (שרתים באיחוד האירופי). באפליקציה אפשר לכבות את זה בפרופיל.</dd>
   </dl>
   <p><a href="https://jonathanriahi.github.io/dribit/?source=landing_footer" data-app data-cta="footer_try">לפתוח את האפליקציה בדפדפן</a></p>
   <form method="dialog"><button class="close">סגירה</button></form>
@@ -229,29 +164,21 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
 (function () {
   'use strict';
   var CFG = window.DRIBIT_CONFIG || {};
-  var A = CFG.analytics || {}, WL = CFG.waitlist || {};
+  var A = CFG.analytics || {};
   var KEY = A.posthogKey || '', HOST = (A.host || '').replace(/\/$/, '');
-  var SHEET = WL.sheetUrl || '';
-  var WA = (CFG.feedback && CFG.feedback.whatsapp) || '';
   var PREVIEW = !!window.LANDING_PREVIEW;
-  // landing-3 (1.11.2026): one screen, no scrolling. landing-2.x was the long page with the stations.
-  var VERSION = 'landing-3';
+  // landing-4 (2.11.2026): one button straight into the app, no waiting list. landing-3 (1.11) had the waitlist form
+  // under the button, landing-2.x was the long page with the stations.
+  var VERSION = 'landing-4';
   // the landing page is also served at https://dribit.app/ (a Cloudflare Worker, see landing/domain/); invite links keep whichever address the visitor is on
   var SITE = /(^|\.)dribit\.app$/.test(location.hostname) ? 'https://dribit.app/' : 'https://jonathanriahi.github.io/dribit/landing/';
-  var UID_KEY = 'dribit.landing.uid', JOINED_KEY = 'dribit.landing.joined', REF_KEY = 'dribit.landing.ref';
+  var UID_KEY = 'dribit.landing.uid', REF_KEY = 'dribit.landing.ref';
 
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
-  function readJSON(k) { try { return JSON.parse(store(k) || 'null'); } catch (e) { return null; } }
   function $(id) { return document.getElementById(id); }
   function uuid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
-  }
-  function newCode() {
-    var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', out = '', b = new Uint8Array(6);
-    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(b); else for (var i = 0; i < 6; i++) b[i] = Math.random() * 256 | 0;
-    for (var j = 0; j < 6; j++) out += abc[b[j] % abc.length];
-    return out;
   }
   function secs() { return Math.round((Date.now() - t0) / 1000); }
   var t0 = Date.now();
@@ -283,119 +210,34 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
   function track(event, props, keepalive) { send(event, props, keepalive).catch(function () {}); }
   track('landing_view', { $set_once: { first_source: source }, referrer: document.referrer || null, screen_h: window.innerHeight, fits: document.documentElement.scrollHeight <= window.innerHeight + 2 });
 
-  // ---------- the waitlist sheet (Google Apps Script web app) ----------
-  function withTimeout(pr, ms) { return Promise.race([pr, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, ms); })]); }
-  function sheet(method, data) {
-    if (!SHEET || PREVIEW) return Promise.reject(new Error('no-sheet'));
-    var req = method === 'GET'
-      ? fetch(SHEET + (SHEET.indexOf('?') < 0 ? '?' : '&') + new URLSearchParams(data).toString(), { redirect: 'follow' })
-      : fetch(SHEET, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(data), redirect: 'follow' });
-    return withTimeout(req.then(function (r) { return r.json(); }), 10000).then(function (j) { if (!j || !j.ok) throw new Error((j && j.error) || 'sheet'); return j; });
-  }
-
-  // app links keep the source, so the app's data shows who came from here
+  // app links keep where the visitor came from. Always with ref (lp_direct too), so the app's data can tell people who
+  // came through dribit.app from friends who got the app link: first_ref starts with lp_ (tools/retention-report.js)
+  function refFor(src) { return ('lp_' + (src || 'direct')).replace(/[^\w-]/g, '_').slice(0, 40); }
   document.querySelectorAll('[data-app]').forEach(function (a) {
     var u = new URL(a.getAttribute('href'), location.href);
-    if (source && source !== 'direct') u.searchParams.set('ref', ('lp_' + source).replace(/[^\w-]/g, '_').slice(0, 40));
+    u.searchParams.set('ref', refFor(source));
     a.href = u.href;
   });
   document.addEventListener('click', function (e) {
     var el = e.target.closest && e.target.closest('[data-cta]');
-    if (el) track('landing_cta', { cta: el.getAttribute('data-cta') }, true);
+    if (el) { tapped = true; track('landing_cta', { cta: el.getAttribute('data-cta'), seconds: secs() }, true); }
   });
   if (inApp) $('inappHint').classList.add('on');
   var more = $('more');
   $('moreBtn').onclick = function () { if (more.showModal) more.showModal(); else more.setAttribute('open', ''); };
 
-  // ---------- how the visit ended: started the form? left after how long? ----------
-  var formStarted = false, left = false;
-  $('joinForm').addEventListener('focusin', function () {
-    if (formStarted) return; formStarted = true;
-    track('landing_form_start', { seconds: secs() });
-  });
+  // no time now: a WhatsApp message to yourself with the link, to open later (WhatsApp lets you pick yourself)
+  var laterUrl = SITE + '?source=self';
+  $('later').href = 'https://wa.me/?text=' + encodeURIComponent('להתחיל את דריבית, חינוך פיננסי לחיילים, כמה דקות ביום: ' + laterUrl);
+
+  // ---------- how the visit ended: tapped something? left after how long? ----------
+  var tapped = false, left = false;
   function leave() {
     if (left) return; left = true;
-    track('landing_leave', { seconds: secs(), form_started: formStarted, joined: !!store(JOINED_KEY) }, true);
+    track('landing_leave', { seconds: secs(), tapped: tapped }, true);
   }
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') leave(); else left = false; });
   window.addEventListener('pagehide', leave);
-
-  // ---------- waitlist ----------
-  var join = $('join'), form = $('joinForm'), phone = $('phone'), email = $('email');
-  var errEl = $('contactErr'), consentErr = $('consentErr'), btn = $('joinBtn'), fallback = $('fallback');
-  var mode = 'phone';
-  function setMode(m) {
-    mode = m; $('phoneField').hidden = m !== 'phone'; $('emailField').hidden = m !== 'email';
-    $('toEmail').hidden = m !== 'phone'; $('toPhone').hidden = m !== 'email';
-    errEl.textContent = ''; (m === 'phone' ? phone : email).focus();
-  }
-  $('toEmail').onclick = function () { setMode('email'); };
-  $('toPhone').onclick = function () { setMode('phone'); };
-  function normPhone(v) {
-    var d = String(v || '').replace(/[^\d+]/g, '');
-    if (d.indexOf('+972') === 0) d = '0' + d.slice(4); else if (d.indexOf('972') === 0) d = '0' + d.slice(3);
-    return /^05\d{8}$/.test(d) ? d : '';
-  }
-  function normEmail(v) { var s = String(v || '').trim().toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 120 ? s : ''; }
-
-  function shareUrl(code) { return SITE + '?r=' + encodeURIComponent(code) + '&source=friend'; }
-  function shareText() { return 'מצאתי אפליקציה שמלמדת חינוך פיננסי לחיילים, כמה דקות ביום: פיקדון, מענק, משכורת ראשונה. היא יוצאת לפי הסדר ברשימה:'; }
-  function showDone(j, animate) {
-    join.classList.add('signed');
-    var url = j.code ? shareUrl(j.code) : SITE + '?source=friend';
-    $('shareWa').href = 'https://wa.me/?text=' + encodeURIComponent(shareText() + ' ' + url);
-    $('copyLink').onclick = function () {
-      var done = function () { $('copyLink').textContent = 'הקישור הועתק'; setTimeout(function () { $('copyLink').textContent = 'להעתיק קישור'; }, 2200); };
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () { window.prompt('הקישור שלכם:', url); });
-      else window.prompt('הקישור שלכם:', url);
-    };
-    if (animate) $('done').focus({ preventScroll: true });
-  }
-
-  var joined = readJSON(JOINED_KEY);
-  if (joined && joined.at) showDone(joined, false);
-
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    errEl.textContent = ''; consentErr.textContent = '';
-    phone.removeAttribute('aria-invalid'); email.removeAttribute('aria-invalid');
-    var input = mode === 'phone' ? phone : email;
-    var contact = mode === 'phone' ? normPhone(phone.value) : normEmail(email.value);
-    if (!contact) {
-      errEl.textContent = mode === 'phone' ? 'צריך מספר נייד ישראלי, למשל 050-1234567.' : 'האימייל לא נראה תקין.';
-      input.setAttribute('aria-invalid', 'true'); input.focus(); return;
-    }
-    if (!$('consent').checked) { consentErr.textContent = 'צריך לסמן את האישור, כדי שנוכל לשלוח לכם הודעה.'; return; }
-    if ($('company').value) { showDone({ at: new Date().toISOString() }, true); return; } // bots fill the hidden field
-
-    var device = /iPhone|iPad|iPod/i.test(ua) ? 'iphone' : /Android/i.test(ua) ? 'android' : null;
-    var code = (joined && joined.code) || newCode();
-    // ref stays empty on purpose: the deployed sheet script still moves the inviter up for every ref, and Jonathan
-    // keeps that script as is (26.10). Who invited whom is still measured in PostHog (ref_code) and in the source column.
-    var row = { name: '', contact: contact, contact_type: mode, device: device, status: null, source: source, ref: '', code: code, consent: true, stations: '', v: VERSION };
-    var props = {
-      contact_type: mode, phone: mode === 'phone' ? contact : null, email: mode === 'email' ? contact : null,
-      device: device, consent: true, consent_text: 'הודעה כשהאפליקציה יוצאת ועדכונים מדי פעם, אפשר להסיר', my_code: code, seconds: secs(),
-      $set: { waitlist: true, waitlist_contact: contact, waitlist_contact_type: mode, waitlist_device: device, waitlist_at: new Date().toISOString(), waitlist_source: source, waitlist_code: code }
-    };
-    btn.disabled = true; btn.textContent = '...';
-    var ph = send('waitlist_signup', props).then(function () { return true; });
-    var sh = sheet('POST', row);
-    Promise.all([ph.catch(function () { return false; }), sh.catch(function () { return null; })]).then(function (res) {
-      var phOk = res[0], s = res[1];
-      if (!phOk && !s && !PREVIEW) {
-        btn.disabled = false; btn.textContent = 'להירשם';
-        var msg = 'היי, אשמח להצטרף לרשימת ההמתנה של דריבית' + (device ? ' (' + (device === 'iphone' ? 'אייפון' : 'אנדרואיד') + ')' : '') + (mode === 'email' ? '. האימייל שלי: ' + contact : '');
-        if (WA) { $('waJoin').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(msg); fallback.classList.add('on'); }
-        else errEl.textContent = 'לא הצלחנו לשמור כרגע. נסו שוב בעוד רגע.';
-        return;
-      }
-      joined = { at: new Date().toISOString(), code: (s && s.code) || code, position: s && s.position, refs: s && s.refs };
-      store(JOINED_KEY, JSON.stringify(joined));
-      if (s && s.code && s.code !== code) track('waitlist_code_fixed', { my_code: s.code });
-      showDone(joined, true);
-    });
-  });
 })();
 </script>
 </body>
