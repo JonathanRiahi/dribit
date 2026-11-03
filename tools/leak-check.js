@@ -86,6 +86,18 @@ const print = (title, head, rows) => {
           GROUP BY person_id HAVING countIf(event = 'app_opened' AND startsWith(coalesce(toString(properties.ref), ''), 'lp_')) > 0)
     GROUP BY r ORDER BY 2 DESC`));
 
+  // 4b. paid clicks: from Israel or abroad, and how long they stayed
+  print('קליקים ממומנים מול אורגני, ישראל מול חו"ל', ['paid', 'country', 'visitors', 'tapped start', 'left <4s', 'no leave event'], await hogql(`
+    SELECT paid, il, count(), countIf(tap = 1), countIf(s IS NOT NULL AND s < 4), countIf(s IS NULL)
+    FROM (SELECT distinct_id,
+            max(if(event = 'landing_view' AND ${PAID}, 'paid', 'organic')) AS paid,
+            any(if(event = 'landing_view', if(toString(properties.$geoip_country_code) = 'IL', 'IL', 'abroad'), NULL)) AS il,
+            max(if(event = 'landing_cta' AND toString(properties.cta) IN ('start_now', 'joined_try', 'footer_try'), 1, 0)) AS tap,
+            if(countIf(event = 'landing_leave') = 0, NULL, minIf(toFloat(properties.seconds), event = 'landing_leave')) AS s
+          FROM events WHERE ${WHEN} AND event IN ('landing_view', 'landing_cta', 'landing_leave')
+          GROUP BY distinct_id HAVING countIf(event = 'landing_view') > 0)
+    GROUP BY paid, il ORDER BY paid, il`));
+
   // 5. which event names exist (to catch a renamed or missing event)
   print('אירועים מאז', ['event', 'count'], await hogql(`SELECT event, count() FROM events WHERE ${WHEN} GROUP BY event ORDER BY 2 DESC LIMIT 40`));
 })().catch((e) => { console.error(String((e && e.message) || e)); process.exit(1); });
