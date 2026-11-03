@@ -732,15 +732,12 @@ a.btn { text-align: center; text-decoration: none; }
 .repair-card { border-color: var(--flame); background: linear-gradient(160deg, var(--gold-soft), var(--surface) 70%); }
 .repair-card .rc-ic { background: var(--flame); color: #fff; animation: pulse-ic 1.6s ease-in-out infinite; }
 @keyframes pulse-ic { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-.install-card .row, .reminder-card .row, .transfer-card .row, .transfer-box .row { display: flex; gap: 10px; }
-.install-card .row > *, .reminder-card .row > *, .transfer-card .row > *, .transfer-box .row > * { flex: 1; }
-.transfer-box { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--brand-soft); }
-.transfer-box p { font-size: 15px; line-height: 1.45; }
+.install-card .row, .reminder-card .row { display: flex; gap: 10px; }
+.install-card .row > *, .reminder-card .row > * { flex: 1; }
 .card.opener { background: var(--brand-soft); border-color: transparent; gap: 8px; }
 .card.opener h2 { font-size: 19px; color: var(--brand); }
 .card.opener .lead { font-size: 15.5px; }
-.sheet .code-box, .sheet .copy-box { font-size: 14px; word-break: break-all; }
-.sheet .code-box { font-family: ui-monospace, Menlo, Consolas, monospace; direction: ltr; text-align: left; }
+.sheet .copy-box { font-size: 14px; word-break: break-all; }
 .fine.bad { color: var(--bad); font-weight: 700; }
 .reminder-card .rc-ic { background: var(--gold-soft); color: var(--flame); }
 .pilot-bar {
@@ -1043,10 +1040,6 @@ details.offer > summary:focus-visible { outline-offset: -3px; }
 }
 .sheet textarea:focus { outline: none; border-color: var(--brand); }
 .shake { animation: shake .35s; }
-.install-steps { display: flex; flex-direction: column; gap: 12px; }
-.install-steps li { display: flex; gap: 12px; align-items: flex-start; line-height: 1.45; }
-.install-steps .num-badge { background: var(--brand); color: var(--on-brand); }
-.install-steps svg { width: 20px; height: 20px; vertical-align: -4px; color: var(--brand); }
 .level-up { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding-top: 6px; }
 .lvl-coin {
   width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; color: #5A3D00;
@@ -1536,3 +1529,23 @@ img { -webkit-user-drag: none; }
 .nav-inner.n3 { grid-template-columns: repeat(3, 1fr); }
 .nav-inner.n4 { grid-template-columns: repeat(4, 1fr); }
 .chip.pts svg { color: var(--gold); }
+
+/* ---------- 0.21: add to the home screen in one tap (Jonathan, 3.11: "אך ורק כפתור אחד") ---------- */
+.sheet.ask-install { text-align: center; }
+.sheet.ask-install .nudge { justify-content: center; margin-top: 0; }
+/* the pointer: two big lines and an arrow at the browser's button (iPhone: the share button under the page; Android: the
+   menu above it) */
+.sheet.pointer { gap: 8px; text-align: center; padding-top: 26px; }
+.sheet.pointer.down { padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+.pt-line { font-family: var(--font-display); font-weight: 600; font-size: 22px; line-height: 1.35; }
+.pt-line svg { width: 26px; height: 26px; vertical-align: -5px; color: var(--brand); margin-inline: 2px; }
+.pt-sub { color: var(--ink-3); font-size: 15px; margin-top: 4px; }
+.pt-sub svg { width: 17px; height: 17px; vertical-align: -3px; }
+.pt-arrow { position: fixed; z-index: 22; color: var(--gold); pointer-events: none; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .25)); }
+.pt-arrow svg { width: 64px; height: 64px; display: block; }
+.pt-arrow.down { left: 50%; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); margin-left: -32px; animation: pt-down 1s ease-in-out infinite; }
+.pt-arrow.up { right: 10px; top: calc(6px + env(safe-area-inset-top, 0px)); animation: pt-up 1s ease-in-out infinite; }
+.pt-arrow.up svg { transform: rotate(180deg); }
+@keyframes pt-down { 0%, 100% { transform: translateY(-6px); } 50% { transform: translateY(6px); } }
+@keyframes pt-up { 0%, 100% { transform: translateY(6px); } 50% { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .pt-arrow { animation: none; } }
