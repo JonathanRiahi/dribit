@@ -812,6 +812,12 @@
       ip21.steps = kept21;
       ip21.idx = Math.max(0, idx21);
     }
+    // v22 (3.11, Kfir's feedback): two new lessons in the opening unit, 0.3 (checking vs deposit vs index, investing only part)
+    // and 0.4 (חיסכון לכל ילד). Like v20: an unfinished lesson that now sits after the next lesson in the path is dropped.
+    if ((S.contentV || 0) < 22 && v >= 22 && S.inProgress) {
+      var ip22 = BY_ID[S.inProgress.lessonId], cur22 = currentLesson();
+      if (ip22 && cur22 && !isDone(ip22.id) && shown(ip22) && ip22.order > cur22.order) S.inProgress = null;
+    }
     S.contentV = v;
     save();
   }
