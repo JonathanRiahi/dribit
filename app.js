@@ -4451,8 +4451,23 @@
     });
     navigator.serviceWorker.addEventListener('controllerchange', function () {
       if (!had) { had = true; return; }
-      // a new version is ready: reload now on the home screen, otherwise at the next screen change
-      if (view === 'home' && !sheetOpen && !pushBusy) reloadForUpdate(); else pendingReload = true;
+      // a new version is ready: reload now on the home screen, otherwise at the next screen change.
+      // 0.20: the app usually opens from the network, so it may already run that version: then nothing to reload.
+      workerVersion().then(function (v) {
+        if (v && v.split('-')[0] === CFG.version) return;
+        if (view === 'home' && !sheetOpen && !pushBusy) reloadForUpdate(); else pendingReload = true;
+      });
+    });
+  }
+
+  // the version the active worker holds ('' when it does not answer within a second)
+  function workerVersion() {
+    return new Promise(function (resolve) {
+      var c = navigator.serviceWorker.controller;
+      if (!c || !window.MessageChannel) return resolve('');
+      var ch = new MessageChannel(), t = setTimeout(function () { resolve(''); }, 1000);
+      ch.port1.onmessage = function (e) { clearTimeout(t); resolve((e.data && e.data.version) || ''); };
+      try { c.postMessage({ type: 'version?' }, [ch.port2]); } catch (err) { clearTimeout(t); resolve(''); }
     });
   }
 
