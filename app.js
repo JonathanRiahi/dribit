@@ -818,6 +818,9 @@
       var ip22 = BY_ID[S.inProgress.lessonId], cur22 = currentLesson();
       if (ip22 && cur22 && !isDone(ip22.id) && shown(ip22) && ip22.order > cur22.order) S.inProgress = null;
     }
+    // v24 (3.11, the soldier test: "תשפר את ממצא 1234"): true/false answers flipped and wrong answers rewritten, the first
+    // three lessons lost questions, and 1.4 and 3.3 moved in between the market lessons. A saved session starts over.
+    if ((S.contentV || 0) < 24 && v >= 24) S.inProgress = null;
     S.contentV = v;
     save();
   }
@@ -1146,6 +1149,9 @@
     var cur = root.querySelector('.node-wrap.current');
     if (!cur) return;
     var r = cur.getBoundingClientRect();
+    // 0.23: when the next lesson fits on the first screen, show the page from the top, so the points card above
+    // the path is never cut in half under the top bar
+    if (r.bottom + window.scrollY <= window.innerHeight * 0.85) { if (window.scrollY > 0) window.scrollTo(0, 0); return; }
     if (r.top < 96 || r.bottom > window.innerHeight * 0.72) {
       try { cur.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { cur.scrollIntoView(); }
     }
@@ -1270,7 +1276,10 @@
     var st = currentStreak(), today = todayXp();
     if (cur && st > 0 && today === 0) {
       var tx = streakTimes(streakIfLearnToday());
-      html += '<p class="nudge warn">' + ICON.flame + '<span>הרצף של ' + plural(st, 'יום אחד', 'ימים') + ' מחכה לשיעור של היום' +
+      // 0.23: with an empty battery a lesson can't start today, but practice keeps the streak too, so say that
+      var noLesson = enOn() && !enCanStart() && !(S.inProgress && BY_ID[S.inProgress.lessonId]) && doneCount();
+      html += '<p class="nudge warn">' + ICON.flame + '<span>הרצף של ' + plural(st, 'יום אחד', 'ימים') +
+        (noLesson ? ' מחכה לך. הסוללה ריקה, אבל כמה דקות תרגול שומרות עליו' : ' מחכה לשיעור של היום') +
         (tx > 1 ? ', ששווה ' + timesText(tx) + ' נקודות.' : '.') + '</span></p>';
     } else if (cur && today > 0 && today < S.goalXp) {
       html += '<p class="nudge">' + ICON.target + '<span>עוד ' + fmt(S.goalXp - today) + ' נקודות ליעד היומי.</span></p>';
