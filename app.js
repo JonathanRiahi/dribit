@@ -1675,35 +1675,25 @@
     manifestUrl = link.href;
     fetch(manifestUrl).then(function (r) { return r.json(); }).then(function (j) { manifestJson = j; apply(); }, function () { /* ignore */ });
   }
-  function installBody() {
-    var name = esc(CFG.appName);
-    var steps = IS_IOS
-      ? ['פותחים את הקישור בספארי, לא בתוך וואטסאפ, אינסטגרם או טיקטוק. אם הקישור נפתח בתוך וואטסאפ, לוחצים על סמל ספארי בפינה למטה.',
-         'לוחצים על כפתור השיתוף ' + ICON.share + ' בתחתית המסך.',
-         'גוללים ובוחרים "הוספה למסך הבית" ' + ICON.addHome + '.',
-         'לוחצים "הוספה". האייקון של ' + name + ' יופיע במסך הבית.',
-         'פותחים את ' + name + ' רק מהאייקון. ההתקדמות שלך כבר שם.']
-      : ['פותחים את הקישור בכרום.',
-         'לוחצים על ' + ICON.dots + ' בפינה של המסך.',
-         'בוחרים "התקנת אפליקציה" או "הוספה למסך הבית".',
-         'מאשרים. האייקון של ' + name + ' יופיע במסך הבית.'];
-    // iPhone: the installed app starts with its own empty storage, so progress made in Safari travels by code
-    // a friend's gift waits for lesson 1 in this browser: installing before it would lose the gift
-    // 0.19: progress made in Safari goes along in the icon's address (carryProgress); no code to copy
-    var warn = IS_IOS && S.giftPending && !hasProgress()
-      ? '<p class="nudge warn">' + ICON.info + '<span>יש לך מתנה מחבר, אז עושים קודם את השיעור הראשון כאן, ורק אז מוסיפים למסך הבית.</span></p>' : '';
-    var code = IS_IOS && hasProgress() ? '<p class="nudge">' + ICON.check + '<span>מה שעשית כאן עובר לבד לאפליקציה שבמסך הבית.</span></p>' : '';
-    return warn +
-      '<ol class="install-steps">' + steps.map(function (s, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + s + '</span></li>'; }).join('') + '</ol>' + code +
-      '<p class="fine">' + (IS_IOS ? 'אחרי ההתקנה פותחים את ' + name + ' רק מהאייקון: שם ההתקדמות נשמרת בבטחה, וספארי עלול למחוק אותה אחרי כמה ימים בלי כניסה. היא נשמרת בטלפון, לא בענן.'
-        : 'מתקינים מכרום, וההתקדמות מכרום נשארת. אחרי ההתקנה פותחים את ' + name + ' מהאייקון.') + '</p>';
-  }
-  function installSheet() {
-    openSheet('<h3>התקנה ב' + (IS_IOS ? 'אייפון' : 'אנדרואיד') + '</h3>' + installBody() +
-      '<button class="btn" data-act="close-sheet">הבנתי</button>', 'tall');
+  // 0.21 (Jonathan, 3.11: "אך ורק כפתור אחד להוסיף למסך הבית"): no list of steps. A phone browser can't add the icon by
+  // itself (iPhone never, Android only when Chrome offers it), so the button shows one picture: an arrow at the button to
+  // press, and the one item to pick there.
+  var IN_APP_BROWSER = /Instagram|FBAN|FBAV|FB_IAB|musical_ly|BytedanceWebview|TikTok|Line\//i.test(navigator.userAgent);
+  function pointerSheet() {
+    var ios = IS_IOS && !IN_APP_BROWSER;
+    var body = IN_APP_BROWSER
+      ? '<p class="pt-line">קודם פותחים את הקישור ב' + (IS_IOS ? 'ספארי' : 'כרום') + '</p><p class="pt-sub">לוחצים על ' + ICON.dots + ' ובוחרים "פתיחה בדפדפן".</p>'
+      : ios
+        ? '<p class="pt-line">לוחצים על ' + ICON.share + ' למטה</p><p class="pt-line">ובוחרים "הוספה למסך הבית" ' + ICON.addHome + '</p>' +
+          '<p class="pt-sub">לא רואים את ' + ICON.share + '? הוא בתוך ⋯ שליד הכתובת.</p>'
+        : '<p class="pt-line">לוחצים על ' + ICON.dots + ' למעלה</p><p class="pt-line">ובוחרים "הוספה למסך הבית"</p>';
+    openSheet(body + '<button class="btn text" data-act="close-sheet">הבנתי</button>', 'pointer' + (ios ? ' down' : ' up'));
+    var w = document.getElementById('sheet');
+    if (w && !IN_APP_BROWSER) w.insertAdjacentHTML('beforeend', '<div class="pt-arrow ' + (ios ? 'down' : 'up') + '" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17M5 13l7 7 7-7"/></svg></div>');
   }
 
-  // ---------- Transfer code (progress moves to the installed app or another phone) ----------
+  // ---------- Progress code (0.21: only for the automatic carry to the home-screen app, #i=; no code to copy or paste) ----------
   function b64url(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function unb64url(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; return decodeURIComponent(escape(atob(str))); }
   function checksum(str) { var n = 0; for (var i = 0; i < str.length; i++) n = (n + str.charCodeAt(i)) % 65536; return ('000' + n.toString(16)).slice(-4); }
@@ -1718,7 +1708,7 @@
     return 'D1.' + body + '.' + checksum(body);
   }
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
-  // a pasted code is untrusted input: prefix, checksum, JSON, then only known fields with sane values
+  // a code in the address is untrusted input: prefix, checksum, JSON, then only known fields with sane values
   function parseCode(code) {
     code = String(code || '').trim();
     if (code.length > 60000) return { ok: false, reason: 'bad_fields' };
@@ -1786,28 +1776,9 @@
     track('progress_imported', { ok: true, reason: null, lessons_done: doneCount(), xp: S.xp, source: source, $set: { transferred: true } });
     pickedStatus = null; onboardStep = 0; session = null;
     setView('home');
-    if (source === 'hash' || source === 'install') { clearTimeout(askTimer); openAsked = true; } // a link with a code: the import toast is enough for this open
     toast(ICON.check + '<b>ההתקדמות עברה</b><span>' + plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '</span>', 'info', 3200);
     return r;
   }
-  // a link with a code (#p=) over existing progress: ask first, the code would replace everything here
-  var pendingHash = null;
-  function hashConfirm(code) {
-    pendingHash = code;
-    openSheet('<h3>להחליף את ההתקדמות?</h3><p class="lead">הקישור מביא התקדמות ממכשיר אחר. היא תחליף את מה שיש כאן: ' +
-      plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '.</p>' +
-      '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn" data-act="hash-import">להחליף</button></div>');
-  }
-  function importSheet(source) {
-    openSheet('<h3>ייבוא התקדמות</h3><p class="lead">מדביקים כאן את קוד ההעברה שהעתקת מהדפדפן או מהטלפון הקודם.</p>' +
-      '<textarea id="imp-code" class="code-box" rows="4" placeholder="D1...." dir="ltr" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>' +
-      '<p class="fine bad" id="imp-err" hidden>הקוד לא תקין. מעתיקים אותו שוב, מההתחלה ועד הסוף.</p>' +
-      '<button class="btn" data-act="import-go" data-source="' + esc(source) + '">לייבא</button>' +
-      '<button class="btn text" data-act="close-sheet">ביטול</button>', 'tall');
-    var ta = document.getElementById('imp-code');
-    if (ta) { try { ta.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
-  }
-
   var fbRating = 0, fbMessage = '', waWarned = false;
   // the WhatsApp number for feedback: international digits only (050-1234567 -> 972501234567); '' = show the text for copying
   function waNumber() {
@@ -1856,13 +1827,12 @@
     } catch (e) { fallback(); }
   }
   // when copying fails, the text is shown in the open sheet so it can be selected by hand
-  function manualCopy(text, note, isCode) {
+  function manualCopy(text, note) {
     var sh = document.querySelector('#sheet .sheet');
-    if (!sh) { openSheet('<h3>' + (isCode ? 'קוד העברה' : 'ההודעה') + '</h3><button class="btn" data-act="close-sheet">סגירה</button>'); sh = document.querySelector('#sheet .sheet'); }
+    if (!sh) { openSheet('<h3>ההודעה</h3><button class="btn" data-act="close-sheet">סגירה</button>'); sh = document.querySelector('#sheet .sheet'); }
     if (!sh || sh.querySelector('.copy-box')) return;
     var p = document.createElement('p'); p.className = 'fine'; p.textContent = note;
-    var ta = document.createElement('textarea'); ta.className = 'copy-box' + (isCode ? ' code-box' : ''); ta.setAttribute('readonly', ''); ta.rows = 4; ta.value = text;
-    if (isCode) ta.setAttribute('dir', 'ltr');
+    var ta = document.createElement('textarea'); ta.className = 'copy-box'; ta.setAttribute('readonly', ''); ta.rows = 4; ta.value = text;
     var btn = sh.querySelector('.btn');
     sh.insertBefore(p, btn); sh.insertBefore(ta, btn);
     try { ta.focus(); ta.select(); } catch (e) { /* ignore */ }
@@ -2916,8 +2886,6 @@
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
       (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
-      '<div class="card transfer-card"><h2>להעביר התקדמות</h2><p>עוברים לטלפון אחר? מעתיקים קוד כאן, ומדביקים אותו שם בפרופיל, ב"יש לי קוד".</p>' +
-        '<div class="row"><button class="btn ghost" data-act="export" data-method="copy" data-placement="profile">להעתיק קוד</button><button class="btn ghost" data-act="import" data-source="profile">יש לי קוד</button></div></div>' +
       (CFG.pilot ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
         (CFG.about ? '<button class="btn ghost" data-act="about" data-from="profile">' + esc(CFG.about.title) + '</button>' : '') +
@@ -3103,7 +3071,7 @@
   // once the reminder is actually on
   function enableReminder(from, withShare) {
     var st = pushState();
-    if (st === 'install') { installSheet(); return; }
+    if (st === 'install') { pointerSheet(); return; }
     if (st === 'denied') { toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות הדפדפן', '', 2600); return; }
     if (st !== 'off' || pushBusy) return;
     pushBusy = true;
@@ -3114,9 +3082,11 @@
       return swReady();
     }).then(subscribePush).then(function (sub) {
       pushBusy = false;
-      if (withShare && !S.share) { S.share = true; save(); track('analytics_on', { from: from === 'popup' ? 'popup' : 'reminder' }); }
+      if (withShare && !S.share) { S.share = true; save(); track('analytics_on', { from: from === 'popup' || from === 'install_popup' ? 'popup' : 'reminder' }); }
       saveSubscription(sub, from);
       render();
+      var nb = document.querySelector('#sheet [data-act="popup-reminder-on"]');
+      if (nb) nb.outerHTML = '<p class="nudge">' + ICON.check + '<span>התראות דלוקות</span></p>';
       toast(ICON.bell + '<b>סגור.</b> תזכורת כל ערב, החל מ-' + hourLabel(), 'info', 2600);
       reloadAfterPush();
     }).catch(function (e) {
@@ -3197,7 +3167,7 @@
     return IS_IOS ? 'ios' : deferredInstall ? 'prompt' : 'steps';
   }
   function notifAskState() {
-    if (!RCFG.askEveryOpen || !S.onboarded || !S.status || !doneCount() || pushBusy || notifRefused()) return null;
+    if (!RCFG.askEveryOpen || !S.onboarded || !S.status || (!doneCount() && !isStandalone()) || pushBusy || notifRefused()) return null;
     var st = pushState();
     if (st === 'off') return 'off';
     return st === 'install' && !INSTALL.askEveryOpen ? 'install' : null; // iPhone in Safari: the install popup asks instead
@@ -3210,7 +3180,8 @@
       var quiet = Date.now() - lastTouchAt;
       if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
       if (openAsked || view !== 'home' || sheetOpen || document.visibilityState === 'hidden') return;
-      if (toolsIntroDue()) { openAsked = true; toolsIntro(); } else if (skinsIntroDue()) { openAsked = true; skinsIntro(); }
+      if (isStandalone() && notifAskState()) notifAskSheet(); // 0.21: in the home-screen app notifications come first
+      else if (toolsIntroDue()) { openAsked = true; toolsIntro(); } else if (skinsIntroDue()) { openAsked = true; skinsIntro(); }
       else if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
     }, 700);
   }
@@ -3222,20 +3193,16 @@
     track('install_popup_shown', { variant: st, n: askCount('install'), lessons_done: doneCount(), stage: stage });
     askOpenedAt = Date.now();
     var name = esc(CFG.appName), welcome = stage === 'welcome', tag = '" data-variant="' + st + '" data-stage="' + stage + '"';
-    // welcome: compact (no icon, a short iPhone line) so both buttons fit on a small iPhone without scrolling
+    // 0.21 (Jonathan, 3.11): only "add to the home screen", plus notifications, nothing else. On iPhone notifications work
+    // only from the home-screen app, so they are asked there, at its first open (notifAskState).
+    var notif = !welcome && !IS_IOS && pushState() === 'off' && !notifRefused();
     openSheet((welcome ? '<div class="eyebrow">לפני שמתחילים</div>' : '<div class="ask-ic">' + ICON.addHome + '</div>') +
       '<h3>להוסיף את ' + name + ' למסך הבית</h3>' +
-      '<p class="lead">' + (welcome && IS_IOS
-        ? 'באייפון ההתקדמות נשמרת בבטחה רק במסך הבית. מה שעושים בספארי לא עובר לשם לבד, אז כדאי להוסיף עכשיו ולהתחיל משם.'
-        : IS_IOS
-          // with progress the transfer box follows, so the lead stays short and the buttons stay in sight on a small iPhone
-          ? '<b>רק במסך הבית ההתקדמות שלך נשמרת בבטחה.</b> ספארי עלול למחוק אותה אחרי כמה ימים בלי כניסה.' +
-            (hasProgress() ? '' : ' במסך הבית ' + name + ' עובדת גם בלי קליטה' + (RCFG.enabled ? ' ושולחת תזכורת יומית ששומרת על הרצף' : '') + '.')
-          : 'ככה ' + name + ' נפתחת מהאייקון, במסך מלא, עובדת גם בלי קליטה' + (RCFG.enabled ? ', ושולחת תזכורת יומית ששומרת על הרצף' : '') + '.') + '</p>' +
-      (st === 'prompt' ? '<button class="btn gold" data-act="install-popup-go' + tag + '>להוסיף למסך הבית</button>'
-        : installAskBody() + '<button class="btn gold" data-act="install-popup-go' + tag + '>מוסיפים עכשיו</button>') +
-      '<button class="btn text" data-act="install-popup-later' + tag + '>' + (welcome ? 'להמשיך בדפדפן' : 'אחר כך') + '</button>' +
-      (IS_IOS && !welcome ? '<p class="fine center">כבר במסך הבית? פותחים את ' + name + ' משם.</p>' : ''), welcome ? 'ask-welcome' : '');
+      '<p class="lead">' + (IS_IOS ? 'רק שם ההתקדמות נשמרת בבטחה, ורק משם מגיעה התזכורת היומית ששומרת על הרצף.'
+        : 'נפתחת מהאייקון, במסך מלא, וגם בלי קליטה.') + '</p>' +
+      '<button class="btn gold" data-act="install-popup-go' + tag + '>' + ICON.addHome + 'להוסיף למסך הבית</button>' +
+      (notif ? '<button class="btn ghost" data-act="popup-reminder-on" data-from="install_popup">' + ICON.bell + 'להדליק התראות</button>' : '') +
+      '<button class="btn text" data-act="install-popup-later' + tag + '>' + (welcome ? 'להמשיך בדפדפן' : 'אחר כך') + '</button>', 'ask-install' + (welcome ? ' ask-welcome' : ''));
   }
   // the status pick, the second welcome screen ("יאללה, מתחילים", or "להמשיך בדפדפן" in the install popup, which
   // passes viaSheet: the step takes the popup's history entry, so back returns to the first screen)
@@ -3244,21 +3211,6 @@
     if (viaSheet && topIsSheet) { closeSheet(true); topIsSheet = false; histReplace({ onboard: 1 }); }
     else { closeSheet(); histPush({ onboard: 1 }); }
     render(); window.scrollTo(0, 0);
-  }
-  // the popup's short version of the install steps (it shows at every open, so the buttons stay in sight)
-  function installAskBody() {
-    var name = esc(CFG.appName);
-    var steps = IS_IOS
-      ? ['לוחצים על כפתור השיתוף ' + ICON.share + ' בתחתית ספארי.',
-         'בוחרים "הוספה למסך הבית" ' + ICON.addHome + ' ולוחצים "הוספה".',
-         'מעכשיו פותחים את ' + name + ' רק מהאייקון.']
-      : ['לוחצים על ' + ICON.dots + ' בפינה של כרום.',
-         'בוחרים "התקנת אפליקציה" או "הוספה למסך הבית", ומאשרים.',
-         'מעכשיו פותחים את ' + name + ' מהאייקון.'];
-    // iPhone: the home-screen app starts with its own empty storage, so progress made here travels by code
-    var code = IS_IOS && hasProgress() ? '<p class="nudge">' + ICON.check + '<span>מה שעשית כאן עובר לבד לאפליקציה שבמסך הבית.</span></p>' : '';
-    return '<ol class="install-steps">' + steps.map(function (t, i) { return '<li><span class="num-badge">' + (i + 1) + '</span><span>' + t + '</span></li>'; }).join('') + '</ol>' + code +
-      '<p class="fine">נפתח בתוך וואטסאפ, אינסטגרם או טיקטוק? פותחים קודם את הקישור ב' + (IS_IOS ? 'ספארי' : 'כרום') + '.</p>';
   }
   function notifAskSheet() {
     var st = notifAskState();
@@ -3276,8 +3228,8 @@
         '<button class="btn gold" data-act="install" data-placement="popup">איך מתקינים</button>'
       : '<h3>להדליק התראות?</h3><p class="lead">הודעה קצרה אחת בערב, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר.</p>' +
         (S.share ? '' : '<p class="fine">התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.</p>') +
-        '<button class="btn gold" data-act="popup-reminder-on">להדליק התראות</button>') +
-      '<button class="btn text" data-act="popup-later">לא עכשיו</button><p class="fine center">אפשר לשנות בכל רגע בפרופיל.</p>');
+        '<button class="btn gold" data-act="popup-reminder-on">' + ICON.bell + 'להדליק התראות</button>') +
+      '<button class="btn text" data-act="popup-later">לא עכשיו</button>');
   }
 
   // the home card: after the first finished lesson, until it is turned on or declined twice (a week apart)
@@ -3313,7 +3265,7 @@
       if (p.userChoice) p.userChoice.then(function (c) { track('install_choice', { outcome: c.outcome }); render(); });
       return;
     }
-    installSheet();
+    pointerSheet();
   }
 
   // ---------- Invite friends (config.invite) ----------
@@ -4691,55 +4643,18 @@
         track('install_declined', { placement: el.getAttribute('data-placement') || 'home', lessons_done: doneCount() });
         render();
         break;
-      case 'export': {
-        var code = exportCode(), method = el.getAttribute('data-method') || 'copy';
-        var place = el.getAttribute('data-placement') || '';
-        var exported = function (m) { track('progress_exported', { method: m, placement: place, lessons_done: doneCount(), xp: S.xp, code_len: code.length }); flush(); };
-        if (method === 'share' && navigator.share) {
-          navigator.share({ title: 'קוד העברה של ' + CFG.appName, text: code }).then(function () { exported('share'); }, function () { /* cancelled */ });
-          break;
-        }
-        copyText(code, function (ok) {
-          if (ok) { toast(ICON.check + '<b>הקוד הועתק.</b><span>מדביקים אותו באפליקציה המותקנת</span>', 'info', 2800); exported('copy'); }
-          else { manualCopy(code, 'לא הצלחנו להעתיק אוטומטית. מסמנים את הקוד ומעתיקים ידנית:', true); exported('manual'); }
-        });
-        break;
-      }
-      case 'import': {
-        var src = el.getAttribute('data-source') || 'welcome';
-        if (src === 'profile' && hasProgress()) {
-          openSheet('<h3>לייבא קוד?</h3><p class="lead">ההתקדמות במכשיר הזה תוחלף במה שבקוד.</p>' +
-            '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn" data-act="import-confirm">לייבא</button></div>');
-          break;
-        }
-        importSheet(src);
-        break;
-      }
-      case 'import-confirm': importSheet('profile'); break;
-      case 'hash-import': {
-        var hcode = pendingHash;
-        pendingHash = null;
-        closeSheet(true);
-        if (hcode && !importProgress(hcode, 'hash').ok) toast(ICON.x + '<b>הקוד לא תקין</b>', '', 2600);
-        break;
-      }
-      case 'import-go': {
-        var box = document.getElementById('imp-code'), err = document.getElementById('imp-err');
-        var res = importProgress(box ? box.value : '', el.getAttribute('data-source') || 'welcome');
-        if (!res.ok) {
-          if (err) err.hidden = false;
-          if (box) { box.classList.add('shake'); setTimeout(function () { box.classList.remove('shake'); }, 400); }
-        }
-        break;
-      }
       case 'reminder-on': enableReminder(el.getAttribute('data-from') || 'home'); break;
-      case 'popup-reminder-on': closeSheet(); enableReminder('popup', true); break;
+      case 'popup-reminder-on':
+        // from the install popup the popup stays, so "add to the home screen" is still there after the answer
+        if (el.getAttribute('data-from') === 'install_popup') enableReminder('install_popup', true);
+        else { closeSheet(); enableReminder('popup', true); }
+        break;
       case 'popup-later': closeSheet(); track('push_declined', { count: S.reminderNo ? S.reminderNo.count : 1, from: 'popup' }); render(); break;
       case 'install-popup-go': {
         var ipPlace = el.getAttribute('data-stage') === 'welcome' ? 'welcome_popup' : 'open_popup';
-        closeSheet();
-        if (deferredInstall) installFlow(ipPlace);
-        else track('install_clicked', { method: IS_IOS ? 'ios_steps' : 'steps', placement: ipPlace, lessons_done: doneCount() });
+        if (deferredInstall) { closeSheet(); installFlow(ipPlace); break; }
+        track('install_clicked', { method: IS_IOS ? 'ios_pointer' : 'pointer', placement: ipPlace, lessons_done: doneCount() });
+        pointerSheet(); // replaces the popup in place
         break;
       }
       case 'install-popup-later': {
@@ -5041,8 +4956,6 @@
     if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false, kind: OPEN_KIND });
     // the app always opens on home; an unfinished lesson waits in the "להמשיך" card at the top (Jonathan, 18.10)
     if (S.inProgress && !(S.onboarded && S.status && restoreSession(S.inProgress))) { S.inProgress = null; save(); }
-    // a transfer code can also arrive in the link (#p=D1....), for example pasted into the address bar
-    var hashCode = /^#p=(.+)$/.exec(location.hash || '');
     // 0.19: progress carried from Safari in the home-screen icon's address (#i=, see carryProgress). Taken in only by the
     // installed app with nothing in it yet; anywhere else (a shared link, Safari itself) it is just removed from the address.
     var carryIn = /^#i=(.+)$/.exec(location.hash || ''), carryCode = '';
@@ -5051,25 +4964,17 @@
       if (isStandalone() && !hasProgress()) { try { carryCode = decodeURIComponent(carryIn[1]); } catch (e) { carryCode = ''; } }
       if (carryCode && !parseCode(carryCode).ok) carryCode = '';
     }
-    if (hashCode || carryCode || OPEN_SOURCE === 'push') openAsked = true; // 0.12: no popup in an open from a reminder or a code link, also after a later visit home
+    // 0.12: no popup in an open from a reminder. 0.21: the first open of the home-screen app with carried progress does
+    // ask (it is where notifications can be turned on).
+    if (OPEN_SOURCE === 'push') openAsked = true;
     // existing users meet days off once, over home; one sheet per open, so no toast that day (none can apply on update day)
-    var showIntro = DO.enabled && !hashCode && !carryCode && S.onboarded && S.status && !S.offIntroSeen;
+    var showIntro = DO.enabled && !carryCode && S.onboarded && S.status && !S.offIntroSeen;
     if (showIntro) offToast = null;
     render();
-    if (hashCode) {
-      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) { /* ignore */ }
-      var hc = '';
-      try { hc = decodeURIComponent(hashCode[1]); } catch (e) { hc = ''; }
-      if (S.onboarded && hasProgress() && parseCode(hc).ok) hashConfirm(hc);
-      else {
-        var imp = importProgress(hc, 'hash');
-        if (!imp.ok) toast(ICON.x + '<b>הקוד לא תקין</b>', '', 2600);
-      }
-    }
     if (carryCode) importProgress(carryCode, 'install');
     carrySoon();
     if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
-    else if (!hashCode && OPEN_SOURCE !== 'push') maybeAsk();
+    else if (OPEN_SOURCE !== 'push') maybeAsk();
     registerSW();
     syncPush();
     flush();
