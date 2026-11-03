@@ -639,6 +639,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .promises span { color: var(--ink-2); font-size: 15px; }
 /* 0.22: the first screen, one button until the first lesson is done */
 .welcome.start { gap: 16px; }
+.welcome.start .welcome-art { cursor: pointer; }
 .welcome.start .welcome-art img { max-height: 160px; }
 .first-card {
   width: 100%; border: 0; cursor: pointer; text-align: right; font: inherit;

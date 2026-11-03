@@ -2909,14 +2909,15 @@
   // ---------- The first screen (0.22) ----------
   // Jonathan (3.11): "שלא יהיה לו אופציות אחרות חוץ מלהתחיל שיעור". Of 14 new people only one finished a lesson, so until
   // the first lesson is done the app is one screen with one button: no points, streak, level, path, tabs or popups.
-  // Lesson 0.2 opens the path for every status, so the status question waits for after it. A tap on the landing page's
-  // button ("להתחיל עכשיו בחינם", ?source=landing_*) skips even this screen and opens the lesson.
+  // Lesson 0.2 opens the path for every status, so the status question waits for after it. The landing page's button
+  // lands here too: Jonathan (3.11) wants the person to tap to start, not to be dropped into the lesson.
   function renderStart() {
     var l = currentLesson();
     if (!l) return '';
     var ip = S.inProgress && S.inProgress.lessonId === l.id ? S.inProgress : null;
     var pct = ip ? Math.round(resumeAt(ip) / Math.max(1, ip.steps.length) * 100) : 0;
-    var art = CFG.images && CFG.images.welcome ? '<div class="welcome-art"><img src="' + esc(CFG.images.welcome) + '" alt=""></div>' : '';
+    // the picture and the card start the lesson too, so almost any tap on the screen does it
+    var art = CFG.images && CFG.images.welcome ? '<div class="welcome-art" data-act="first-lesson"><img src="' + esc(CFG.images.welcome) + '" alt=""></div>' : '';
     return '<div class="welcome start gutter">' +
       '<div class="logo">' + esc(CFG.appName) + '</div>' +
       '<p class="tag">' + esc(CFG.tagline) + '</p>' + art +
@@ -4922,8 +4923,6 @@
     if (showIntro) offToast = null;
     render();
     if (carryCode) importProgress(carryCode, 'install');
-    // 0.22: the landing page's "להתחיל עכשיו בחינם" opens the first lesson itself (back returns to the one-button screen)
-    else if (!S.onboarded && !hasProgress() && /^landing/.test(OPEN_SOURCE || '') && !IN_FRAME) beginFirst('landing');
     carrySoon();
     if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
     else if (OPEN_SOURCE !== 'push') maybeAsk();
