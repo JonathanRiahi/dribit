@@ -1014,7 +1014,7 @@
   }
 
   // ---------- Rendering ----------
-  var root, view = 'home', session = null, sheetOpen = false, notesId = null, onboardStep = 0;
+  var root, view = 'home', session = null, sheetOpen = false, notesId = null;
   var deferredInstall = null, pendingReload = false, pushBusy = false;
   // how the app was opened: source 'homescreen' (the installed icon), 'push' (a tap on the reminder), 'ics' (a calendar
   // reminder) or 'link'; ref (an invite link carries ref=share); kind (which reminder, when a message says)
@@ -1092,7 +1092,7 @@
     histDepth = st.depth || 0;
     topIsSheet = false; // a sheet entry reached by forward shows its view without the sheet
     if (sheetOpen) closeSheet(true);
-    if (!S.onboarded || !S.status) { onboardStep = st.onboard || 0; render(); window.scrollTo(0, 0); return; }
+    if (!S.onboarded) { render(); window.scrollTo(0, 0); return; }
     var v = st.view || 'home';
     if (v === 'notes' && !(notesId && BY_ID[notesId])) v = 'home';
     if ((v === 'lesson' || v === 'done') && !session) v = 'home';
@@ -1115,9 +1115,11 @@
   }
 
   function render() {
-    if (!S.onboarded || !S.status) { root.innerHTML = renderWelcome(); return; }
-    if (view === 'lesson' && session) { root.innerHTML = renderPlayer(); afterPlayerRender(); return; }
-    if (view === 'done' && session) { root.innerHTML = renderDone(); return; }
+    if (S.onboarded && view === 'lesson' && session) { root.innerHTML = renderPlayer(); afterPlayerRender(); return; }
+    if (S.onboarded && view === 'done' && session) { root.innerHTML = renderDone(); return; }
+    // 0.22: before the first finished lesson, one screen with one button; then the status question, once
+    if (!S.onboarded || !doneCount()) { root.innerHTML = renderStart(); return; }
+    if (!S.status) { root.innerHTML = renderStatusPick(); return; }
     if (view === 'notes' && notesId && BY_ID[notesId]) { root.innerHTML = renderNotes(BY_ID[notesId]); return; }
     var body = view === 'practice' ? renderPractice() : view === 'missions' && MISSIONS_ON ? renderMissions()
       : view === 'profile' ? renderProfile() : view === 'tools' && toolsTab() ? renderTools() : renderPath();
@@ -1774,7 +1776,7 @@
     checkStreakBreak(); offToast = null;
     save(); indexContent(); migrateContent();
     track('progress_imported', { ok: true, reason: null, lessons_done: doneCount(), xp: S.xp, source: source, $set: { transferred: true } });
-    pickedStatus = null; onboardStep = 0; session = null;
+    session = null;
     setView('home');
     toast(ICON.check + '<b>ההתקדמות עברה</b><span>' + plural(doneCount(), 'שיעור אחד', 'שיעורים') + ' ו-' + plural(S.xp, 'נקודה אחת', 'נקודות') + '</span>', 'info', 3200);
     return r;
@@ -2582,7 +2584,7 @@
       if (ic && !s.installShown) { s.installShown = true; track('install_card_shown', { placement: 'done', lessons_done: doneCount() }); }
       html += ic;
     }
-    if (s.mode === 'lesson') html += nextUpCard(l);
+    if (s.mode === 'lesson' && S.status) html += nextUpCard(l); // 0.22: no status yet = the next lesson is not known yet
     html += legalLine(false) + '<div class="spacer"></div>';
     // after a lesson (or a rescued streak), not after practice: the win is worth sending to friends
     if (INVITE.enabled && doneCount() >= INVITE.afterLessons && (s.mode === 'lesson' || (s.mode === 'repair' && s.passed))) {
@@ -2904,67 +2906,49 @@
     return '<div class="stat-box"><span style="color:' + color + '">' + icon + '</span><div><b>' + val + '</b><span>' + label + '</span></div></div>';
   }
 
-  // ---------- Welcome ----------
-  // two screens: what the app is, then the status (which also picks the opening unit). The daily goal starts at the
-  // default and lives in the profile.
-  var pickedStatus = null;
-  function renderWelcome() {
+  // ---------- The first screen (0.22) ----------
+  // Jonathan (3.11): "שלא יהיה לו אופציות אחרות חוץ מלהתחיל שיעור". Of 14 new people only one finished a lesson, so until
+  // the first lesson is done the app is one screen with one button: no points, streak, level, path, tabs or popups.
+  // Lesson 0.2 opens the path for every status, so the status question waits for after it. A tap on the landing page's
+  // button ("להתחיל עכשיו בחינם", ?source=landing_*) skips even this screen and opens the lesson.
+  function renderStart() {
+    var l = currentLesson();
+    if (!l) return '';
+    var ip = S.inProgress && S.inProgress.lessonId === l.id ? S.inProgress : null;
+    var pct = ip ? Math.round(resumeAt(ip) / Math.max(1, ip.steps.length) * 100) : 0;
     var art = CFG.images && CFG.images.welcome ? '<div class="welcome-art"><img src="' + esc(CFG.images.welcome) + '" alt=""></div>' : '';
-    var onlyStatus = S.onboarded && !S.status;
-    if (onlyStatus) onboardStep = 1;
-    if (onboardStep === 0) {
-      return '<div class="welcome gutter">' +
-        '<div class="logo">' + esc(CFG.appName) + '</div>' +
-        '<p class="tag">' + esc(CFG.tagline) + '</p>' +
-        (S.giftPending && DO.enabled && DO.friendGift
-          ? '<p class="gift-banner">' + ICON.dayoff + '<span><b>חבר שלח לך מתנה: ' + DO.friendGift + ' ימי חופש לרצף.</b> אלה ימים שאפשר לפספס בלי שהרצף נשבר' + minStreakNote() + '. הם אצלך אחרי השיעור הראשון.' +
-            (IS_IOS && !isStandalone() ? ' באייפון: עושים את השיעור הראשון כאן, ורק אז מוסיפים למסך הבית, והימים עוברים איתך.' : '') + '</span></p>'
-          : '') + art +
-        '<ul class="promises">' +
-          '<li><b>איפה הכסף שלך בורח</b><span>מינוס, עמלות, דמי ניהול ומי שמבטיח לך רווח: איך לוקחים לך כסף בלי שאתה שם לב, ואיך עוצרים.</span></li>' +
-          '<li><b>מה עושים עם הכסף לפני שהוא נעלם</b><span>פיקדון, מענק שחרור, משכורת ראשונה: תוכנית לפני שהכסף מגיע לחשבון.</span></li>' +
-          '<li><b>כמה דקות ביום, בלי חישובים</b><span>שיעור קצר עם סיפור מהחיים, ושאלות שבודקות שהבנת. כל מילה קשה מוסברת בלחיצה.</span></li>' +
-        '</ul>' +
-        '<div class="spacer"></div>' +
-        '<button class="btn gold" data-act="onboard-next">יאללה, מתחילים</button>' +
-        // 0.19 (1.11, Jonathan: "בכניסה לאפליקציה יש משהו שנקרא קוד העברה... למחוק"): no code link on the first screen.
-        // Pasting a code stays in the profile ("להעביר התקדמות"), so moving progress to the installed app still works.
-        '<p class="fine center">' + esc(CFG.disclaimer) + '.</p></div>';
-    }
-    if (onboardStep === 2 && !onlyStatus && pickedStatus && onboardCalcFor(pickedStatus)) return renderOnboardCalc();
-    var cur = pickedStatus || S.status;
-    var op = cur && CFG.openers && CFG.openers[cur], fl = cur ? firstLessonFor(cur) : null;
-    var opener = op ? '<div class="card opener"><h2>' + esc(op.headline) + '</h2><p class="lead">' + esc(op.promise) + '</p>' +
-      (fl ? '<p class="fine">השיעור הראשון: ' + esc(fl.lesson.title) + ' · כ-' + fl.minutes + ' דקות</p>' : '') + '</div>' : '';
-    return '<div class="welcome gutter">' +
-      (onlyStatus ? '' : '<button class="icon-btn back-top" data-act="onboard-back" aria-label="אחורה">' + ICON.back + '</button>') +
-      '<h1 class="q-prompt">מה המצב שלך?</h1>' +
-      '<p class="lead">ככה נדע מאיפה להתחיל ואילו שיעורים להראות. אפשר לשנות בפרופיל.</p>' +
-      '<div class="goal-pick">' + CFG.statuses.map(function (s) {
-        return '<button class="btn ' + (cur === s.id ? '' : 'ghost') + ' goal-opt" data-act="pick-status" data-v="' + s.id + '" aria-pressed="' + (cur === s.id) + '">' +
-          '<span><b>' + esc(s.label) + '</b><small>' + esc(s.note) + '</small></span></button>';
-      }).join('') + '</div>' + opener +
+    return '<div class="welcome start gutter">' +
+      '<div class="logo">' + esc(CFG.appName) + '</div>' +
+      '<p class="tag">' + esc(CFG.tagline) + '</p>' + art +
+      '<button class="first-card u' + esc(l.unit.id) + '" data-act="first-lesson" aria-hidden="true" tabindex="-1">' +
+        '<span class="eyebrow">' + (ip ? 'עצרת באמצע השיעור' : 'השיעור הראשון') + '</span>' +
+        '<b>' + esc(l.title) + '</b>' + (l.what ? '<span class="fc-what">' + esc(l.what) + '</span>' : '') +
+        (ip ? '<span class="bar"><i style="width:' + pct + '%"></i></span>' : '') + '</button>' +
       '<div class="spacer"></div>' +
-      '<button class="btn gold" data-act="' + (onlyStatus ? 'begin-status' : 'onboard-status') + '"' + (cur ? '' : ' disabled') + '>' +
-        (onlyStatus ? 'שומרים' : esc((op && op.cta) || 'יאללה, מתחילים')) + '</button></div>';
+      '<button class="btn gold start-btn" data-act="first-lesson">' + ICON.play + (ip ? 'להמשיך את השיעור' : 'להתחיל את השיעור הראשון') + '</button>' +
+      '<p class="fine center">' + esc(CFG.disclaimer) + '.</p></div>';
+  }
+  function beginFirst(from) {
+    var l = currentLesson();
+    if (!l) return;
+    if (!S.onboarded) {
+      S.onboarded = true; save();
+      track('onboarding_done', { flow: 'lesson_first', from: from, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: l.id, $set: { goal_xp: S.goalXp } });
+    }
+    startFrom = from; startLesson(l.id); startFrom = null;
   }
 
-  // 0.13 (25.10, "מספר אישי בדקה הראשונה"): soldiers see what the army money comes to before the first lesson
-  var onboardMoreOpen = false;
-  function onboardCalcFor(st) { return CALC.onboarding !== false && calcEnabled() && ['sadir', 'pre', 'post'].indexOf(st) >= 0; }
-  function renderOnboardCalc() {
-    var post = pickedStatus === 'post', est = calcEstimate(S.calc && calcState()), fl = firstLessonFor(pickedStatus);
-    return '<div class="welcome gutter onboard-calc">' +
-      '<button class="icon-btn back-top" data-act="onboard-back" aria-label="אחורה">' + ICON.back + '</button>' +
-      '<h1 class="q-prompt">' + (post ? 'כמה כסף קיבלת מהצבא?' : 'כמה כסף מחכה לך בשחרור?') + '</h1>' +
-      '<p class="lead">שתי בחירות, והאפליקציה מחשבת. בלי הרשמה, והמספר נשאר רק בטלפון שלך.</p>' +
-      calcWidget('onboard', onboardMoreOpen) +
-      (est ? '<p class="calc-hook">' + ICON.shieldCheck + '<span>' + (post
-          ? 'זה הכסף שנכנס, או ייכנס, לחשבון שלך. השיעור הראשון: למה כסף כזה לא אמור לישון בעו"ש, ולאן מעבירים אותו.'
-          : 'רוב החיילים מגלים את המספר הזה רק כשהכסף כבר בחשבון. השיעור הראשון: למה כסף כזה לא אמור לישון בעו"ש, ולאן מעבירים אותו.') + '</span></p>' : '') +
-      '<div class="spacer"></div>' +
-      '<button class="btn gold" data-act="onboard-status">' + (est ? 'לשיעור הראשון' : 'לדלג ולהתחיל') + '</button>' +
-      (fl ? '<p class="fine center">' + esc(fl.lesson.title) + ' · כ-' + fl.minutes + ' דקות</p>' : '') + '</div>';
+  // ---------- The status question (after the first lesson) ----------
+  // one tap: the status picks the next lessons (config.startUnit, audience in lessons.json) and the app goes home
+  function renderStatusPick() {
+    return '<div class="welcome gutter status-pick">' +
+      (doneCount() ? '<div class="eyebrow">' + ICON.check + 'השיעור הראשון מאחוריך</div>' : '') +
+      '<h1 class="q-prompt">מה המצב שלך?</h1>' +
+      '<p class="lead">ככה נדע אילו שיעורים להראות לך עכשיו. אפשר לשנות בפרופיל.</p>' +
+      '<div class="goal-pick">' + CFG.statuses.map(function (s) {
+        return '<button class="btn ghost goal-opt" data-act="pick-status" data-v="' + s.id + '">' +
+          '<span><b>' + esc(s.label) + '</b><small>' + esc(s.note) + '</small></span>' + ICON.chevron + '</button>';
+      }).join('') + '</div></div>';
   }
 
   function setStatus(v, source) {
@@ -3175,7 +3159,7 @@
   var askTimer = null, lastTouchAt = 0, askOpenedAt = 0;
   function maybeAsk() {
     clearTimeout(askTimer);
-    if (openAsked || view !== 'home' || sheetOpen || !(toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
+    if (openAsked || view !== 'home' || sheetOpen || !doneCount() || !S.status || !(toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
     askTimer = setTimeout(function tick() {
       var quiet = Date.now() - lastTouchAt;
       if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
@@ -3203,14 +3187,6 @@
       '<button class="btn gold" data-act="install-popup-go' + tag + '>' + ICON.addHome + 'להוסיף למסך הבית</button>' +
       (notif ? '<button class="btn ghost" data-act="popup-reminder-on" data-from="install_popup">' + ICON.bell + 'להדליק התראות</button>' : '') +
       '<button class="btn text" data-act="install-popup-later' + tag + '>' + (welcome ? 'להמשיך בדפדפן' : 'אחר כך') + '</button>', 'ask-install' + (welcome ? ' ask-welcome' : ''));
-  }
-  // the status pick, the second welcome screen ("יאללה, מתחילים", or "להמשיך בדפדפן" in the install popup, which
-  // passes viaSheet: the step takes the popup's history entry, so back returns to the first screen)
-  function toStatusPick(viaSheet) {
-    onboardStep = 1;
-    if (viaSheet && topIsSheet) { closeSheet(true); topIsSheet = false; histReplace({ onboard: 1 }); }
-    else { closeSheet(); histPush({ onboard: 1 }); }
-    render(); window.scrollTo(0, 0);
   }
   function notifAskSheet() {
     var st = notifAskState();
@@ -4600,37 +4576,13 @@
         render(); if (sheetOpen) explainSheet('goal');
         break;
       case 'status': setStatus(el.getAttribute('data-v'), el.getAttribute('data-source') || 'profile'); render(); break;
+      case 'first-lesson': sfx.tap(); beginFirst('start_screen'); break;
       case 'pick-status': {
-        pickedStatus = el.getAttribute('data-v'); sfx.tap(); render();
-        var fl = firstLessonFor(pickedStatus);
-        track('opener_viewed', { status: pickedStatus, start_unit_id: CFG.startUnit && CFG.startUnit[pickedStatus] != null ? CFG.startUnit[pickedStatus] : null, first_lesson_id: fl ? fl.lesson.id : null });
-        break;
-      }
-      case 'onboard-status': {
-        if (!pickedStatus) break;
-        if (onboardStep !== 2 && onboardCalcFor(pickedStatus)) {
-          onboardStep = 2; histPush({ onboard: 2 }); render(); window.scrollTo(0, 0);
-          track('onboarding_calc_viewed', { status: pickedStatus, has_estimate: !!(S.calc && S.calc.type) });
-          break;
-        }
-        var calcShown = onboardStep === 2;
-        S.onboarded = true;
-        setStatus(pickedStatus, 'onboarding');
-        var first = currentLesson();
-        track('onboarding_done', {
-          goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: first ? first.id : null,
-          calc_shown: calcShown, calc_done: !!(calcShown && S.calc && S.calc.type),
-          $set: { status: S.status, goal_xp: S.goalXp, start_unit_id: S.startUnit }
-        });
+        sfx.tap();
+        setStatus(el.getAttribute('data-v'), 'after_first_lesson');
         setView('home');
         break;
       }
-      case 'begin-status': if (pickedStatus) { setStatus(pickedStatus); setView('home'); } break;
-      case 'onboard-next':
-        if (!openAsked && installAskState('welcome')) { installAskSheet('welcome'); break; }
-        toStatusPick(false);
-        break;
-      case 'onboard-back': if (HIST && histDepth > 0) history.back(); else { onboardStep = Math.max(0, onboardStep - 1); render(); } break;
       case 'sound': S.sound = !S.sound; save(); render(); if (S.sound) sfx.right(0); break;
       case 'share':
         if (S.share) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); else notifNo('share_off'); track('analytics_off', {}); flush(); }
@@ -4660,8 +4612,7 @@
       case 'install-popup-later': {
         var ipStage = el.getAttribute('data-stage') === 'welcome' ? 'welcome' : 'home';
         track('install_popup_later', { variant: el.getAttribute('data-variant') || '', stage: ipStage });
-        // before the start: "להמשיך בדפדפן" goes on to the status pick
-        if (ipStage === 'welcome' && !S.onboarded) { openAsked = true; toStatusPick(true); } else closeSheet(); // this open had its popup
+        closeSheet(); // this open had its popup
         break;
       }
       case 'reminder-later':
@@ -4780,7 +4731,7 @@
       case 'reset-confirm': {
         var uid = S.uid;
         if (S.reminder && S.reminder.on) disableReminder('reset');
-        closeSheet(true); S = freshState(); S.uid = uid; onboardStep = 0; pickedStatus = null; session = null;
+        closeSheet(true); S = freshState(); S.uid = uid; session = null;
         applySkin();
         track('progress_reset', {});
         save(); indexContent(); migrateContent(); setView('home');
@@ -4854,7 +4805,7 @@
       (view === 'done' && !!root.querySelector('.done-wrap .intent:not(.done):not(.later), .done-wrap .compare.on-done')); // a one-time question or the one-shot offer still waiting
     var limit = keep ? AWAY_KEEP_MS : AWAY_HOME_MS;
     if (sheetOpen && sheetHasText()) limit = Infinity;
-    if (away >= limit && S.onboarded && S.status && (view !== 'home' || sheetOpen)) {
+    if (away >= limit && S.onboarded && (view !== 'home' || sheetOpen)) {
       if (view === 'lesson' && session) leaveSession('away');
       else if (view === 'done') session = null;
       setView('home');
@@ -4945,7 +4896,6 @@
     if (OPEN_REF && !S.ref) { S.ref = OPEN_REF; save(); }
     // a friend's invite link on a fresh device: the gift waits for the first lesson (nothing for someone with progress)
     if (DO.enabled && DO.friendGift && OPEN_REF === 'share' && !S.giftPending && !S.giftGot && !S.xp && !doneCount()) { S.giftPending = true; save(); }
-    if (S.giftPending && !S.onboarded) track('friend_gift_shown', { placement: 'welcome' });
     track('app_opened', {
       returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND,
       reminders: !!(S.reminder && S.reminder.on), days_off: S.daysOff, learned_days_7: learned7(),
@@ -4955,7 +4905,7 @@
     });
     if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false, kind: OPEN_KIND });
     // the app always opens on home; an unfinished lesson waits in the "להמשיך" card at the top (Jonathan, 18.10)
-    if (S.inProgress && !(S.onboarded && S.status && restoreSession(S.inProgress))) { S.inProgress = null; save(); }
+    if (S.inProgress && !(S.onboarded && restoreSession(S.inProgress))) { S.inProgress = null; save(); }
     // 0.19: progress carried from Safari in the home-screen icon's address (#i=, see carryProgress). Taken in only by the
     // installed app with nothing in it yet; anywhere else (a shared link, Safari itself) it is just removed from the address.
     var carryIn = /^#i=(.+)$/.exec(location.hash || ''), carryCode = '';
@@ -4968,10 +4918,12 @@
     // ask (it is where notifications can be turned on).
     if (OPEN_SOURCE === 'push') openAsked = true;
     // existing users meet days off once, over home; one sheet per open, so no toast that day (none can apply on update day)
-    var showIntro = DO.enabled && !carryCode && S.onboarded && S.status && !S.offIntroSeen;
+    var showIntro = DO.enabled && !carryCode && S.onboarded && S.status && doneCount() && !S.offIntroSeen;
     if (showIntro) offToast = null;
     render();
     if (carryCode) importProgress(carryCode, 'install');
+    // 0.22: the landing page's "להתחיל עכשיו בחינם" opens the first lesson itself (back returns to the one-button screen)
+    else if (!S.onboarded && !hasProgress() && /^landing/.test(OPEN_SOURCE || '') && !IN_FRAME) beginFirst('landing');
     carrySoon();
     if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
     else if (OPEN_SOURCE !== 'push') maybeAsk();
