@@ -1025,7 +1025,8 @@
     var q = location.search || '';
     var get = function (k) { var m = new RegExp('[?&]' + k + '=([\\w-]+)').exec(q); return m ? m[1] : null; };
     var ref = get('ref');
-    return { source: get('source') || 'link', ref: ref && ref.length <= 40 ? ref : null, kind: get('kind') };
+    var lp = get('lp'); // 0.24: the dribit.app visit that opened the app (landing-5), so the two can be matched
+    return { source: get('source') || 'link', ref: ref && ref.length <= 40 ? ref : null, kind: get('kind'), lp: lp && lp.length <= 64 ? lp : null };
   }
   // the same address loaded again in the same tab is not a new open: source 'update' (a reload the app made for a new
   // version) or 'reload' (pull to refresh, the phone reloading the app), with no ref or kind. The address itself keeps
@@ -1039,7 +1040,7 @@
       return upd === '1' ? 'update' : seen === here ? 'reload' : null;
     } catch (e) { return null; }
   })();
-  var OPEN = RELOAD_KIND ? { source: RELOAD_KIND, ref: null, kind: null } : openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
+  var OPEN = RELOAD_KIND ? { source: RELOAD_KIND, ref: null, kind: null, lp: null } : openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
   function reloadForUpdate() {
     try {
       sessionStorage.setItem('dribit.reload', '1');
@@ -4907,7 +4908,7 @@
     // a friend's invite link on a fresh device: the gift waits for the first lesson (nothing for someone with progress)
     if (DO.enabled && DO.friendGift && OPEN_REF === 'share' && !S.giftPending && !S.giftGot && !S.xp && !doneCount()) { S.giftPending = true; save(); }
     track('app_opened', {
-      returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND,
+      returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND, landing_id: OPEN.lp,
       reminders: !!(S.reminder && S.reminder.on), days_off: S.daysOff, learned_days_7: learned7(),
       $set: skinList().length ? { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff, skin: activeSkin(), skins_open: skinsOpenCount() }
         : { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff },

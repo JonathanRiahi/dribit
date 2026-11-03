@@ -98,6 +98,19 @@ const print = (title, head, rows) => {
           GROUP BY distinct_id HAVING countIf(event = 'landing_view') > 0)
     GROUP BY paid, il ORDER BY paid, il`));
 
+  // 6. landing-5 (from 3.11): dribit.app opens the app by itself. visit → the app page arrived → the app loaded → lesson
+  print('landing-5: מהביקור ועד השיעור', ['country', 'visits', 'app page arrived (app_boot)', 'app loaded (app_opened)', 'lesson started', 'lesson completed'], await hogql(`
+    SELECT il, count(), countIf(boot = 1), countIf(has(opened, lp)), countIf(has(started, lp)), countIf(has(done, lp))
+    FROM (SELECT distinct_id AS lp, max(if(event = 'app_boot', 1, 0)) AS boot,
+            any(if(event = 'landing_view', if(toString(properties.$geoip_country_code) = 'IL', 'IL', 'abroad'), NULL)) AS il
+          FROM events WHERE ${WHEN} AND event IN ('landing_view', 'app_boot')
+          GROUP BY distinct_id HAVING countIf(event = 'landing_view' AND properties.landing_version = 'landing-5') > 0) v
+    CROSS JOIN (SELECT groupUniqArrayIf(l, event = 'app_opened') AS opened, groupUniqArrayIf(l, event = 'lesson_started') AS started,
+            groupUniqArrayIf(l, event = 'lesson_completed') AS done
+          FROM (SELECT event, person_id, any(if(event = 'app_opened', toString(properties.landing_id), NULL)) OVER (PARTITION BY person_id) AS l
+                FROM events WHERE ${WHEN} AND event IN ('app_opened', 'lesson_started', 'lesson_completed')) WHERE l IS NOT NULL AND l != '') a
+    GROUP BY il ORDER BY il`));
+
   // 5. which event names exist (to catch a renamed or missing event)
   print('אירועים מאז', ['event', 'count'], await hogql(`SELECT event, count() FROM events WHERE ${WHEN} GROUP BY event ORDER BY 2 DESC LIMIT 40`));
 })().catch((e) => { console.error(String((e && e.message) || e)); process.exit(1); });

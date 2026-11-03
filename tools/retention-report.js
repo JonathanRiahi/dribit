@@ -112,14 +112,14 @@ const pct = (n, of) => (of ? `${Math.round((100 * n) / of)}%` : '-');
   // the landing page funnel since SINCE: visitors, tapped start, opened the app from dribit.app
   const lp = await hogql(`
     SELECT count(DISTINCT if(event = 'landing_view', distinct_id, NULL)),
-      count(DISTINCT if(event = 'landing_cta' AND properties.cta IN ('start_now', 'joined_try', 'footer_try'), distinct_id, NULL)),
+      count(DISTINCT if(event = 'landing_cta' AND properties.cta IN ('start_now', 'joined_try', 'footer_try', 'auto_open'), distinct_id, NULL)),
       count(DISTINCT if(event = 'landing_cta' AND properties.cta = 'send_self', distinct_id, NULL))
     FROM events WHERE event IN ('landing_view', 'landing_cta') AND timestamp >= toDateTime('${SINCE} 00:00:00')`);
   const fromLp = byCohort.find((r) => r[0] === 'dribit.app');
   if (lp[0]) {
     console.log('\n=== דף הנחיתה (dribit.app) ===');
     console.log(`  ${String(lp[0][0]).padStart(4)}  נכנסו לדף`);
-    console.log(`  ${String(lp[0][1]).padStart(4)}  לחצו "להתחיל עכשיו" (${pct(lp[0][1], lp[0][0])})`);
+    console.log(`  ${String(lp[0][1]).padStart(4)}  לחצו "להתחיל עכשיו", או נפתח להם לבד מ-landing-5 (${pct(lp[0][1], lp[0][0])})`);
     console.log(`  ${String(lp[0][2]).padStart(4)}  שלחו לעצמם קישור לוואטסאפ`);
     console.log(`  ${String(fromLp ? fromLp[1] : 0).padStart(4)}  פתחו את האפליקציה מהדף (אנשים חדשים)`);
   }
