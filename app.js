@@ -1699,6 +1699,8 @@
         ? '<p class="pt-line">לוחצים על ' + ICON.share + ' למטה</p><p class="pt-line">ובוחרים "הוספה למסך הבית" ' + ICON.addHome + '</p>' +
           '<p class="pt-sub">לא רואים את ' + ICON.share + '? הוא בתוך ⋯ שליד הכתובת.</p>'
         : '<p class="pt-line">לוחצים על ' + ICON.dots + ' למעלה</p><p class="pt-line">ובוחרים "הוספה למסך הבית"</p>';
+    // 0.24.1: the home-screen icon is fetched again right before the share button, so Safari has it at once
+    if (ios) { try { fetch('icons/apple-touch-icon.png?v=logo2').catch(function () { /* ignore */ }); } catch (e) { /* ignore */ } }
     openSheet(body + '<button class="btn text" data-act="close-sheet">הבנתי</button>', 'pointer' + (ios ? ' down' : ' up'));
     var w = document.getElementById('sheet');
     if (w && !IN_APP_BROWSER) w.insertAdjacentHTML('beforeend', '<div class="pt-arrow ' + (ios ? 'down' : 'up') + '" aria-hidden="true">' +

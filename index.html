@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- 0.24.1: the iPhone home-screen icon, first in the page and downloaded at once (it showed only after a wait).
+     Safari fetches it when "Add to Home Screen" opens; the early download puts it in the phone's cache by then. -->
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=logo2">
+<link rel="preload" as="image" href="icons/apple-touch-icon.png?v=logo2" fetchpriority="high">
 <meta name="theme-color" content="#0E6E58">
 <meta name="description" content="כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,7 +22,6 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=logo2">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=logo2">
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg?v=logo2">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=logo2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Fredoka:wght@500;600;700&display=swap">
