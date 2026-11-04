@@ -24,14 +24,14 @@
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg?v=logo2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- 0.24.2: the lessons start downloading together with the code (before, only after app.js had loaded: two waits in a row) -->
+<!-- 0.25.1: the lessons start downloading together with the code (before, only after app.js had loaded: two waits in a row) -->
 <link rel="preload" href="data/lessons.json" as="fetch" crossorigin>
-<!-- 0.24.2: the Google font no longer holds the first paint (a blank moment before anything showed); the text swaps to it when it arrives -->
+<!-- 0.25.1: the Google font no longer holds the first paint (a blank moment before anything showed); the text swaps to it when it arrives -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Fredoka:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Fredoka:wght@500;600;700&display=swap"></noscript>
 <link rel="stylesheet" href="styles.css">
 <style>
-/* 0.24.2: the opening screen while the code and lessons load: the logo on green, like an app opening (it said "פותחים את דריבית...") */
+/* 0.25.1: the opening screen while the code and lessons load: the logo on green, like an app opening (it said "פותחים את דריבית...") */
 .boot { position: fixed; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
   background: #0E6E58 radial-gradient(90% 60% at 50% 40%, #14907A 0%, #0E6E58 55%, #08503F 100%); color: #FFFFFF;
   font: 700 26px/1.2 'Assistant', 'Arial Hebrew', system-ui, sans-serif; letter-spacing: .01em; }
@@ -44,7 +44,7 @@
 </head>
 <body>
 <!-- 0.24: something on the screen while app.js and the lessons load (a blank page in the TikTok browser looks broken).
-     0.24.2: the logo is drawn right here in the page, so it shows at once with no extra download. The app replaces it on its first render. -->
+     0.25.1: the logo is drawn right here in the page, so it shows at once with no extra download. The app replaces it on its first render. -->
 <div id="app"><div class="boot" role="status" aria-label="פותחים את דריבית"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-hidden="true"><defs><radialGradient id="boot-bg" cx="30%" cy="22%" r="90%"><stop offset="0" stop-color="#14907A"/><stop offset="1" stop-color="#08503F"/></radialGradient><linearGradient id="boot-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE08A"/><stop offset=".5" stop-color="#F6C02E"/><stop offset="1" stop-color="#E0A21A"/></linearGradient><radialGradient id="boot-glow"><stop offset="0" stop-color="#FFD866" stop-opacity=".55"/><stop offset="1" stop-color="#FFD866" stop-opacity="0"/></radialGradient><clipPath id="boot-r"><rect width="512" height="512" rx="96"/></clipPath></defs><g clip-path="url(#boot-r)"><rect width="512" height="512" fill="url(#boot-bg)"/><ellipse cx="256" cy="150" rx="170" ry="110" fill="url(#boot-glow)"/><path d="M166.0 404.0L256.0 342.0L346.0 404.0" fill="none" stroke="#03362B" stroke-opacity="0.35" stroke-width="40.0" stroke-linecap="round" stroke-linejoin="round" /><path d="M166.0 392.0L256.0 330.0L346.0 392.0" fill="none" stroke="#FFFFFF" stroke-opacity="0.38" stroke-width="40.0" stroke-linecap="round" stroke-linejoin="round" /><path d="M149.0 324.0L256.0 248.0L363.0 324.0" fill="none" stroke="#03362B" stroke-opacity="0.35" stroke-width="48.0" stroke-linecap="round" stroke-linejoin="round" /><path d="M149.0 312.0L256.0 236.0L363.0 312.0" fill="none" stroke="#FFFFFF" stroke-opacity="0.72" stroke-width="48.0" stroke-linecap="round" stroke-linejoin="round" /><path d="M131.0 232.0L256.0 142.0L381.0 232.0" fill="none" stroke="#03362B" stroke-opacity="0.35" stroke-width="58.0" stroke-linecap="round" stroke-linejoin="round" /><path d="M131.0 228.0L256.0 138.0L381.0 228.0" fill="none" stroke="#B47C08" stroke-opacity="1" stroke-width="58.0" stroke-linecap="round" stroke-linejoin="round" /><path d="M131.0 220.0L256.0 130.0L381.0 220.0" fill="none" stroke="url(#boot-gold)" stroke-opacity="1" stroke-width="58.0" stroke-linecap="round" stroke-linejoin="round" /><path transform="translate(392 118) scale(18)" d="M0 -1C.12 -.3 .3 -.12 1 0C.3 .12 .12 .3 0 1C-.12 .3 -.3 .12 -1 0C-.3 -.12 -.12 -.3 0 -1Z" fill="#FFF3C4" fill-opacity="1"/><path transform="translate(126 150) scale(10)" d="M0 -1C.12 -.3 .3 -.12 1 0C.3 .12 .12 .3 0 1C-.12 .3 -.3 .12 -1 0C-.3 -.12 -.12 -.3 0 -1Z" fill="#FFF3C4" fill-opacity="0.8"/></g></svg><span>דריבית</span></div></div>
 <script>
 // 0.24: a visitor sent here by dribit.app (?lp=, landing-5) reports that the page arrived, before the big files load,
