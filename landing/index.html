@@ -66,7 +66,8 @@
 <!-- the home-screen icon (1.11: added from dribit.app it showed a plain "ד" on green). Copies inside landing/, so they load
      at dribit.app whatever the worker version, and a manifest, which Android reads for the home-screen icon -->
 <link rel="icon" type="image/png" sizes="192x192" href="media/app-icon-192.png?v=logo2">
-<link rel="apple-touch-icon" href="media/app-icon-180.png?v=logo2">
+<link rel="apple-touch-icon" sizes="180x180" href="media/app-icon-180.png?v=logo2">
+<link rel="preload" as="image" href="media/app-icon-180.png?v=logo2" fetchpriority="high">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
