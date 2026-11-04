@@ -1668,6 +1668,8 @@
     from = from || 'home_bottom';
     track('about_opened', { from: from, lessons_done: doneCount(), reviewer_named: !!rv.name, partner_enabled: !!(CFG.partner && CFG.partner.enabled), $set: { about_seen: true } });
     var paras = function (list) { return (list || []).map(function (t) { return '<p class="lead">' + esc(t) + '</p>'; }).join(''); };
+    var nums = { lessons: LESSONS.length, units: UNITS.length };
+    var who = (a.who || []).map(function (t) { return '<p class="lead">' + fillIn(t, nums) + '</p>'; }).join('');
     var reviewed = rv.name ? fillIn(a.reviewedBy, { name: rv.name, role: rv.role || '' }) : esc(a.notReviewed);
     var names = live.map(function (p) { return p.name; });
     var earn = !live.length ? esc(a.earnNow)
@@ -1677,7 +1679,7 @@
       : fillIn(a.earnPartners || a.earnPartner, { partners: names.join(', '), partner: names.join(', ') });
     var wa = waNumber();
     openSheet('<h3>' + esc(a.title) + '</h3>' +
-      '<div class="eyebrow">מי עומד מאחורי ' + name + '</div>' + paras(a.who) +
+      '<div class="eyebrow">מי עומד מאחורי ' + name + '</div>' + who +
       '<div class="eyebrow">מי בדק את התוכן</div><p class="lead">' + reviewed + '</p>' +
       '<div class="eyebrow">איך ' + name + ' מרוויחה</div><p class="lead">' + earn + '</p>' + paras(a.earnLater) +
       '<p class="fine">' + esc(a.privacy) + ' גרסה ' + esc(CFG.version) + '.</p>' +
