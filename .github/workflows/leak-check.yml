@@ -1,0 +1,33 @@
+# Landing leak check: where the people who reach dribit.app drop off before the app opens. Counts only.
+# Actions > Leak check > Run workflow. Same POSTHOG_API_KEY / POSTHOG_PROJECT_ID secrets as the daily reminders.
+name: Leak check
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'From date (YYYY-MM-DD). Empty: 2026-10-25'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches: ['claude/project-thread-sq5f0b']
+    paths: ['tools/leak-check.js', '.github/workflows/leak-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/leak-check.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          SINCE: ${{ inputs.since }}

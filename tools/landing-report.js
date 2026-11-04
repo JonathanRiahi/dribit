@@ -38,12 +38,13 @@ const PER_VISITOR = `
     ${has(`event = 'landing_view'`)} AS viewed,
     ${has(`event = 'landing_view' AND properties.landing_version = 'landing-3'`)} AS v3,
     ${has(`event = 'landing_view' AND properties.landing_version = 'landing-4'`)} AS v4,
+    ${has(`event = 'landing_view' AND properties.landing_version = 'landing-5'`)} AS v5,
     ${has(`event = 'landing_stamp' AND properties.station = 'pikadon'`)} AS s_pikadon,
     ${has(`event = 'landing_stamp' AND properties.station = 'race'`)} AS s_race,
     ${has(`event = 'landing_quiz'`)} AS quiz,
     ${has(`event = 'landing_form_start'`)} AS form_start,
     ${has(`event = 'waitlist_signup'`)} AS signed,
-    ${has(`event = 'landing_cta' AND properties.cta IN ('start_now', 'joined_try', 'footer_try')`)} AS to_app,
+    ${has(`event = 'landing_cta' AND properties.cta IN ('start_now', 'joined_try', 'footer_try', 'auto_open')`)} AS to_app,
     dateDiff('second', min(timestamp), max(timestamp)) AS secs,
     count() AS n
   FROM events
@@ -77,7 +78,7 @@ function table(title, rows) {
     PROJECT = String(list[0].id);
   }
   console.log(`Landing report since ${SINCE} (dates in UTC). Includes your own visits and test signups.`);
-  console.log('landing-4 = one button into the app (from 2.11.2026). landing-3 = one screen + waitlist form (1.11). landing-2.x = the long page.');
+  console.log('landing-5 = dribit.app opens the app by itself (from 3.11.2026). landing-4 = one button into the app (from 2.11.2026). landing-3 = one screen + waitlist form (1.11). landing-2.x = the long page.');
 
   const sums = STEPS.map(([k]) => `sum(${k})`).join(', ');
   const agg = await hogql(`
@@ -94,7 +95,7 @@ function table(title, rows) {
   }
 
   const ver = await hogql(`
-    SELECT multiIf(v4 = 1, 'landing-4 (כפתור אחד, בלי רשימת המתנה)', v3 = 1, 'landing-3 (מסך אחד + טופס)', 'landing-2 (הדף הארוך)'), count(), sum(form_start), sum(signed), quantile(0.5)(if(n > 1, secs, 0)), countIf(n = 1)
+    SELECT multiIf(v5 = 1, 'landing-5 (נפתח ישר לאפליקציה)', v4 = 1, 'landing-4 (כפתור אחד, בלי רשימת המתנה)', v3 = 1, 'landing-3 (מסך אחד + טופס)', 'landing-2 (הדף הארוך)'), count(), sum(form_start), sum(signed), quantile(0.5)(if(n > 1, secs, 0)), countIf(n = 1)
     FROM (${PER_VISITOR}) WHERE viewed = 1 GROUP BY 1 ORDER BY 1 DESC`);
   console.log('\n=== לפי גרסת הדף: נכנסו / התחילו טופס / השאירו פרטים / זמן חציוני / יצאו בלי לעשות כלום ===');
   for (const [v, n, fs, sg, md, idle] of ver) console.log(`  ${v}: ${n} / ${fs} / ${sg} (${n ? Math.round((100 * sg) / n) : 0}%) / ${md} שניות / ${idle}`);

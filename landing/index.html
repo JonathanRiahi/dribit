@@ -2,6 +2,52 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
+<script>
+// landing-5 (3.11.2026): dribit.app opens the app straight away, on its "start the first lesson" screen. Of the 289
+// visitors since 25.10 only 13 tapped the button on this page, so the page itself was the leak. The page below stays
+// for link previews, people without JavaScript, and anyone who adds ?stay=1 (to look at it).
+// Runs first, before fonts and pictures. Sends landing_view + landing_cta 'auto_open' in one beacon (it survives the
+// page leaving), then replaces the address, so the back button goes back to TikTok and not to an empty page.
+(function () {
+  var q = location.search;
+  if (/[?&]stay=1/.test(q) || window.LANDING_PREVIEW) return;
+  document.documentElement.className += ' go';
+  var APP = 'https://jonathanriahi.github.io/dribit/';
+  // the public PostHog key, the same one as in config.js (analytics.posthogKey); a public key, made for browsers
+  var KEY = 'phc_tsse5UQex6pJhPK4yZkLjXLTXykftLFo8BXibrXa3Bqm', HOST = 'https://eu.i.posthog.com';
+  var p = new URLSearchParams(q), ua = navigator.userAgent || '';
+  var id = function () { return crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }); };
+  var uid = null;
+  try { uid = localStorage.getItem('dribit.landing.uid'); } catch (e) { /* private mode */ }
+  if (!uid || !/^[A-Za-z0-9-]{8,64}$/.test(uid)) { uid = 'lp-' + id(); try { localStorage.setItem('dribit.landing.uid', uid); } catch (e) { /* ignore */ } }
+  var inApp = /musical_ly|BytedanceWebview|TikTok|trill/i.test(ua) ? 'tiktok' : /Instagram/i.test(ua) ? 'instagram' : /FBAN|FBAV/i.test(ua) ? 'facebook' : '';
+  var refIn = (p.get('r') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  var rh = ''; try { rh = document.referrer ? new URL(document.referrer).hostname : ''; } catch (e) { rh = 'referrer'; }
+  var source = (p.get('source') || p.get('utm_source') || (refIn.length >= 4 ? 'friend' : '') || inApp || rh || 'direct').replace(/[^\w.-]/g, '_').slice(0, 40);
+  var paid = /[?&](ttclid|utm_)/.test(q);
+  var props = {
+    distinct_id: uid, $current_url: location.href.split('#')[0], source: source, in_app: inApp || null, landing_version: 'landing-5',
+    platform: /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : 'other', paid: paid, referrer: document.referrer || null,
+    utm_campaign: p.get('utm_campaign') || null, utm_content: p.get('utm_content') || null, screen_h: window.innerHeight, $set_once: { first_source: source }
+  };
+  var now = new Date().toISOString(), cta = {};
+  for (var k in props) if (k !== '$set_once') cta[k] = props[k];
+  cta.cta = 'auto_open'; cta.seconds = 0;
+  var body = JSON.stringify({ api_key: KEY, batch: [
+    { uuid: id(), event: 'landing_view', properties: props, timestamp: now },
+    { uuid: id(), event: 'landing_cta', properties: cta, timestamp: now }
+  ] });
+  try {
+    if (!(navigator.sendBeacon && navigator.sendBeacon(HOST + '/batch/', new Blob([body], { type: 'text/plain' }))))
+      fetch(HOST + '/batch/', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: body, keepalive: true }).catch(function () {});
+  } catch (e) { /* the app still opens */ }
+  // the app reads ref (first_ref lp_... = came through dribit.app) and lp (this visit, so the app's events join it)
+  var to = APP + '?source=landing_auto&ref=' + encodeURIComponent(('lp_' + source).replace(/[^\w-]/g, '_').slice(0, 40)) + '&lp=' + encodeURIComponent(uid);
+  location.replace(to);
+  // if the phone did not move on in 4 seconds, show the page with its button
+  setTimeout(function () { document.documentElement.className = document.documentElement.className.replace(/\s*\bgo\b/, ''); }, 4000);
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#062E25">
 <title>דריבית (Dribit): חינוך פיננסי לחיילים</title>
@@ -119,6 +165,9 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
   h1 { font-size: 46px; }
 }
 @media (prefers-reduced-motion: reduce) { .cta { transition: none; } }
+/* landing-5: while the app opens, only the background and one line (the page shows itself after 4 seconds) */
+html.go .page, html.go dialog { visibility: hidden; }
+html.go body::after { content: 'פותחים את דריבית...'; position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--text); font-size: 18px; color: var(--cream-2); }
 </style>
 </head>
 <body>
@@ -169,7 +218,7 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
   var PREVIEW = !!window.LANDING_PREVIEW;
   // landing-4 (2.11.2026): one button straight into the app, no waiting list. landing-3 (1.11) had the waitlist form
   // under the button, landing-2.x was the long page with the stations.
-  var VERSION = 'landing-4';
+  var VERSION = /\bgo\b/.test(document.documentElement.className) ? 'landing-5' : 'landing-4';
   // the landing page is also served at https://dribit.app/ (a Cloudflare Worker, see landing/domain/); invite links keep whichever address the visitor is on
   var SITE = /(^|\.)dribit\.app$/.test(location.hostname) ? 'https://dribit.app/' : 'https://jonathanriahi.github.io/dribit/landing/';
   var UID_KEY = 'dribit.landing.uid', REF_KEY = 'dribit.landing.ref';
@@ -208,7 +257,9 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
       .then(function (r) { if (!r.ok) throw new Error('http-' + r.status); return r; });
   }
   function track(event, props, keepalive) { send(event, props, keepalive).catch(function () {}); }
-  track('landing_view', { $set_once: { first_source: source }, referrer: document.referrer || null, screen_h: window.innerHeight, fits: document.documentElement.scrollHeight <= window.innerHeight + 2 });
+  // landing-5 already sent landing_view from the head; this line counts only the page shown with ?stay=1 or after a failed open
+  var REDIRECTED = VERSION === 'landing-5';
+  if (!REDIRECTED) track('landing_view', { $set_once: { first_source: source }, referrer: document.referrer || null, screen_h: window.innerHeight, fits: document.documentElement.scrollHeight <= window.innerHeight + 2 });
 
   // app links keep where the visitor came from. Always with ref (lp_direct too), so the app's data can tell people who
   // came through dribit.app from friends who got the app link: first_ref starts with lp_ (tools/retention-report.js)
@@ -233,6 +284,8 @@ dialog .close { margin-top: 14px; width: 100%; height: 44px; border: 0; border-r
   // ---------- how the visit ended: tapped something? left after how long? ----------
   var tapped = false, left = false;
   function leave() {
+    // landing-5: the page hides because the app opened, not because the visitor left
+    if (REDIRECTED && /\bgo\b/.test(document.documentElement.className)) return;
     if (left) return; left = true;
     track('landing_leave', { seconds: secs(), tapped: tapped }, true);
   }
