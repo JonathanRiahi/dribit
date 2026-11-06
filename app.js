@@ -1611,6 +1611,44 @@
       '<p class="fine">קודם קרן חירום, ורק אז כסף שלא יידרש בשנים הקרובות.</p></section>';
   }
 
+  // the profile card (config.partner.profile, 0.25): the same offer trays as the comparison, folded. Locked until
+  // minXp points or one of orLessons is done, whichever comes first; locked shows no names and no links.
+  var acctSeen = '';
+  function acctUnlock() {
+    var C = CFG.partner && CFG.partner.profile;
+    if (!C) return null;
+    var ls = (C.orLessons || []).map(function (id) { return BY_ID[id]; }).filter(shown);
+    var open = S.xp >= (C.minXp || 0) || ls.some(function (l) { return isDone(l.id); });
+    return { open: open, lessons: ls, toGo: Math.max(0, (C.minXp || 0) - S.xp), level: levelIndex(C.minXp || 0) + 1 };
+  }
+  function accountCard() {
+    var P = CFG.partner, C = P && P.profile;
+    if (!C || !C.enabled) return '';
+    var ps = livePartners().filter(function (p) { return p.offer; });
+    if (!ps.length) return '';
+    var u = acctUnlock(), head = '<div class="sk-head"><h2>' + esc(C.title) + '</h2>' +
+      (u.open ? '' : '<span class="chip">' + ICON.lock + 'נעול</span>') + '</div>';
+    if (acctSeen !== (u.open ? 'open' : 'locked')) {
+      acctSeen = u.open ? 'open' : 'locked';
+      track('partner_profile_viewed', { open: u.open, partners: ps.length, to_go_band: u.open ? null : pointsBand(u.toGo) });
+    }
+    if (!u.open) {
+      var lsn = u.lessons[0], pct = Math.min(100, Math.round(S.xp / Math.max(1, C.minXp) * 100));
+      return '<div class="card acct-card locked">' + head + '<p class="fine">' + esc(C.lockedLead) + '</p>' +
+        '<span class="bar gold"><i style="width:' + pct + '%"></i></span>' +
+        '<p class="lock-note">' + ICON.lock + '<span>נפתח בשלב ' + u.level + ', עוד ' + plural(u.toGo, 'נקודה אחת', 'נקודות') + ' (' + lessonsToGo(u.toGo).replace(/\.$/, '') + ')' +
+          (lsn ? ', או מיד כשמסיימים את השיעור "' + esc(lsn.title) + '".' : '.') + '</span></p>' +
+        nextStepBtn('start') + '</div>';
+    }
+    return '<div class="card acct-card"><div class="compare on-done">' + head +
+      '<div class="eyebrow">' + esc(P.doneEyebrow || 'לא המלצה') + '</div>' +
+      '<p class="lead">' + esc(ps.length > 1 ? C.openLead : P.doneLead) + '</p>' +
+      '<span class="chip gold">' + esc(ps.length > 1 && P.paidLineMany ? P.paidLineMany : P.paidLine) + '</span>' +
+      ps.map(function (p) { return partnerOffer(p, p.optionId, 'profile', true); }).join('') +
+      '<p class="fine">' + esc(P.notRanking) + '</p>' +
+      '<button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">' + esc(C.compareLink || P.doneBack) + '</button></div></div>';
+  }
+
   function legalSheet() {
     openSheet('<h3>חשוב לדעת</h3>' +
       '<p class="lead">' + esc(CFG.appName) + ' מלמדת חינוך פיננסי כללי. זה לא ייעוץ השקעות ולא המלצה לפעולה מסוימת. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך.</p>' +
@@ -2896,7 +2934,7 @@
       '</div>' +
       '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">ימי למידה ב-7 הימים האחרונים: ' + learned7() + ' מתוך 7. הקו המקווקו הוא היעד היומי.' +
         (weekHasOff() ? ' עמודה כחולה עם מטרייה: יום חופש לרצף, לא יום למידה.' : '') + '</p></div>' +
-      inviteBar('profile') + pilotBar('profile') + calcCard() +
+      inviteBar('profile') + pilotBar('profile') + calcCard() + accountCard() +
       '<div class="card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +

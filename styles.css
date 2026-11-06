@@ -1576,3 +1576,12 @@ img { -webkit-user-drag: none; }
 @keyframes pt-down { 0%, 100% { transform: translateY(-6px); } 50% { transform: translateY(6px); } }
 @keyframes pt-up { 0%, 100% { transform: translateY(6px); } 50% { transform: translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .pt-arrow { animation: none; } }
+
+/* 0.25: the account card in the profile (config.partner.profile) */
+.acct-card .sk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.acct-card .sk-head h2 { margin: 0; }
+.acct-card .compare.on-done > .chip { align-self: flex-start; white-space: normal; line-height: 1.35; }
+.acct-card.locked { display: flex; flex-direction: column; gap: 10px; }
+.acct-card.locked .fine { margin: 0; }
+.acct-card.locked .lock-note { align-items: flex-start; }
+.acct-card.locked .lock-note svg { margin-top: 3px; }
