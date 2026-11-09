@@ -57,7 +57,7 @@ const FIRST_OPEN = `
     GROUP BY d ORDER BY d`));
 
   print('לפי יום: אפליקציה', ['day', 'app people IL (any open)', 'new app people IL', 'new IL via dribit.app (ref lp_)', 'new abroad', 'lesson started IL people', 'lesson completed IL people'], await hogql(`
-    SELECT d, a, coalesce(n.ni, 0), coalesce(n.nl, 0), coalesce(n.na, 0), ls, lc FROM
+    SELECT x.d, x.a, coalesce(n.ni, 0), coalesce(n.nl, 0), coalesce(n.na, 0), x.ls, x.lc FROM
       (SELECT toDate(${IL}) AS d,
           uniqIf(person_id, event = 'app_opened' AND ${CTRY} = 'IL') AS a,
           uniqIf(person_id, event = 'lesson_started' AND ${CTRY} = 'IL') AS ls,
@@ -69,10 +69,10 @@ const FIRST_OPEN = `
       (SELECT toDate(toTimeZone(t0, 'Asia/Jerusalem')) AS d, countIf(c = 'IL') AS ni,
           countIf(c = 'IL' AND startsWith(coalesce(ref, ''), 'lp_')) AS nl, countIf(c = 'abroad') AS na
         FROM (${FIRST_OPEN}) GROUP BY d) n ON x.d = n.d
-    ORDER BY d`));
+    ORDER BY x.d`));
 
   print(`לפי שעה (ישראל) מ-${HOURS_FROM}`, ['day', 'hour', 'dribit.app visitors IL', 'abroad', 'new app people IL', 'app people IL (any open)'], await hogql(`
-    SELECT d, h, v, ab, coalesce(n.ni, 0), a FROM
+    SELECT x.d, x.h, x.v, x.ab, coalesce(n.ni, 0), x.a FROM
       (SELECT toDate(${IL}) AS d, toHour(${IL}) AS h,
           uniqIf(distinct_id, event = 'landing_view' AND ${CTRY} = 'IL') AS v,
           uniqIf(distinct_id, event = 'landing_view' AND ${CTRY} = 'abroad') AS ab,
@@ -83,8 +83,8 @@ const FIRST_OPEN = `
     LEFT JOIN
       (SELECT toDate(toTimeZone(t0, 'Asia/Jerusalem')) AS d, toHour(toTimeZone(t0, 'Asia/Jerusalem')) AS h, countIf(c = 'IL') AS ni
         FROM (${FIRST_OPEN}) GROUP BY d, h) n ON x.d = n.d AND x.h = n.h
-    WHERE v > 0 OR ab > 0 OR a > 0
-    ORDER BY d, h`));
+    WHERE x.v > 0 OR x.ab > 0 OR x.a > 0
+    ORDER BY x.d, x.h`));
 
   print(`אנשים חדשים באפליקציה מ-${HOURS_FROM}: מאיפה`, ['day', 'country', 'source', 'ref', 'people'], await hogql(`
     SELECT toDate(toTimeZone(t0, 'Asia/Jerusalem')) AS d, c, src, ref, count()
