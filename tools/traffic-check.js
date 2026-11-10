@@ -95,4 +95,32 @@ const FIRST_OPEN = `
     SELECT toDate(${IL}) AS d, ${CTRY}, toString(properties.source), toString(properties.$referring_domain), toString(properties.in_app), uniq(distinct_id)
     FROM events WHERE event = 'landing_view' AND timestamp >= toDateTime('${HOURS_FROM} 00:00:00') - INTERVAL 3 HOUR
     GROUP BY d, 2, 3, 4, 5 ORDER BY d, 6 DESC`));
+  // where the new people stop: everyone whose first app open is after NEW_FROM (Israel time)
+  const NEW_FROM = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(process.env.NEW_FROM || '') ? process.env.NEW_FROM : '2026-11-09 19:00';
+  const NEWP = `SELECT person_id, c FROM (${FIRST_OPEN}) WHERE t0 >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem')`;
+  const PER = `
+    SELECT e.person_id AS pid, n.c AS c,
+      max(if(e.event = 'onboarding_done', 1, 0)) AS ob, max(if(e.event = 'lesson_started', 1, 0)) AS ls,
+      max(if(e.event = 'step_viewed', 1, 0)) AS sv, maxIf(toInt(e.properties.step_index), e.event = 'step_viewed') AS maxstep,
+      max(if(e.event = 'question_answered', 1, 0)) AS qa, max(if(e.event = 'lesson_completed', 1, 0)) AS lc,
+      dateDiff('second', min(e.timestamp), max(e.timestamp)) AS secs,
+      argMinIf(toString(e.properties.in_app), e.timestamp, e.event = 'app_opened') AS inapp,
+      argMinIf(toString(e.properties.$os), e.timestamp, e.event = 'app_opened') AS os,
+      count() AS nev
+    FROM events e INNER JOIN (${NEWP}) n ON e.person_id = n.person_id
+    WHERE e.timestamp >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem') - INTERVAL 1 HOUR
+    GROUP BY e.person_id, n.c`;
+  print(`אנשים חדשים מאז ${NEW_FROM}: איפה עוצרים`, ['country', 'people', 'onboarding_done (tapped start)', 'lesson_started', 'saw a lesson step', 'answered a question', 'lesson_completed'], await hogql(`
+    SELECT c, count(), sum(ob), sum(ls), sum(sv), sum(qa), sum(lc) FROM (${PER}) GROUP BY c ORDER BY c`));
+  print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): כמה זמן היו באפליקציה`, ['time from first to last event', 'people', 'tapped start'], await hogql(`
+    SELECT multiIf(secs < 5, '0-4s', secs < 15, '5-14s', secs < 60, '15-59s', secs < 300, '1-5m', '5m+') AS b, count(), sum(ob)
+    FROM (${PER}) WHERE c = 'IL' GROUP BY b ORDER BY b`));
+  print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): עד איזה צעד בשיעור`, ['max step index', 'people'], await hogql(`
+    SELECT if(sv = 0, 'no step', toString(maxstep)) AS k, count() FROM (${PER}) WHERE c = 'IL' GROUP BY k ORDER BY k`));
+  print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): דפדפן ומערכת`, ['in_app', 'os', 'people', 'tapped start', 'events (sum)'], await hogql(`
+    SELECT inapp, os, count(), sum(ob), sum(nev) FROM (${PER}) WHERE c = 'IL' GROUP BY inapp, os ORDER BY 3 DESC`));
+  print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): אילו אירועים שלחו`, ['event', 'people', 'count'], await hogql(`
+    SELECT e.event, uniq(e.person_id), count() FROM events e INNER JOIN (${NEWP}) n ON e.person_id = n.person_id
+    WHERE n.c = 'IL' AND e.timestamp >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem') - INTERVAL 1 HOUR
+    GROUP BY e.event ORDER BY 2 DESC LIMIT 30`));
 })().catch((e) => { console.error(String((e && e.message) || e)); process.exit(1); });

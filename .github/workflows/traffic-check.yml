@@ -15,6 +15,11 @@ on:
         type: string
         required: false
         default: ''
+      new_from:
+        description: 'New people from (YYYY-MM-DD HH:MM, Israel). Empty: 2026-11-09 19:00'
+        type: string
+        required: false
+        default: ''
   push:
     branches: ['claude/project-thread-lt0j6x']
     paths: ['tools/traffic-check.js', '.github/workflows/traffic-check.yml']
@@ -37,3 +42,4 @@ jobs:
           POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
           SINCE: ${{ inputs.since }}
           HOURS_FROM: ${{ inputs.hours_from }}
+          NEW_FROM: ${{ inputs.new_from }}
