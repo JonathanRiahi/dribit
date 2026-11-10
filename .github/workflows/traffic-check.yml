@@ -1,0 +1,45 @@
+# Traffic check: did a TikTok video change visits? dribit.app visitors and new app people per day and per hour. Counts only.
+# Actions > Traffic check > Run workflow. Same POSTHOG_API_KEY / POSTHOG_PROJECT_ID secrets as the other reports.
+name: Traffic check
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'Days from (YYYY-MM-DD). Empty: 2026-11-02'
+        type: string
+        required: false
+        default: ''
+      hours_from:
+        description: 'Hourly table from (YYYY-MM-DD). Empty: 2026-11-06'
+        type: string
+        required: false
+        default: ''
+      new_from:
+        description: 'New people from (YYYY-MM-DD HH:MM, Israel). Empty: 2026-11-09 19:00'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches: ['claude/project-thread-lt0j6x']
+    paths: ['tools/traffic-check.js', '.github/workflows/traffic-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/traffic-check.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          SINCE: ${{ inputs.since }}
+          HOURS_FROM: ${{ inputs.hours_from }}
+          NEW_FROM: ${{ inputs.new_from }}
