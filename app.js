@@ -135,6 +135,11 @@
   var IN_FRAME = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
   var IS_IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var IS_ANDROID = /android/i.test(navigator.userAgent);
+  // 0.26.1: which app's built-in browser opened us (TikTok sends most new people since 9.11)
+  var IN_APP = (function (ua) {
+    return /musical_ly|BytedanceWebview|TikTok|trill_/i.test(ua) ? 'tiktok' : /Instagram/i.test(ua) ? 'instagram'
+      : /FBAN|FBAV|FB_IAB/i.test(ua) ? 'facebook' : /WhatsApp/i.test(ua) ? 'whatsapp' : /Snapchat/i.test(ua) ? 'snapchat' : 'none';
+  })(navigator.userAgent || '');
   function isStandalone() {
     try { return !!(window.matchMedia('(display-mode: standalone)').matches || navigator.standalone); } catch (e) { return false; }
   }
@@ -893,7 +898,7 @@
     if (!S.share) return;
     var p = {
       distinct_id: S.uid, app_version: CFG.version, content_version: DATA ? DATA.version : null,
-      status: S.status, standalone: isStandalone(), platform: IS_IOS ? 'ios' : IS_ANDROID ? 'android' : 'other'
+      status: S.status, standalone: isStandalone(), platform: IS_IOS ? 'ios' : IS_ANDROID ? 'android' : 'other', in_app: IN_APP
     };
     for (var k in props || {}) p[k] = props[k];
     EQ.push({ uuid: uuid(), event: event, properties: p, timestamp: new Date().toISOString() });
@@ -1122,7 +1127,7 @@
     if (S.onboarded && view === 'lesson' && session) { root.innerHTML = renderPlayer(); afterPlayerRender(); return; }
     if (S.onboarded && view === 'done' && session) { root.innerHTML = renderDone(); return; }
     // 0.22: before the first finished lesson, one screen with one button; then the status question, once
-    if (!S.onboarded || !doneCount()) { root.innerHTML = renderStart(); return; }
+    if (!S.onboarded || !doneCount()) { root.innerHTML = renderStart(); startShown(); return; }
     if (!S.status) { root.innerHTML = renderStatusPick(); return; }
     if (view === 'notes' && notesId && BY_ID[notesId]) { root.innerHTML = renderNotes(BY_ID[notesId]); return; }
     var body = view === 'practice' ? renderPractice() : view === 'missions' && MISSIONS_ON ? renderMissions()
@@ -2981,9 +2986,30 @@
       '<button class="btn gold start-btn" data-act="first-lesson">' + ICON.play + (ip ? 'להמשיך את השיעור' : 'להתחיל את השיעור הראשון') + '</button>' +
       '<p class="fine center">' + esc(CFG.disclaimer) + '.</p></div>';
   }
+  // 0.26.1 (10.11): 42 of 46 new people from TikTok opened the app and never tapped start, and nothing tells us if they
+  // read the screen or left at once. These events say how long the first screen was in front of them.
+  var startAt = 0, startTaps = 0, startEnded = false;
+  function onStartScreen() { return startAt && !startEnded; }
+  function startSecs() { return Math.round((Date.now() - startAt) / 100) / 10; }
+  function startShown() {
+    if (startAt) return;
+    startAt = Date.now();
+    track('start_screen_shown', { returning: S.onboarded, ref: OPEN_REF, source: OPEN_SOURCE });
+    [3, 10, 30].forEach(function (sec) {
+      setTimeout(function () {
+        if (onStartScreen() && document.visibilityState !== 'hidden') { track('start_screen_still', { seconds: sec, taps: startTaps }); flush(); }
+      }, sec * 1000);
+    });
+  }
+  function startLeft(how) {
+    if (!onStartScreen()) return;
+    startEnded = true;
+    track('start_screen_left', { seconds: startSecs(), taps: startTaps, how: how });
+  }
   function beginFirst(from) {
     var l = currentLesson();
     if (!l) return;
+    if (onStartScreen()) { startEnded = true; track('start_screen_tapped', { seconds: startSecs(), taps: startTaps, from: from }); }
     if (!S.onboarded) {
       S.onboarded = true; save();
       track('onboarding_done', { flow: 'lesson_first', from: from, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: l.id, $set: { goal_xp: S.goalXp } });
@@ -4827,6 +4853,7 @@
   }
   function onHidden() {
     markHidden();
+    startLeft('hidden');
     if (view === 'lesson' && session) {
       clockStop();
       snapshot();
@@ -4840,6 +4867,8 @@
     return false;
   }
   function onShown() {
+    // back on the first screen after leaving it: count the time again from now
+    if (startEnded && startAt && view !== 'lesson' && (!S.onboarded || !doneCount())) { startEnded = false; startAt = 0; startShown(); }
     var away = hiddenAt ? Date.now() - hiddenAt : 0, byApp = outByApp;
     hiddenAt = 0; outByApp = false;
     if (away >= OPEN_AWAY_MS) {
@@ -4922,7 +4951,7 @@
     });
     document.addEventListener('keydown', onKey);
     document.addEventListener('visibilitychange', onVisibility);
-    document.addEventListener('pointerdown', function () { lastTouchAt = Date.now(); }, { capture: true, passive: true });
+    document.addEventListener('pointerdown', function () { lastTouchAt = Date.now(); if (onStartScreen()) startTaps++; }, { capture: true, passive: true });
     // no pinch zoom (Jonathan, 18.10): iPhone ignores user-scalable=no in the viewport, so the gesture is stopped here
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) {
       document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false });
@@ -4932,7 +4961,7 @@
       histReplace({ view: 'home' });
       window.addEventListener('popstate', onPop);
     }
-    window.addEventListener('pagehide', function () { markHidden(); if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
+    window.addEventListener('pagehide', function () { markHidden(); startLeft('pagehide'); if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('online', flush);
     setInterval(enTick, 1000); // 0.14: battery countdowns
