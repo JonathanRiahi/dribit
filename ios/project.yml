@@ -1,0 +1,40 @@
+# The iPhone app: a native shell around the live web app (the same site the Android app opens).
+# XcodeGen turns this file into Dribit.xcodeproj (the workflow runs `xcodegen generate`), so no Xcode project is kept in git.
+#
+# Everything that changes if the app is renamed or moved sits in the five settings right below.
+name: Dribit
+options:
+  bundleIdPrefix: com.dribit
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+settings:
+  base:
+    APP_BUNDLE_ID: com.dribit.app                 # the store identifier. Permanent once the app is created in App Store Connect
+    APP_DISPLAY_NAME: דריבית                      # the name under the icon
+    APP_HOST: jonathanriahi.github.io             # the only site the app may show (everything else opens outside)
+    APP_START_URL: "https://jonathanriahi.github.io/dribit/?source=ios"
+    APP_PATH_PREFIX: /dribit/                     # pages under this path stay in the app
+    MARKETING_VERSION: "1.0.0"                    # the version people see in the App Store
+    CURRENT_PROJECT_VERSION: "1"                  # the build number; the release workflow replaces it with the run number
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"                   # iPhone (on iPad it runs as an iPhone app)
+    DEVELOPMENT_TEAM: ""                          # the release workflow passes the team id from a repository secret
+targets:
+  Dribit:
+    type: application
+    platform: iOS
+    sources:
+      - path: Dribit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+        PRODUCT_NAME: Dribit
+        INFOPLIST_FILE: Dribit/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_BITCODE: NO
+        SWIFT_EMIT_LOC_STRINGS: NO

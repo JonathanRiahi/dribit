@@ -140,7 +140,18 @@
     return /musical_ly|BytedanceWebview|TikTok|trill_/i.test(ua) ? 'tiktok' : /Instagram/i.test(ua) ? 'instagram'
       : /FBAN|FBAV|FB_IAB/i.test(ua) ? 'facebook' : /WhatsApp/i.test(ua) ? 'whatsapp' : /Snapchat/i.test(ua) ? 'snapchat' : 'none';
   })(navigator.userAgent || '');
+  // 0.27: the iPhone app from the App Store shows this same site inside a native shell, which puts `DribitNative` in the
+  // page before our code runs (ios/Dribit/bridge.js in the repo). There the app counts as installed, the daily reminder
+  // is one the phone plans by itself (no server, no subscription), and right and wrong answers are felt as taps.
+  var NATIVE = (function () {
+    try { var n = window.DribitNative; return n && n.platform && typeof n.call === 'function' ? n : null; } catch (e) { return null; }
+  })();
+  var IS_NATIVE = !!NATIVE;
+  function nativeCall(cmd, args) {
+    try { return NATIVE.call(cmd, args || {}); } catch (e) { return Promise.reject(e); }
+  }
   function isStandalone() {
+    if (IS_NATIVE) return true;
     try { return !!(window.matchMedia('(display-mode: standalone)').matches || navigator.standalone); } catch (e) { return false; }
   }
 
@@ -900,6 +911,7 @@
       distinct_id: S.uid, app_version: CFG.version, content_version: DATA ? DATA.version : null,
       status: S.status, standalone: isStandalone(), platform: IS_IOS ? 'ios' : IS_ANDROID ? 'android' : 'other', in_app: IN_APP
     };
+    if (IS_NATIVE) { p.native = NATIVE.platform; p.native_version = NATIVE.appVersion; }
     for (var k in props || {}) p[k] = props[k];
     EQ.push({ uuid: uuid(), event: event, properties: p, timestamp: new Date().toISOString() });
     if (EQ.length > 600) EQ = EQ.slice(-600);
@@ -953,7 +965,14 @@
       o.start(t); o.stop(t + dur + 0.03);
     } catch (e) { /* no audio */ }
   }
-  function buzz(p) { try { if (S.sound && navigator.vibrate) navigator.vibrate(p); } catch (e) { /* ignore */ } }
+  // p: the vibration pattern (Android). kind: the matching tap in the iPhone app, where web pages cannot vibrate.
+  function buzz(p, kind) {
+    try {
+      if (!S.sound) return;
+      if (IS_NATIVE) nativeCall('haptic', { type: kind || 'light' }).catch(function () { /* ignore */ });
+      else if (navigator.vibrate) navigator.vibrate(p);
+    } catch (e) { /* ignore */ }
+  }
   var sfx = {
     tap: function () { note(640, 0, 0.05, 'sine', 0.05); },
     right: function (combo) {
@@ -961,9 +980,9 @@
       note(784 + up, 0, 0.1, 'triangle', 0.16);
       note(1175 + up, 0.08, 0.16, 'triangle', 0.15);
       note(2350 + up, 0.17, 0.12, 'sine', 0.05);
-      buzz(18);
+      buzz(18, 'light');
     },
-    wrong: function () { note(220, 0, 0.14, 'square', 0.05, 180); note(160, 0.12, 0.22, 'square', 0.05, 120); buzz([40, 30, 40]); },
+    wrong: function () { note(220, 0, 0.14, 'square', 0.05, 180); note(160, 0.12, 0.22, 'square', 0.05, 120); buzz([40, 30, 40], 'error'); },
     pair: function () { note(988, 0, 0.08, 'triangle', 0.12); note(1319, 0.06, 0.1, 'triangle', 0.1); },
     combo: function (n) {
       [523, 659, 784, 1047, 1319, 1568].slice(0, Math.min(6, 2 + Math.floor(n / 2))).forEach(function (f, i) { note(f, i * 0.07, 0.13, 'square', 0.045); });
@@ -972,12 +991,12 @@
     done: function () {
       [[523, 0], [659, 0.12], [784, 0.24], [1047, 0.36]].forEach(function (x) { note(x[0], x[1], 0.24, 'triangle', 0.15); });
       [1047, 1319, 1568].forEach(function (f) { note(f, 0.5, 0.6, 'sine', 0.05); });
-      buzz([30, 40, 30]);
+      buzz([30, 40, 30], 'success');
     },
     level: function () {
       [523, 659, 784, 1047, 784, 1047, 1319, 1568].forEach(function (f, i) { note(f, i * 0.09, 0.2, 'triangle', 0.14); });
       [1047, 1319, 1568, 2093].forEach(function (f) { note(f, 0.8, 1, 'sine', 0.05); });
-      buzz([40, 50, 40, 50, 90]);
+      buzz([40, 50, 40, 50, 90], 'success');
     },
     streak: function () { note(300, 0, 0.35, 'sawtooth', 0.035, 900); note(900, 0.3, 0.3, 'triangle', 0.1, 1300); }
   };
@@ -1266,8 +1285,10 @@
         (o.ready ? 'ויום אחד גם לך, על השיתוף' : o.full ? tail : 'יום החופש הבא שלך על שיתוף: ' + (o.wait === 1 ? 'מחר' : 'בעוד ' + o.wait + ' ימים'))) +
       '</span>' + ICON.chevron + '</button>';
   }
+  // the "trial version" strip. Not in the App Store app: the store takes finished apps only, so there it is the plain feedback card
+  var PILOT = !!CFG.pilot && !IS_NATIVE;
   function pilotBar(ctx) {
-    return CFG.pilot ? '<button class="pilot-bar" data-act="feedback" data-ctx="' + ctx + '">' + ICON.chat + '<span><b>גרסת ניסיון.</b> ספרו לנו מה לשפר</span>' + ICON.chevron + '</button>' : '';
+    return PILOT ? '<button class="pilot-bar" data-act="feedback" data-ctx="' + ctx + '">' + ICON.chat + '<span><b>גרסת ניסיון.</b> ספרו לנו מה לשפר</span>' + ICON.chevron + '</button>' : '';
   }
 
   function renderPath() {
@@ -1943,7 +1964,7 @@
     if (opened[1]) gets += '<li><span class="lu-ic t-' + opened[1].id + '">' + toolIcon(opened[1].id) + '</span>' + esc(toolShort(opened[1].id)) + '</li>';
     colors.slice().reverse().forEach(function (c) { gets += '<li><span class="lu-ic">' + skinSw(c.id, '', 22) + '</span>צבע ' + esc(skinName(c.id)) + '</li>'; });
     if (g && g.added) gets += '<li><span class="lu-ic off">' + ICON.dayoff + '</span>' + (g.added > 1 ? g.added + ' ימי חופש לרצף' : 'יום חופש לרצף') + '</li>';
-    buzz(t || sk ? [30, 40, 70] : 30);
+    buzz(t || sk ? [30, 40, 70] : 30, 'success');
     openSheet('<div class="level-up clean"><div class="lvl-coin">' + ICON.star + '</div>' +
       '<h3>עלית לשלב ' + r.n + '!</h3>' +
       '<p class="fine">' + (r.last ? 'זה השלב האחרון. כל הכבוד.' : 'שלב ' + r.n + ' מתוך ' + r.total) + '</p>' +
@@ -2522,10 +2543,16 @@
       if (toolList().length) { props.next_tool = ntl ? ntl.id : null; props.to_next_band = ntl ? pointsBand(toolPointsTo(ntl)) : null; }
       if (skinList().length) { var nsl = nextSkin(); props.next_skin = nsl ? nsl.id : null; }
       track('lesson_completed', props);
+      if (IS_NATIVE && s.firstTime && (doneCount() === 3 || doneCount() === 12)) {
+        // the App Store's own "rate this app" question, at a good moment (iOS decides whether to show it, at most 3 a year)
+        track('review_asked', { lessons_done: doneCount() });
+        setTimeout(function () { if (view === 'done') nativeCall('review.request').catch(function () { /* ignore */ }); }, 2600);
+      }
     } else if (s.mode === 'repair') {
       props.passed = s.passed;
       track('repair_completed', props);
     } else track('practice_completed', props);
+    nativeReminderPlan();
     sfx.done();
     setView('done');
     confetti(s.perfect || s.levelUp);
@@ -2945,7 +2972,7 @@
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
       (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
-      (CFG.pilot ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
+      (PILOT ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
         (CFG.about ? '<button class="btn ghost" data-act="about" data-from="profile">' + esc(CFG.about.title) + '</button>' : '') +
         '<div class="toggle-row"><span id="share-l">שיתוף נתוני שימוש אנונימיים</span><button class="switch" role="switch" aria-labelledby="share-l" aria-checked="' + S.share + '" data-act="share"></button></div>' +
@@ -3083,6 +3110,7 @@
   // 'on' | 'off' | 'install' (iPhone outside the installed app) | 'denied' (blocked in the browser) | 'unsupported'
   function pushState() {
     if (S.reminder && S.reminder.on) return 'on';
+    if (IS_NATIVE) return !RCFG.enabled || !(RCFG.messages || []).length ? 'unsupported' : nativePerm === 'denied' ? 'denied' : 'off';
     if (!RCFG.enabled || !RCFG.vapidPublicKey || IN_FRAME) return 'unsupported';
     if (IS_IOS && !isStandalone()) return 'install';
     if (!pushSupported()) return 'unsupported';
@@ -3133,6 +3161,7 @@
   // withShare: the profile switch also turns usage-data sharing on (the sender finds subscriptions there), but only
   // once the reminder is actually on
   function enableReminder(from, withShare) {
+    if (IS_NATIVE) { nativeReminderOn(from); return; }
     var st = pushState();
     if (st === 'install') { pointerSheet(); return; }
     if (st === 'denied') { toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות הדפדפן', '', 2600); return; }
@@ -3171,6 +3200,14 @@
   }
   function disableReminder(reason) {
     if (reason === 'user' || reason === 'analytics_off') notifNo('off'); // someone who turned it off is not asked again
+    if (IS_NATIVE) {
+      S.reminder = null;
+      save();
+      track('native_reminder_off', { reason: reason, $set: { reminders: false } });
+      flush();
+      nativeCall('notifications.cancel').catch(function () { /* ignore */ });
+      return;
+    }
     var endpoint = S.reminder && S.reminder.endpoint;
     S.reminder = null;
     save();
@@ -3183,6 +3220,7 @@
   }
   // on open: keep the saved subscription in step with the browser (renewed endpoint, permission taken away)
   function syncPush() {
+    if (IS_NATIVE) { nativeReminderSync(); return; }
     if (!S.reminder || !S.reminder.on || !pushSupported()) return;
     if (Notification.permission !== 'granted') { disableReminder('permission'); return; }
     swReady().then(function (reg) {
@@ -3191,6 +3229,75 @@
       if (sub.endpoint !== S.reminder.endpoint) saveSubscription(sub, 'renew'); else metaPut('uid', S.uid);
     }).catch(function () { /* keep the saved state */ });
   }
+  // ---------- Daily reminder in the iPhone app (0.27) ----------
+  // The phone itself shows the reminder, so there is no subscription and no sender. Each time the app opens, comes back
+  // to the front or a lesson ends, the evenings of the next two weeks are handed to the phone, without today once
+  // today's lesson is done. Someone who stays away longer than that stops hearing from us. Works with usage sharing off.
+  var nativePerm = 'default'; // 'granted' | 'denied' | 'default' (not asked yet), read from the phone at every open
+  function nativeReminderItems() {
+    var out = [], now = Date.now(), d0 = new Date(), msgs = RCFG.messages || [], doneToday = S.lastDay === dayKey();
+    for (var i = 0; i < 14 && msgs.length; i++) {
+      var d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + i, RCFG.hour, 0, 0, 0);
+      if (d.getTime() < now + 60000 || (i === 0 && doneToday)) continue;
+      out.push({ id: 'daily-' + dayKey(d), kind: 'daily', at: d.getTime(), title: CFG.appName, body: msgs[d.getDay() % msgs.length] });
+    }
+    return out;
+  }
+  function nativeReminderPlan() {
+    if (!IS_NATIVE || !S.reminder || !S.reminder.on) return;
+    nativeCall('notifications.schedule', { items: nativeReminderItems() }).catch(function () { /* ignore */ });
+  }
+  function nativeReminderOn(from) {
+    if (pushBusy || pushState() === 'on' || pushState() === 'unsupported') return;
+    pushBusy = true;
+    clearTimeout(askTimer);
+    track('push_asked', { from: from, native: true });
+    nativeCall('notifications.request').then(function (r) {
+      pushBusy = false;
+      nativePerm = (r && r.permission) || 'denied';
+      if (nativePerm !== 'granted') {
+        track('push_denied', { from: from, permission: nativePerm, native: true });
+        render();
+        toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות האייפון', '', 2600);
+        return;
+      }
+      S.reminder = { on: true, native: true, hour: RCFG.hour, since: dayKey() };
+      S.reminderNo = null;
+      save();
+      notifNo(null);
+      track('native_reminder_on', { hour: RCFG.hour, from: from, $set: { reminders: true } });
+      flush();
+      nativeReminderPlan();
+      render();
+      var nb = document.querySelector('#sheet [data-act="popup-reminder-on"]');
+      if (nb) nb.outerHTML = '<p class="nudge">' + ICON.check + '<span>התראות דלוקות</span></p>';
+      toast(ICON.bell + '<b>סגור.</b> תזכורת כל ערב, החל מ-' + hourLabel(), 'info', 2600);
+    }).catch(function (e) {
+      pushBusy = false;
+      track('push_failed', { from: from, native: true, error: String((e && e.message) || e).slice(0, 60) });
+      toast(ICON.bell + '<b>לא הצלחתי להפעיל תזכורת</b>', '', 2600);
+    });
+  }
+  // a tap on a reminder brought the person in (asked once per tap: the phone hands it over and forgets it)
+  function nativeReminderTapped() {
+    nativeCall('launch.info').then(function (r) {
+      if (r && r.notification) track('push_clicked', { app_open: true, kind: r.notification.kind || 'daily', native: true });
+    }).catch(function () { /* ignore */ });
+  }
+  // at every open and return: the permission may have changed in the phone's settings, and the plan moves a day on
+  function nativeReminderSync() {
+    var calm = function () { return (view === 'home' || view === 'profile') && !sheetOpen; }; // screens that show the reminder state
+    nativeCall('notifications.status').then(function (r) {
+      var was = nativePerm;
+      nativePerm = (r && r.permission) || 'default';
+      if (S.reminder && S.reminder.on) {
+        if (nativePerm !== 'granted') { disableReminder('permission'); if (calm()) render(); }
+        else nativeReminderPlan();
+      } else if (was !== nativePerm && calm()) render();
+    }).catch(function () { /* ignore */ });
+    nativeReminderTapped();
+  }
+
   // Two popups over home (Jonathan, 18.10 and 19.10), at most one per open (a fresh load, or a return after
   // OPEN_AWAY_MS away), a moment after home appears and after the last touch (so it does not slide up under a finger):
   // 1. "add to the home screen": on a phone, outside the installed app, at every open, until the app runs from the
@@ -3230,7 +3337,8 @@
     return IS_IOS ? 'ios' : deferredInstall ? 'prompt' : 'steps';
   }
   function notifAskState() {
-    if (!RCFG.askEveryOpen || !S.onboarded || !S.status || (!doneCount() && !isStandalone()) || pushBusy || notifRefused()) return null;
+    // the App Store app asks after the first lesson, like a browser (a permission question on the first screen gets a "no")
+    if (!RCFG.askEveryOpen || !S.onboarded || !S.status || (!doneCount() && (!isStandalone() || IS_NATIVE)) || pushBusy || notifRefused()) return null;
     var st = pushState();
     if (st === 'off') return 'off';
     return st === 'install' && !INSTALL.askEveryOpen ? 'install' : null; // iPhone in Safari: the install popup asks instead
@@ -3282,14 +3390,14 @@
       ? '<h3>תזכורת יומית באייפון</h3><p class="lead">באייפון התראות עובדות רק מהאפליקציה שבמסך הבית. מוסיפים אותה פעם אחת, ושם מדליקים תזכורת.</p>' +
         '<button class="btn gold" data-act="install" data-placement="popup">איך מתקינים</button>'
       : '<h3>להדליק התראות?</h3><p class="lead">הודעה קצרה אחת בערב, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר.</p>' +
-        (S.share ? '' : '<p class="fine">התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.</p>') +
+        (S.share || IS_NATIVE ? '' : '<p class="fine">התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.</p>') +
         '<button class="btn gold" data-act="popup-reminder-on">' + ICON.bell + 'להדליק התראות</button>') +
       '<button class="btn text" data-act="popup-later">לא עכשיו</button>');
   }
 
   // the home card: after the first finished lesson, until it is turned on or declined twice (a week apart)
   function reminderCardState() {
-    if (!doneCount() || !S.share) return null;
+    if (!doneCount() || (!S.share && !IS_NATIVE)) return null;
     var st = pushState();
     if (st !== 'off' && !(st === 'install' && S.installHidden)) return null;
     var no = S.reminderNo;
@@ -3301,13 +3409,14 @@
     if (st === 'unsupported') return '';
     var daily = 'הודעה אחת בערב, החל מ-' + hourLabel() + ', רק אם עוד לא עשית שיעור באותו יום.';
     var note = st === 'install' ? 'באייפון זה עובד רק מהאפליקציה המותקנת במסך הבית.'
-      : st === 'denied' ? 'ההתראות חסומות. מאפשרים אותן בהגדרות הדפדפן או הטלפון ופותחים שוב.'
-      : (st === 'off' && !S.share) ? daily + ' התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.'
+      : st === 'denied' ? (IS_NATIVE ? 'ההתראות חסומות. מאפשרים אותן בהגדרות האייפון, תחת ' + esc(CFG.appName) + ', וחוזרים לכאן.' : 'ההתראות חסומות. מאפשרים אותן בהגדרות הדפדפן או הטלפון ופותחים שוב.')
+      : (st === 'off' && !S.share && !IS_NATIVE) ? daily + ' התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.'
       : daily;
     var ctrl = (st === 'on' || st === 'off')
       ? '<button class="switch" role="switch" aria-labelledby="rem-l" aria-checked="' + (st === 'on') + '" data-act="reminder-toggle"></button>' : '';
     return '<div class="card"><div class="toggle-row"><h2 id="rem-l">תזכורת יומית</h2>' + ctrl + '</div><p class="fine">' + note + '</p>' +
-      (st === 'install' ? '<button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button>' : '') + '</div>';
+      (st === 'install' ? '<button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button>' : '') +
+      (st === 'denied' && IS_NATIVE ? '<button class="btn ghost" data-act="native-settings">לפתוח את ההגדרות</button>' : '') + '</div>';
   }
 
   // ---------- Install and updates ----------
@@ -3732,7 +3841,7 @@
     if (id !== 'forest' && S.skins.seen.indexOf(id) < 0) S.skins.seen.push(id);
     S.skins.id = id; save();
     if (id === prev) return false;
-    applySkin(true); sfx.pair(); buzz(15);
+    applySkin(true); sfx.pair(); buzz(15, 'selection');
     track('skin_set', { skin_id: id, prev: prev, from: from, level: levelInfo(S.xp).n, skins_open: skinsOpenCount(), $set: { skin: id } });
     return true;
   }
@@ -4664,7 +4773,11 @@
       }
       case 'sound': S.sound = !S.sound; save(); render(); if (S.sound) sfx.right(0); break;
       case 'share':
-        if (S.share) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); else notifNo('share_off'); track('analytics_off', {}); flush(); }
+        if (S.share) {
+          // the web reminder is found through the usage data, so it goes off with it; the iPhone app's own reminder stays
+          if (!IS_NATIVE) { if (S.reminder && S.reminder.on) disableReminder('analytics_off'); else notifNo('share_off'); }
+          track('analytics_off', {}); flush();
+        }
         else if (notifNoWhy() === 'share_off') notifNo(null); // sharing back on: the popup may ask again
         S.share = !S.share; save(); render();
         break;
@@ -4698,6 +4811,7 @@
         S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() };
         save(); track('push_declined', { count: S.reminderNo.count }); render();
         break;
+      case 'native-settings': nativeCall('settings.open').catch(function () { /* ignore */ }); break;
       case 'reminder-toggle':
         if (pushState() === 'on') { disableReminder('user'); render(); toast(ICON.bell + '<b>התזכורת כבויה</b>', '', 1800); }
         else enableReminder('profile', true);
@@ -4966,6 +5080,10 @@
     window.addEventListener('online', flush);
     setInterval(enTick, 1000); // 0.14: battery countdowns
     window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredInstall = e; });
+    if (IS_NATIVE) {
+      window.addEventListener('dribitnative', function (e) { if (e.detail && e.detail.type === 'notification_open') nativeReminderTapped(); });
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') nativeReminderSync(); });
+    }
     window.addEventListener('appinstalled', function () { track('app_installed', { method: 'appinstalled' }); S.installHidden = true; S.installSeen = true; save(); if (view === 'home') render(); });
     // iOS starts audio only from a touch
     document.addEventListener('touchstart', function unlock() { if (S.sound) audio(); document.removeEventListener('touchstart', unlock); }, { passive: true });
@@ -4973,7 +5091,7 @@
     // iPhone has no appinstalled event: the first open from the home-screen icon is the install
     if (isStandalone() && !S.installSeen) {
       S.installSeen = true; S.installHidden = true; save();
-      track('app_installed', { method: IS_IOS ? 'ios_first_standalone_open' : 'first_standalone_open', imported: !!S.importedAt });
+      track('app_installed', { method: IS_NATIVE ? 'ios_app_store' : IS_IOS ? 'ios_first_standalone_open' : 'first_standalone_open', imported: !!S.importedAt });
     }
     if (OPEN_REF && !S.ref) { S.ref = OPEN_REF; save(); }
     // a friend's invite link on a fresh device: the gift waits for the first lesson (nothing for someone with progress)
