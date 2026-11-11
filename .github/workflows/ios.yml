@@ -92,16 +92,25 @@ jobs:
           set -x
           APP=ios/build/Build/Products/Debug-iphonesimulator/Dribit.app
           xcrun simctl install "$DEVICE" "$APP"
+          # The build machine is sometimes slow, so nothing here counts seconds: each picture waits until the app
+          # has written the given words to its log (up to a minute), and then a moment more for the screen to settle.
+          logged() {
+            for try in $(seq 1 60); do
+              if grep -a -q "$2" "logs/$1.log" 2>/dev/null; then sleep "${3:-2}"; return 0; fi
+              sleep 1
+            done
+            echo "::warning::$1: \"$2\" was not written within a minute"
+          }
 
           # 1. a normal first open, with the bridge check running inside the page
           xcrun simctl launch --stderr="$PWD/logs/run1.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/check.js)"
           sleep 1;  xcrun simctl io "$DEVICE" screenshot shots/01-opening.png
-          sleep 24; xcrun simctl io "$DEVICE" screenshot shots/02-first-screen.png
+          logged run1 "DRIBIT-TEST done = true"; xcrun simctl io "$DEVICE" screenshot shots/02-first-screen.png
 
           # 2. a second open: what was saved on the phone is still there, and the offline copy is in place
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl launch --stderr="$PWD/logs/run2.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/check.js)"
-          sleep 16; xcrun simctl io "$DEVICE" screenshot shots/03-second-open.png
+          logged run2 "DRIBIT-TEST done = true"; xcrun simctl io "$DEVICE" screenshot shots/03-second-open.png
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl uninstall "$DEVICE" com.dribit.app
 
@@ -124,6 +133,13 @@ jobs:
             done
             echo "::error::The local copy of the site did not start"; tail -n 20 logs/server.log; return 1
           }
+          logged() {
+            for try in $(seq 1 60); do
+              if grep -a -q "$2" "logs/$1.log" 2>/dev/null; then sleep "${3:-2}"; return 0; fi
+              sleep 1
+            done
+            echo "::warning::$1: \"$2\" was not written within a minute"
+          }
           serve
           curl -sf http://localhost:8765/config.js | grep -m1 "version:"
           APP=ios/build-local/Build/Products/Debug-iphonesimulator/Dribit.app
@@ -132,23 +148,23 @@ jobs:
           # 3. the reminder is on (a quiet permission, given with no question, stands in for the tap on "Allow"):
           #    the next evenings must really be planned on the phone
           xcrun simctl launch --stderr="$PWD/logs/run3.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='reminder'; $(cat ios/tests/seed.js)"
-          sleep 18; xcrun simctl io "$DEVICE" screenshot shots/04-home.png
+          logged run3 "DRIBIT-TEST seed reminder = saved" 8; xcrun simctl io "$DEVICE" screenshot shots/04-home.png
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl launch --stderr="$PWD/logs/run4.log" "$DEVICE" com.dribit.app -dribitJS "window.__tap='nav [data-to=\"profile\"]'; $(cat ios/tests/after.js)"
-          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/05-profile.png
+          logged run4 "DRIBIT-TEST app done = true" 3; xcrun simctl io "$DEVICE" screenshot shots/05-profile.png
 
           # 4. the site cannot be reached, and the app was opened before: it opens from the copy kept on the phone
           xcrun simctl terminate "$DEVICE" com.dribit.app
           kill "$SERVER"; wait "$SERVER" 2>/dev/null || true
           xcrun simctl launch --stderr="$PWD/logs/run5.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/after.js)"
-          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/06-open-without-connection.png
+          logged run5 "DRIBIT-TEST app done = true"; xcrun simctl io "$DEVICE" screenshot shots/06-open-without-connection.png
 
           # 5. the site cannot be reached, and the app was never opened: the app's own "no connection" screen
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl uninstall "$DEVICE" com.dribit.app
           xcrun simctl install "$DEVICE" "$APP"
           xcrun simctl launch --stderr="$PWD/logs/run6.log" "$DEVICE" com.dribit.app
-          sleep 10; xcrun simctl io "$DEVICE" screenshot shots/07-no-connection.png
+          logged run6 "DRIBIT-APP no connection screen"; xcrun simctl io "$DEVICE" screenshot shots/07-no-connection.png
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl uninstall "$DEVICE" com.dribit.app
 
@@ -156,14 +172,14 @@ jobs:
           serve
           xcrun simctl install "$DEVICE" "$APP"
           xcrun simctl launch --stderr="$PWD/logs/run7.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='ask'; $(cat ios/tests/seed.js)"
-          sleep 18; xcrun simctl io "$DEVICE" screenshot shots/08-reminder-offer.png
+          logged run7 "DRIBIT-TEST seed ask = saved" 10; xcrun simctl io "$DEVICE" screenshot shots/08-reminder-offer.png
           curl -s -o /dev/null -w "The local copy of the site, asked from this machine: %{http_code} in %{time_total}s\n" http://localhost:8765/config.js || true
 
           # 7. the next open: the same offer, and a tap on its button brings the phone's own question.
           #    Last, because the phone's question stays on the simulator's screen after the app is closed.
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl launch --stderr="$PWD/logs/run8.log" "$DEVICE" com.dribit.app -dribitJS "window.__tap='#sheet [data-act=\"popup-reminder-on\"]'; $(cat ios/tests/after.js)"
-          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/09-reminder-question.png
+          logged run8 "DRIBIT-TEST app done = true" 4; xcrun simctl io "$DEVICE" screenshot shots/09-reminder-question.png
           xcrun simctl terminate "$DEVICE" com.dribit.app
 
           set +x

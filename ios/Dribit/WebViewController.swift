@@ -162,6 +162,7 @@ final class WebViewController: UIViewController {
     }
 
     private func showOffline() {
+        patience?.cancel()
         guard offline == nil else { return }
         note("no connection screen")
         let panel = OfflineView()
