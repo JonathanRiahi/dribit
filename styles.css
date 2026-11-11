@@ -1585,3 +1585,59 @@ img { -webkit-user-drag: none; }
 .acct-card.locked .fine { margin: 0; }
 .acct-card.locked .lock-note { align-items: flex-start; }
 .acct-card.locked .lock-note svg { margin-top: 3px; }
+
+/* ---------- 0.28: the first-time walkthrough (a grey backdrop with a lit hole over one element, and a bubble) ---------- */
+#tour { position: fixed; inset: 0; z-index: 26; touch-action: none; opacity: 0; transition: opacity .25s ease; --tour-scrim: rgba(16, 24, 22, .68); }
+#tour.on { opacity: 1; }
+#tour.out { opacity: 0; transition-duration: .22s; }
+.tour-hole {
+  position: fixed; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; border-radius: 20px;
+  box-shadow: 0 0 0 200vmax var(--tour-scrim);
+  transition: left .38s cubic-bezier(.3, .9, .3, 1), top .38s cubic-bezier(.3, .9, .3, 1), width .38s cubic-bezier(.3, .9, .3, 1),
+    height .38s cubic-bezier(.3, .9, .3, 1), border-radius .38s ease;
+}
+.tour-hole::after {
+  content: ''; position: absolute; inset: -3px; border-radius: inherit; border: 2.5px solid var(--gold);
+  box-shadow: 0 0 0 0 rgba(242, 182, 48, .45); animation: tour-ring 1.8s ease-out infinite;
+}
+@keyframes tour-ring {
+  0% { box-shadow: 0 0 0 0 rgba(242, 182, 48, .5); }
+  70% { box-shadow: 0 0 0 12px rgba(242, 182, 48, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(242, 182, 48, 0); }
+}
+.tour-tip {
+  position: fixed; left: 16px; right: 16px; top: 50%; max-width: 380px; margin: 0 auto; box-sizing: border-box;
+  padding: 14px 18px 16px; border-radius: 22px; background: var(--surface); color: var(--ink);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .32), 0 2px 6px rgba(0, 0, 0, .12);
+  transition: top .38s cubic-bezier(.3, .9, .3, 1); direction: rtl; text-align: right;
+}
+.tour-tip:focus { outline: none; }
+.tour-tip::before {
+  content: ''; position: absolute; left: calc(var(--ax, 50%) - 8px); top: -7px; width: 16px; height: 16px;
+  background: inherit; border-radius: 3px; transform: rotate(45deg);
+}
+.tour-tip:not(.below)::before { top: auto; bottom: -7px; }
+.tour-tip.in > * { animation: tour-in .32s cubic-bezier(.2, .9, .3, 1) both; }
+.tour-tip.in > h3 { animation-delay: .03s; }
+.tour-tip.in > p { animation-delay: .06s; }
+.tour-tip.in > .btn { animation-delay: .09s; }
+@keyframes tour-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.tt-top { display: flex; align-items: center; justify-content: space-between; min-height: 28px; margin-bottom: 4px; }
+.tt-dots { display: flex; gap: 5px; align-items: center; }
+.tt-dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--line); transition: width .3s ease, background .3s ease; }
+.tt-dots i.past { background: var(--brand-soft); }
+.tt-dots i.on { width: 20px; background: var(--brand); }
+.tt-skip { border: 0; background: none; padding: 6px 2px 6px 8px; font: inherit; font-size: 15px; font-weight: 600; color: var(--ink-3); cursor: pointer; }
+.tour-tip h3 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 1.25; color: var(--ink); }
+.tour-tip p { margin: 0; font-size: 16.5px; line-height: 1.5; color: var(--ink-2); }
+.tour-tip .tt-next { margin-top: 14px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #tour { --tour-scrim: rgba(0, 0, 0, .72); }
+  :root:not([data-theme="light"]) .tour-tip { background: var(--surface-2); }
+}
+:root[data-theme="dark"] #tour { --tour-scrim: rgba(0, 0, 0, .72); }
+:root[data-theme="dark"] .tour-tip { background: var(--surface-2); }
+@media (prefers-reduced-motion: reduce) {
+  #tour, .tour-hole, .tour-tip { transition: none; }
+  .tour-hole::after, .tour-tip.in > * { animation: none; }
+}

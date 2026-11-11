@@ -26,6 +26,7 @@
   var WISH_IDS = ['studies', 'training', 'driving', 'business', 'marriage', 'home', 'rent', 'car', 'trip', 'other'];
   var GOAL_IDS = ['studies', 'training', 'driving', 'business', 'marriage', 'home', 'wait5', 'unsure'];
   var STORE_KEY = 'dribit.progress.v1';
+  var TOUR_IDS = ['home', 'practice', 'tools', 'profile'];
   var QUEUE_KEY = 'dribit.events.v1';
   var HEB_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו'];
   var RESUME_DAYS = 14;
@@ -195,14 +196,16 @@
       // next day; null = open now, for people who finished lessons before 0.13), done = check id -> the day it was done
       checks: { start: null, done: {} },
       // 0.14 battery (config.energy): bars at the time `at` (ms), and whether the one-time note was shown. Never in transfer codes.
-      energy: { n: EN.max > 0 ? Math.floor(EN.max) : 5, at: 0, seen: false }
+      energy: { n: EN.max > 0 ? Math.floor(EN.max) : 5, at: 0, seen: false },
+      // 0.28 the first-time walkthrough (Jonathan, 11.11): each screen explained once, the first time it is opened after lesson 1
+      tour: { home: false, practice: false, tools: false, profile: false }
     };
   }
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
   // the open lesson or the event queue.
   var TRANSFER_KEYS = ['v', 'uid', 'status', 'startUnit', 'goalXp', 'sound', 'share', 'firstDay', 'contentV', 'xp', 'streak',
     'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent', 'amount', 'ref', 'calc',
-    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools', 'skins', 'checks'];
+    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools', 'skins', 'checks', 'tour'];
   function migrate(s) {
     // before 0.9 there were no days off: checked before the defaults below fill offLevel in
     var needsOff = !('offLevel' in s);
@@ -210,10 +213,13 @@
     var needsTools = !('tools' in s);
     // before 0.12 there were no colors: someone with points meets them once in an intro sheet
     var needsSkins = !('skins' in s);
+    // before 0.28 there was no walkthrough: someone who already finished a lesson knows the screens
+    var needsTour = !('tour' in s);
     var base = freshState();
     for (var k in base) if (!(k in s)) s[k] = base[k];
     if (needsTools) s.tools.introSeen = !(+s.xp > 0);
     if (needsSkins) s.skins = { id: 'forest', seen: [], introSeen: !(+s.xp > 0) };
+    if (needsTour) { var known = +s.xp > 0; s.tour = { home: known, practice: known, tools: known, profile: known }; }
     if (s.actions) { // v1 kept a single checkbox per lesson
       Object.keys(s.actions).forEach(function (id) { if (s.actions[id]) s.missions[id] = { steps: [], done: true }; });
       delete s.actions;
@@ -287,6 +293,9 @@
     s.checks = isRec(s.checks) ? { start: isDayKey(s.checks.start) ? s.checks.start : null,
       done: cleanMap(s.checks.done, function (v) { return isDayKey(v) ? v : null; }) } : { start: null, done: {} };
     var en = isRec(s.energy) ? s.energy : {}, enCap = EN.max > 0 ? Math.floor(EN.max) : 5;
+    var tr = isRec(s.tour) ? s.tour : {};
+    s.tour = {};
+    TOUR_IDS.forEach(function (k) { s.tour[k] = tr[k] === true; });
     s.energy = { n: typeof en.n === 'number' && isFinite(en.n) ? Math.max(0, Math.min(enCap, Math.floor(en.n))) : enCap,
       at: num0(en.at) <= Date.now() + 864e5 ? num0(en.at) : 0, seen: en.seen === true };
   }
@@ -1143,6 +1152,7 @@
   }
 
   function render() {
+    if (tour && TOUR_IDS.indexOf(view) < 0) tourEnd('left');
     if (S.onboarded && view === 'lesson' && session) { root.innerHTML = renderPlayer(); afterPlayerRender(); return; }
     if (S.onboarded && view === 'done' && session) { root.innerHTML = renderDone(); return; }
     // 0.22: before the first finished lesson, one screen with one button; then the status question, once
@@ -1154,6 +1164,7 @@
     root.innerHTML = renderTopbar() + '<main class="screen gutter">' + body + '</main>' + renderLegalBar() + renderNav();
     if (view === 'home') revealCurrent();
     if (view === 'home' && offToast && !sheetOpen) showOffToast();
+    tourAfterRender();
   }
   function showOffToast() {
     var o = offToast;
@@ -1342,6 +1353,7 @@
   // ---------- Sheets ----------
   // skin: a color id draws the whole sheet in that color (a new or locked color, 0.12)
   function openSheet(inner, cls, skin) {
+    if (tour) tourEnd('sheet');
     closeSheet(true);
     var wrap = document.createElement('div');
     wrap.id = 'sheet';
@@ -1837,6 +1849,9 @@
     var K = obj.skins;
     if (K != null && !(isObj(K) && opt(K.id, okWord) && opt(K.seen, function (a) { return Array.isArray(a) && a.length <= 20 && a.every(okWord); }) &&
       opt(K.introSeen, bool))) return { ok: false, reason: 'bad_fields' };
+    // 0.28 the walkthrough: one yes/no per screen (cleanState() keeps only the known screens)
+    var W = obj.tour;
+    if (W != null && !(isObj(W) && Object.keys(W).every(function (k) { return TOUR_IDS.indexOf(k) >= 0 && bool(W[k]); }))) return { ok: false, reason: 'bad_fields' };
     var state = {};
     TRANSFER_KEYS.forEach(function (k) { if (k in obj) state[k] = obj[k]; });
     return { ok: true, reason: null, state: state };
@@ -2888,7 +2903,7 @@
     } else {
       var rep = repairInfo();
       if (rep) html += '<div class="card repair-card"><h2>הצלת הרצף</h2><p>הרצף של ' + fmt(rep.value) + ' ימים נשבר. ' + CFG.streakRepair.questions + ' שאלות, ' + CFG.streakRepair.toPass + ' נכונות לפחות, והוא חוזר.</p><button class="btn gold" data-act="repair">להציל את הרצף</button></div>';
-      html += '<div class="card"><h2>תרגול מהיר</h2><p>' + CFG.practiceSize + ' שאלות מהשיעורים שסיימת. שאלות שטעית בהן מגיעות קודם. ' + P.review + ' נקודות לכל תשובה נכונה.</p>' +
+      html += '<div class="card practice-card"><h2>תרגול מהיר</h2><p>' + CFG.practiceSize + ' שאלות מהשיעורים שסיימת. שאלות שטעית בהן מגיעות קודם. ' + P.review + ' נקודות לכל תשובה נכונה.</p>' +
         '<button class="btn gold" data-act="practice">התחל תרגול</button></div>';
       html += '<div class="card"><h2>תיקון טעויות</h2>' + (mistakes.length
         ? '<p>' + plural(mistakes.length, 'שאלה אחת', 'שאלות') + ' שעוד לא תוקנו.</p><ul class="mistake-list">' + mistakes.slice(0, 4).map(function (k) { return '<li>' + esc(QUESTIONS[k].prompt) + '</li>'; }).join('') + '</ul>' +
@@ -2967,7 +2982,7 @@
       '<div class="card week"><h2>השבוע שלי</h2>' + weekChart() + '<p class="fine">ימי למידה ב-7 הימים האחרונים: ' + learned7() + ' מתוך 7. הקו המקווקו הוא היעד היומי.' +
         (weekHasOff() ? ' עמודה כחולה עם מטרייה: יום חופש לרצף, לא יום למידה.' : '') + '</p></div>' +
       inviteBar('profile') + pilotBar('profile') + calcCard() + accountCard() +
-      '<div class="card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
+      '<div class="card status-card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
@@ -3343,14 +3358,196 @@
     if (st === 'off') return 'off';
     return st === 'install' && !INSTALL.askEveryOpen ? 'install' : null; // iPhone in Safari: the install popup asks instead
   }
+  // ---------- 0.28: the first-time walkthrough ----------
+  // Jonathan (11.11): after the first lesson, a short step-by-step tour over a grey backdrop. Each screen is explained
+  // only the first time it is opened (home right after lesson 1 and the status question; practice, tools and profile when
+  // first entered). A step whose element is not on the screen is skipped. A screen counts as seen when its tour starts.
+  function tourSteps(id) {
+    var x2 = sbTiers()[0];
+    if (id === 'home') return [
+      { sel: '.node-wrap.current .node', area: '.node-wrap.current', shape: 'circle', title: 'השיעור הבא שלך',
+        text: 'כל עיגול במסלול הוא שיעור של כמה דקות. העיגול המסומן הוא הבא בתור, והשיעורים נפתחים אחד אחרי השני.' },
+      { sel: '.topbar .stat.flame', shape: 'pill', title: 'הרצף',
+        text: 'כמה ימים ברצף למדת. שיעור אחד ביום שומר עליו' + (x2 ? ', ומ-' + x2.days + ' ימים ברצף כל נקודה שווה יותר.' : '.') },
+      { sel: '.topbar .stat.xp', shape: 'pill', title: 'הנקודות',
+        text: 'על כל תשובה נכונה ועל כל שיעור. הנקודות מעלות אותך בשלבים, וכל שלב פותח משהו חדש.' },
+      { sel: '.nav .nav-inner', title: 'עוד מסכים',
+        text: 'תרגול, ' + (toolsTab() ? 'כלים ' : '') + 'ופרופיל מחכים כאן למטה. בכל מסך נסביר בקצרה, בפעם הראשונה שנכנסים אליו.' }
+    ];
+    if (id === 'practice') return [
+      { sel: '.practice-card', title: 'תרגול מהיר',
+        text: 'שאלות חזרה מהשיעורים שסיימת. שאלות שטעית בהן חוזרות קודם, עד שהן יושבות בראש.' }
+    ];
+    if (id === 'tools') {
+      var first = toolList().filter(function (t) { return t.open; })[0];
+      return [
+        { sel: '.tools-next', title: 'הכלי הבא',
+          text: 'כל כמה שלבים נפתח כלי שמחשב בשבילך. כאן רואים כמה נקודות חסרות עד הכלי הבא.' },
+        first
+          ? { sel: '.tool-list > :first-child', title: 'כלי פתוח', text: 'לוחצים, עונים על כמה שאלות, והכלי מחשב. הסכומים שלך נשארים רק בטלפון.' }
+          : { sel: '.tool-list > :first-child', title: 'כלי נעול', text: 'לוחצים כדי לראות מה הוא עושה ואיזה שיעור מקרב אליו.' }
+      ];
+    }
+    if (id === 'profile') return [
+      { sel: '.rank-card', title: 'השלב שלך', text: 'כמה נקודות נשארו עד השלב הבא, ומה הוא פותח לך.' },
+      { sel: '.skins-card', title: 'הצבעים', text: 'כל כמה שלבים נפתח צבע חדש לאפליקציה. לוחצים על צבע פתוח כדי להחליף.' },
+      { sel: '.status-card', title: 'המצב שלך', text: 'לפי זה בוחרים לך שיעורים. משהו השתנה? מעדכנים כאן, והמסלול מתעדכן איתך.' }
+    ];
+    return [];
+  }
+  var tour = null, tourTimer = null;
+  function tourActive() { return !!tour; }
+  // the screen on show has a tour that was not seen yet (only after lesson 1 and the status question, never in a lesson)
+  function tourDue(v) {
+    v = v || view;
+    return TOUR_IDS.indexOf(v) >= 0 && S.onboarded && !!S.status && doneCount() > 0 && !!S.tour && S.tour[v] === false &&
+      (v !== 'tools' || toolsTab()) && !(v === 'home' && S.inProgress);
+  }
+  // called after each render of a main screen: a running tour follows the new page; a due one starts once the page is still
+  function tourAfterRender() {
+    if (tour) { if (tour.view === view) tourPlace(true); else tourEnd('left'); return; }
+    clearTimeout(tourTimer);
+    if (!tourDue()) return;
+    var v = view;
+    // home scrolls to the next lesson first (revealCurrent); the tour waits for it
+    tourTimer = setTimeout(function () {
+      if (tour || view !== v || sheetOpen || !tourDue(v) || document.visibilityState === 'hidden') return;
+      tourStart(v);
+    }, v === 'home' ? 750 : 350);
+  }
+  function tourStart(v) {
+    var steps = tourSteps(v).filter(function (st) { return tourTarget(st); });
+    S.tour[v] = true; save();
+    if (!steps.length) return;
+    tour = { view: v, steps: steps, i: 0 };
+    var el = document.createElement('div');
+    el.id = 'tour';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-label', 'הסבר קצר על המסך');
+    el.innerHTML = '<div class="tour-hole"></div><div class="tour-tip" tabindex="-1" aria-live="polite"></div>';
+    document.body.appendChild(el);
+    tour.el = el;
+    el.addEventListener('click', tourClick);
+    el.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
+    el.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+    window.addEventListener('resize', tourResize);
+    track('tour_started', { screen: v, steps: steps.length, lessons_done: doneCount() });
+    requestAnimationFrame(function () { if (tour) { el.classList.add('on'); tourShow(); } });
+  }
+  function tourTarget(st) {
+    var t = root && root.querySelector(st.sel);
+    if (!t) return null;
+    var r = t.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? t : null;
+  }
+  function tourShow() {
+    var st = tour.steps[tour.i], last = tour.i === tour.steps.length - 1, n = tour.steps.length;
+    var tip = tour.el.querySelector('.tour-tip');
+    tip.innerHTML = (n > 1 ? '<div class="tt-top"><span class="tt-dots" aria-label="' + (tour.i + 1) + ' מתוך ' + n + '">' +
+        tour.steps.map(function (s, i) { return '<i' + (i === tour.i ? ' class="on"' : i < tour.i ? ' class="past"' : '') + '></i>'; }).join('') + '</span>' +
+        (last ? '' : '<button class="tt-skip" data-tour="skip">דילוג</button>') + '</div>' : '') +
+      '<h3>' + esc(st.title) + '</h3><p>' + esc(st.text) + '</p>' +
+      '<button class="btn tt-next" data-tour="next">' + (last ? 'הבנתי' : 'הבא') + '</button>';
+    tip.classList.remove('in');
+    tourPlace(false);
+    void tip.offsetWidth;
+    tip.classList.add('in');
+    try { tip.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+  }
+  // puts the hole over the step's element (scrolled into view if needed) and the bubble above or under it
+  function tourPlace(quiet) {
+    if (!tour) return;
+    var st = tour.steps[tour.i], t = tourTarget(st);
+    if (!t) { if (quiet) return; tourNext(); return; }
+    var vh = window.innerHeight, vw = document.documentElement.clientWidth;
+    var bar = document.querySelector('.topbar'), nav = document.querySelector('.nav');
+    var topLim = bar ? bar.getBoundingClientRect().bottom : 0, botLim = nav ? nav.getBoundingClientRect().top : vh;
+    var fixed = !!t.closest('.topbar, .nav'), ar = st.area && root.querySelector(st.area);
+    var tip = tour.el.querySelector('.tour-tip'), gap = 16, th = tip.offsetHeight;
+    // the lit part: the element, and its area (the next lesson's name under its circle), which the bubble keeps clear of
+    function box() {
+      var a = t.getBoundingClientRect(), b = ar ? ar.getBoundingClientRect() : a;
+      return { r: a, top: Math.min(a.top, b.top), bottom: Math.max(a.bottom, b.bottom) };
+    }
+    var B = box(), r = B.r;
+    if (!fixed) {
+      var cut = B.top < topLim + 8 || B.bottom > botLim - 8;
+      var noRoom = vh - B.bottom < th + gap + 8 && B.top - topLim < th + gap + 8;
+      if (cut || noRoom) {
+        // the element near the top with the bubble under it, when both fit; otherwise a little above the middle
+        var fits = B.bottom - B.top + gap + th < vh - topLim - 24;
+        window.scrollBy(0, B.top - (topLim + (fits ? 14 : Math.max(16, (botLim - topLim - (B.bottom - B.top)) * 0.3))));
+        B = box(); r = B.r;
+      }
+    }
+    var pad = st.shape === 'circle' ? 10 : 6;
+    var x = r.left - pad, y = r.top - pad, w = r.width + pad * 2, h = r.height + pad * 2;
+    if (st.shape === 'circle') { var d = Math.max(w, h); x = r.left + r.width / 2 - d / 2; y = r.top + r.height / 2 - d / 2; w = h = d; }
+    // an element as wide as the screen (the tab bar) keeps its lit frame inside the screen
+    var x2 = Math.min(x + w, vw - 4), y2 = Math.min(y + h, vh - 4);
+    x = Math.max(4, x); y = Math.max(4, y); w = x2 - x; h = y2 - y;
+    var hole = tour.el.querySelector('.tour-hole');
+    hole.style.left = x + 'px'; hole.style.top = y + 'px'; hole.style.width = w + 'px'; hole.style.height = h + 'px';
+    hole.style.borderRadius = st.shape === 'circle' ? '50%' : st.shape === 'pill' ? (h / 2) + 'px' : '20px';
+    var ay = Math.min(y, B.top), ah = Math.max(y + h, B.bottom) - ay;
+    var below = (ay + ah / 2) < vh / 2;
+    if (below && ay + ah + gap + th > vh - 8) below = false;
+    if (!below && ay - gap - th < 8) below = true;
+    var ty = below ? ay + ah + gap : ay - gap - th;
+    ty = Math.max(8, Math.min(ty, vh - th - 8));
+    tip.style.top = ty + 'px';
+    tip.classList.toggle('below', below);
+    // the little arrow points at the element's middle
+    var tr = tip.getBoundingClientRect(), ax = Math.max(22, Math.min(r.left + r.width / 2 - tr.left, tr.width - 22));
+    tip.style.setProperty('--ax', ax + 'px');
+    tip.style.setProperty('--vw', vw + 'px');
+  }
+  var tourResizeT = null;
+  function tourResize() { clearTimeout(tourResizeT); tourResizeT = setTimeout(function () { tourPlace(true); }, 80); }
+  function tourClick(e) {
+    e.stopPropagation();
+    var b = e.target.closest('[data-tour]');
+    if (b && b.getAttribute('data-tour') === 'skip') { sfx.tap(); tourEnd('skipped'); return; }
+    // a tap anywhere moves on: the walkthrough never blocks the app
+    sfx.tap();
+    tourNext();
+  }
+  function tourNext() {
+    if (!tour) return;
+    if (tour.i >= tour.steps.length - 1) { tourEnd('done'); return; }
+    tour.i++;
+    tourShow();
+  }
+  function tourKey(e) {
+    if (!tour) return false;
+    if (e.key === 'Escape') { tourEnd('skipped'); return true; }
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowLeft') { e.preventDefault(); tourNext(); return true; }
+    if (e.key === 'ArrowRight' && tour.i > 0) { e.preventDefault(); tour.i--; tourShow(); return true; }
+    return true;
+  }
+  // how: done (the last step), skipped, left (the screen changed), sheet (a popup took over)
+  function tourEnd(how) {
+    if (!tour) return;
+    var t = tour;
+    tour = null;
+    window.removeEventListener('resize', tourResize);
+    track('tour_finished', { screen: t.view, how: how, step: t.i + 1, steps: t.steps.length });
+    var el = t.el;
+    if (how === 'left' || how === 'sheet' || reducedMotion()) el.remove();
+    else { el.classList.remove('on'); el.classList.add('out'); setTimeout(function () { el.remove(); }, 260); }
+    // the popups that waited for the tour (install, notifications) may come now
+    if (t.view === 'home' && view === 'home' && how !== 'sheet') maybeAsk();
+  }
+
   var askTimer = null, lastTouchAt = 0, askOpenedAt = 0;
   function maybeAsk() {
     clearTimeout(askTimer);
-    if (openAsked || view !== 'home' || sheetOpen || !doneCount() || !S.status || !(toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
+    if (openAsked || view !== 'home' || sheetOpen || tour || tourDue('home') || !doneCount() || !S.status || !(toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
     askTimer = setTimeout(function tick() {
       var quiet = Date.now() - lastTouchAt;
       if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
-      if (openAsked || view !== 'home' || sheetOpen || document.visibilityState === 'hidden') return;
+      if (openAsked || view !== 'home' || sheetOpen || tour || tourDue('home') || document.visibilityState === 'hidden') return;
       if (isStandalone() && notifAskState()) notifAskSheet(); // 0.21: in the home-screen app notifications come first
       else if (toolsIntroDue()) { openAsked = true; toolsIntro(); } else if (skinsIntroDue()) { openAsked = true; skinsIntro(); }
       else if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
@@ -4943,6 +5140,7 @@
   }
 
   function onKey(e) {
+    if (tour && tourKey(e)) return;
     if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }
     if (view !== 'lesson' || !session || sheetOpen) return;
     var st = step();
