@@ -117,17 +117,22 @@ final class WebViewController: UIViewController {
         request.timeoutInterval = 20
         note("load \(AppConfig.startURL.absoluteString)")
         webView.load(request)
-        // A connection that neither opens nor fails (weak reception, a Wi-Fi sign-in page) must not leave the logo on
-        // for a minute: after 12 seconds the "no connection" screen comes up. The page keeps loading behind it, and
-        // takes over if it arrives.
+        // the real wait starts when the site is asked (see "asked the site" below); this one is for a load that never starts
+        waitForPage(25)
+    }
+
+    /// A connection that neither opens nor fails (weak reception, a Wi-Fi sign-in page) must not leave the logo on for
+    /// a minute: when the wait runs out with no page, the "no connection" screen comes up. The page keeps loading
+    /// behind it, and takes over if it arrives.
+    fileprivate func waitForPage(_ seconds: TimeInterval) {
         patience?.cancel()
         let wait = DispatchWorkItem { [weak self] in
             guard let self = self, !self.pageShown else { return }
-            self.note("still no page after 12 seconds")
+            self.note("still no page after \(Int(seconds)) seconds")
             self.showOffline()
         }
         patience = wait
-        DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: wait)
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: wait)
     }
 
     /// Test builds write what happens to the log, where the build workflow reads it.
@@ -275,6 +280,8 @@ extension WebViewController: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         note("asked the site")
+        // 15 seconds for an answer, counted from here, so a phone that is slow to start is not taken for a bad connection
+        if !pageShown && offline == nil { waitForPage(15) }
     }
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
