@@ -15,6 +15,7 @@ final class WebViewController: UIViewController {
     private var chromeColor = AppConfig.brand
     private let network = NWPathMonitor()
     private var online = true
+    private var patience: DispatchWorkItem?
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
         chromeColor.isLight ? .darkContent : .lightContent
@@ -114,7 +115,26 @@ final class WebViewController: UIViewController {
     private func load() {
         var request = URLRequest(url: AppConfig.startURL)
         request.timeoutInterval = 20
+        note("load \(AppConfig.startURL.absoluteString)")
         webView.load(request)
+        // A connection that neither opens nor fails (weak reception, a Wi-Fi sign-in page) must not leave the logo on
+        // for a minute: after 12 seconds the "no connection" screen comes up. The page keeps loading behind it, and
+        // takes over if it arrives.
+        patience?.cancel()
+        let wait = DispatchWorkItem { [weak self] in
+            guard let self = self, !self.pageShown else { return }
+            self.note("still no page after 12 seconds")
+            self.showOffline()
+        }
+        patience = wait
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: wait)
+    }
+
+    /// Test builds write what happens to the log, where the build workflow reads it.
+    fileprivate func note(_ text: String) {
+        #if DEBUG
+        NSLog("DRIBIT-APP %@", text)
+        #endif
     }
 
     func appBecameActive() {
@@ -126,6 +146,8 @@ final class WebViewController: UIViewController {
     fileprivate func pageReady() {
         guard !pageShown else { return }
         pageShown = true
+        patience?.cancel()
+        note("page ready")
         hideOffline()
         if cover.superview != nil {
             UIView.animate(withDuration: 0.25, animations: { self.cover.alpha = 0 }, completion: { _ in
@@ -141,6 +163,7 @@ final class WebViewController: UIViewController {
 
     private func showOffline() {
         guard offline == nil else { return }
+        note("no connection screen")
         let panel = OfflineView()
         panel.onRetry = { [weak self] in self?.load() }
         panel.translatesAutoresizingMaskIntoConstraints = false
@@ -163,6 +186,7 @@ final class WebViewController: UIViewController {
 
     private func failed(_ error: Error) {
         let code = (error as NSError).code
+        note("failed \((error as NSError).domain) \(code)")
         if code == NSURLErrorCancelled || code == 102 { return } // 102: a link we chose to open outside
         showOffline()
     }
@@ -249,7 +273,9 @@ extension WebViewController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        pageReady()
+        note("finished \(webView.url?.absoluteString ?? "(no address)")")
+        // only a page of the app counts: an empty page left behind by a failed load must not hide the "no connection" screen
+        if let url = webView.url, AppConfig.isAppPage(url) { pageReady() }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

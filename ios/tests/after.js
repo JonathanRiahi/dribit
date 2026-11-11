@@ -7,8 +7,13 @@
     var cfg = window.DRIBIT_CONFIG || window.CONFIG || {};
     await log('version', cfg.version || '(unknown)');
     var sheet = document.querySelector('#sheet');
-    await log('sheet', sheet && sheet.classList.contains('open') ? sheet.innerText.replace(/\n+/g, ' | ').slice(0, 200) : '(closed)');
+    await log('sheet', sheet && sheet.querySelector('.scrim') ? sheet.innerText.replace(/\n+/g, ' | ').slice(0, 200) : '(closed)');
     await log('install-asks', /מסך הבית|איך מתקינים/.test(document.body.innerText));
+    await log('online', navigator.onLine);
+    if ('serviceWorker' in navigator) {
+      var reg = await navigator.serviceWorker.getRegistration();
+      await log('offline-copy', { registered: !!reg, controlled: !!navigator.serviceWorker.controller });
+    } else await log('offline-copy', 'not supported here');
     await log('status', await N.call('notifications.status'));
     var p = await N.call('notifications.pending');
     var items = (p.items || []).sort(function (a, b) { return a.at - b.at; });

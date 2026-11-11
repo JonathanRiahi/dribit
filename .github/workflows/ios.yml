@@ -102,65 +102,79 @@ jobs:
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl launch --stderr="$PWD/logs/run2.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/check.js)"
           sleep 16; xcrun simctl io "$DEVICE" screenshot shots/03-second-open.png
-
-          # 3. no way to reach the site: the app's own "no connection" screen
-          xcrun simctl terminate "$DEVICE" com.dribit.app
-          xcrun simctl uninstall "$DEVICE" com.dribit.app
-          xcrun simctl install "$DEVICE" "$APP"
-          xcrun simctl launch "$DEVICE" com.dribit.app -dribitURL "https://jonathanriahi.github.io:9/dribit/"
-          sleep 28; xcrun simctl io "$DEVICE" screenshot shots/04-no-connection.png
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl uninstall "$DEVICE" com.dribit.app
 
           set +x
           echo "===== bridge check, first open ====="
-          grep -a "DRIBIT-TEST" logs/run1.log | sed 's/.*DRIBIT-TEST //' || echo "(nothing logged)"
+          grep -a "DRIBIT-" logs/run1.log | sed 's/.*DRIBIT-[A-Z]* //' || echo "(nothing logged)"
           echo "===== bridge check, second open ====="
-          grep -a "DRIBIT-TEST" logs/run2.log | sed 's/.*DRIBIT-TEST //' || echo "(nothing logged)"
+          grep -a "DRIBIT-" logs/run2.log | sed 's/.*DRIBIT-[A-Z]* //' || echo "(nothing logged)"
           grep -a -q "DRIBIT-TEST done = true" logs/run1.log || { echo "::error::The bridge check did not finish"; tail -n 30 logs/run1.log; exit 1; }
 
       - name: This branch's web app inside the app
         run: |
           set -x
-          python3 -m http.server 8765 > logs/server.log 2>&1 &
-          sleep 2
+          serve() { python3 -m http.server 8765 >> logs/server.log 2>&1 & SERVER=$!; sleep 2; }
+          serve
           curl -sf http://localhost:8765/config.js | grep -m1 "version:"
           APP=ios/build-local/Build/Products/Debug-iphonesimulator/Dribit.app
           xcrun simctl install "$DEVICE" "$APP"
 
-          # 4. someone who finished one lesson yesterday opens the app: the offer to turn the reminder on
-          xcrun simctl launch --stderr="$PWD/logs/run3.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='ask'; $(cat ios/tests/seed.js)"
-          sleep 18; xcrun simctl io "$DEVICE" screenshot shots/05-reminder-offer.png
-
-          # 5. the next open: the same offer, and a tap on its button brings the phone's own question
-          xcrun simctl terminate "$DEVICE" com.dribit.app
-          xcrun simctl launch --stderr="$PWD/logs/run4.log" "$DEVICE" com.dribit.app -dribitJS "window.__tap='#sheet [data-act=\"popup-reminder-on\"]'; $(cat ios/tests/after.js)"
-          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/06-reminder-question.png
-
-          # 6. the reminder is on (a quiet permission, given with no question, stands in for the tap on "Allow"):
+          # 3. the reminder is on (a quiet permission, given with no question, stands in for the tap on "Allow"):
           #    the next evenings must really be planned on the phone
+          xcrun simctl launch --stderr="$PWD/logs/run3.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='reminder'; $(cat ios/tests/seed.js)"
+          sleep 18; xcrun simctl io "$DEVICE" screenshot shots/04-home.png
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl launch --stderr="$PWD/logs/run4.log" "$DEVICE" com.dribit.app -dribitJS "window.__tap='nav [data-to=\"profile\"]'; $(cat ios/tests/after.js)"
+          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/05-profile.png
+
+          # 4. the site cannot be reached, and the app was opened before: it opens from the copy kept on the phone
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          kill "$SERVER"; sleep 1
+          xcrun simctl launch --stderr="$PWD/logs/run5.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/after.js)"
+          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/06-open-without-connection.png
+
+          # 5. the site cannot be reached, and the app was never opened: the app's own "no connection" screen
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl uninstall "$DEVICE" com.dribit.app
           xcrun simctl install "$DEVICE" "$APP"
-          xcrun simctl launch --stderr="$PWD/logs/run5.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='reminder'; $(cat ios/tests/seed.js)"
-          sleep 18; xcrun simctl io "$DEVICE" screenshot shots/07-home.png
+          xcrun simctl launch --stderr="$PWD/logs/run6.log" "$DEVICE" com.dribit.app
+          sleep 10; xcrun simctl io "$DEVICE" screenshot shots/07-no-connection.png
           xcrun simctl terminate "$DEVICE" com.dribit.app
-          xcrun simctl launch --stderr="$PWD/logs/run6.log" "$DEVICE" com.dribit.app -dribitJS "window.__tap='nav [data-to=\"profile\"]'; $(cat ios/tests/after.js)"
-          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/08-profile.png
+          xcrun simctl uninstall "$DEVICE" com.dribit.app
+
+          # 6. someone who finished one lesson yesterday opens the app: the offer to turn the reminder on
+          serve
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch --stderr="$PWD/logs/run7.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='ask'; $(cat ios/tests/seed.js)"
+          sleep 18; xcrun simctl io "$DEVICE" screenshot shots/08-reminder-offer.png
+
+          # 7. the next open: the same offer, and a tap on its button brings the phone's own question.
+          #    Last, because the phone's question stays on the simulator's screen after the app is closed.
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl launch --stderr="$PWD/logs/run8.log" "$DEVICE" com.dribit.app -dribitJS "window.__tap='#sheet [data-act=\"popup-reminder-on\"]'; $(cat ios/tests/after.js)"
+          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/09-reminder-question.png
           xcrun simctl terminate "$DEVICE" com.dribit.app
 
           set +x
-          for n in 3 4 5 6; do
+          for n in 3 4 5 6 7 8; do
             echo "===== run $n ====="
-            grep -a "DRIBIT-TEST" logs/run$n.log | sed 's/.*DRIBIT-TEST //' || echo "(nothing logged)"
+            grep -a "DRIBIT-" logs/run$n.log | sed 's/.*DRIBIT-[A-Z]* //' || echo "(nothing logged)"
           done
-          echo "===== what the app asked the build machine for ====="
-          grep -a -c "GET" logs/server.log || true
-          grep -a -q "DRIBIT-TEST app done = true" logs/run4.log || { echo "::error::The reminder offer check did not finish"; tail -n 30 logs/run4.log; exit 1; }
-          grep -a -q "DRIBIT-TEST app done = true" logs/run6.log || { echo "::error::The reminder check did not finish"; tail -n 30 logs/run6.log; exit 1; }
-          PLANNED=$(grep -a "DRIBIT-TEST app pending-count" logs/run6.log | tail -n 1 | sed 's/.*= //')
+          grep -a -q "DRIBIT-TEST app done = true" logs/run4.log || { echo "::error::The reminder check did not finish"; tail -n 30 logs/run4.log; exit 1; }
+          PLANNED=$(grep -a "DRIBIT-TEST app pending-count" logs/run4.log | tail -n 1 | sed 's/.*= //')
           echo "Reminders planned on the phone: $PLANNED"
           [ "${PLANNED:-0}" -ge 13 ] || { echo "::error::Expected the next 13 or 14 evenings to be planned, found ${PLANNED:-none}"; exit 1; }
+          # the copy on the phone belongs to the site's own offline support; the build machine's plain http address may not get it
+          if grep -a -q 'DRIBIT-TEST app offline-copy = {"registered":true,"controlled":true}' logs/run4.log; then
+            grep -a -q "DRIBIT-TEST app done = true" logs/run5.log || { echo "::error::The app did not open from the copy on the phone"; tail -n 30 logs/run5.log; exit 1; }
+            echo "Opened without a connection, from the copy on the phone."
+          else
+            echo "::warning::No offline copy was kept for the build machine's address, so opening without a connection was not checked here"
+          fi
+          grep -a -q "DRIBIT-APP no connection screen" logs/run6.log || { echo "::error::The no connection screen did not come up"; tail -n 30 logs/run6.log; exit 1; }
+          grep -a -q "DRIBIT-TEST app done = true" logs/run8.log || { echo "::error::The reminder offer check did not finish"; tail -n 30 logs/run8.log; exit 1; }
 
       - uses: actions/upload-artifact@v4
         if: always()
