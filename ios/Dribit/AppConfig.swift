@@ -24,7 +24,13 @@ enum AppConfig {
 
     /// A page of the app itself (it stays inside); anything else opens outside the app.
     static func isAppPage(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased(), scheme == "https", url.host?.lowercased() == host.lowercased() else { return false }
+        guard let scheme = url.scheme?.lowercased(), url.host?.lowercased() == host.lowercased() else { return false }
+        #if DEBUG
+        // test builds can show the site from the build machine itself (http://localhost), to try a change before it is live
+        guard scheme == "https" || (scheme == "http" && host == "localhost") else { return false }
+        #else
+        guard scheme == "https" else { return false }
+        #endif
         let path = url.path.isEmpty ? "/" : url.path
         let prefix = pathPrefix.hasSuffix("/") ? String(pathPrefix.dropLast()) : pathPrefix
         return path == prefix || path.hasPrefix(prefix + "/")

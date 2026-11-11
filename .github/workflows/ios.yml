@@ -1,6 +1,6 @@
 # The iPhone app (the ios/ folder): a native shell around the live web app.
 # Every change under ios/ is built here on a Mac in the cloud and opened in an iPhone simulator; the pictures of what it
-# shows are kept with the run (Artifacts > ios-screens).
+# shows are kept with the run (Artifacts > ios-screens) and on the side ref refs/ios-shots/latest.
 # To send a build to App Store Connect: Actions > iOS app > Run workflow > tick "upload". That needs four repository
 # secrets (Settings > Secrets and variables > Actions): APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8.
 name: iOS app
@@ -28,7 +28,9 @@ jobs:
   simulator:
     name: Build and open in a simulator
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 40
+    permissions:
+      contents: write # the last step keeps the pictures on a side ref of this repository (refs/ios-shots/latest)
     steps:
       - uses: actions/checkout@v4
 
@@ -51,9 +53,22 @@ jobs:
           echo "Built. Warnings in our own files:"
           grep -E "Dribit/.*warning:" build.log | sed 's/.*Dribit\//Dribit\//' | sort -u | head -40 || true
 
-      - name: Open in an iPhone simulator
+      # The same app, pointed at this checkout served from the build machine (http://localhost:8765) instead of the live
+      # site: a change to the web app is tried inside the iPhone app before it is live.
+      - name: Build the copy that shows this branch's web app
+        working-directory: ios
         run: |
-          set -x
+          cp Dribit/Info.plist "$RUNNER_TEMP/Info-local.plist"
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$RUNNER_TEMP/Info-local.plist"
+          xcodebuild -project Dribit.xcodeproj -scheme Dribit -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build-local CODE_SIGNING_ALLOWED=NO \
+            INFOPLIST_FILE="$RUNNER_TEMP/Info-local.plist" APP_HOST=localhost "APP_START_URL=http://localhost:8765/?source=ios" APP_PATH_PREFIX=/ \
+            build > build-local.log 2>&1 \
+            || { grep -n -E "error:|error generated|fatal" build-local.log | head -60; echo "----- end of log -----"; tail -n 40 build-local.log; exit 1; }
+          /usr/libexec/PlistBuddy -c "Print :DribitStartURL" -c "Print :WKAppBoundDomains" build-local/Build/Products/Debug-iphonesimulator/Dribit.app/Info.plist
+
+      - name: Start an iPhone simulator
+        run: |
           mkdir -p shots logs
           DEVICE=$(xcrun simctl list devices available -j | python3 -c "
           import json, sys
@@ -67,34 +82,35 @@ jobs:
                   if best is None or key > best[0]: best = (key, d['udid'], d['name'], runtime)
           sys.stderr.write('Simulator: %s (%s)\n' % (best[2], best[3]))
           print(best[1])")
-          APP=ios/build/Build/Products/Debug-iphonesimulator/Dribit.app
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl status_bar "$DEVICE" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+
+      - name: The live site inside the app
+        run: |
+          set -x
+          APP=ios/build/Build/Products/Debug-iphonesimulator/Dribit.app
           xcrun simctl install "$DEVICE" "$APP"
 
           # 1. a normal first open, with the bridge check running inside the page
           xcrun simctl launch --stderr="$PWD/logs/run1.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/check.js)"
-          sleep 2;  xcrun simctl io "$DEVICE" screenshot shots/01-opening.png
-          sleep 28; xcrun simctl io "$DEVICE" screenshot shots/02-first-screen.png
+          sleep 1;  xcrun simctl io "$DEVICE" screenshot shots/01-opening.png
+          sleep 24; xcrun simctl io "$DEVICE" screenshot shots/02-first-screen.png
 
           # 2. a second open: what was saved on the phone is still there, and the offline copy is in place
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl launch --stderr="$PWD/logs/run2.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/check.js)"
-          sleep 20; xcrun simctl io "$DEVICE" screenshot shots/03-second-open.png
+          sleep 16; xcrun simctl io "$DEVICE" screenshot shots/03-second-open.png
 
-          # 3. the reminder permission question, as people will see it
-          xcrun simctl terminate "$DEVICE" com.dribit.app
-          xcrun simctl launch "$DEVICE" com.dribit.app -dribitJS "DribitNative.call('notifications.request')"
-          sleep 16; xcrun simctl io "$DEVICE" screenshot shots/04-reminder-question.png
-
-          # 4. no way to reach the site: the app's own "no connection" screen
+          # 3. no way to reach the site: the app's own "no connection" screen
           xcrun simctl terminate "$DEVICE" com.dribit.app
           xcrun simctl uninstall "$DEVICE" com.dribit.app
           xcrun simctl install "$DEVICE" "$APP"
           xcrun simctl launch "$DEVICE" com.dribit.app -dribitURL "https://jonathanriahi.github.io:9/dribit/"
-          sleep 30; xcrun simctl io "$DEVICE" screenshot shots/05-no-connection.png
+          sleep 28; xcrun simctl io "$DEVICE" screenshot shots/04-no-connection.png
           xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl uninstall "$DEVICE" com.dribit.app
 
           set +x
           echo "===== bridge check, first open ====="
@@ -102,6 +118,49 @@ jobs:
           echo "===== bridge check, second open ====="
           grep -a "DRIBIT-TEST" logs/run2.log | sed 's/.*DRIBIT-TEST //' || echo "(nothing logged)"
           grep -a -q "DRIBIT-TEST done = true" logs/run1.log || { echo "::error::The bridge check did not finish"; tail -n 30 logs/run1.log; exit 1; }
+
+      - name: This branch's web app inside the app
+        run: |
+          set -x
+          python3 -m http.server 8765 > logs/server.log 2>&1 &
+          sleep 2
+          curl -sf http://localhost:8765/config.js | grep -m1 "version:"
+          APP=ios/build-local/Build/Products/Debug-iphonesimulator/Dribit.app
+          xcrun simctl install "$DEVICE" "$APP"
+
+          # 4. someone who finished one lesson yesterday opens the app: the offer to turn the reminder on
+          xcrun simctl launch --stderr="$PWD/logs/run3.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='ask'; $(cat ios/tests/seed.js)"
+          sleep 18; xcrun simctl io "$DEVICE" screenshot shots/05-reminder-offer.png
+
+          # 5. the next open: the same offer, and a tap on its button brings the phone's own question
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl launch --stderr="$PWD/logs/run4.log" "$DEVICE" com.dribit.app -dribitJS "window.__tap='#sheet [data-act=\"popup-reminder-on\"]'; $(cat ios/tests/after.js)"
+          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/06-reminder-question.png
+
+          # 6. the reminder is on (a quiet permission, given with no question, stands in for the tap on "Allow"):
+          #    the next evenings must really be planned on the phone
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl uninstall "$DEVICE" com.dribit.app
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch --stderr="$PWD/logs/run5.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='reminder'; $(cat ios/tests/seed.js)"
+          sleep 18; xcrun simctl io "$DEVICE" screenshot shots/07-home.png
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl launch --stderr="$PWD/logs/run6.log" "$DEVICE" com.dribit.app -dribitJS "window.__tap='nav [data-to=\"profile\"]'; $(cat ios/tests/after.js)"
+          sleep 14; xcrun simctl io "$DEVICE" screenshot shots/08-profile.png
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+
+          set +x
+          for n in 3 4 5 6; do
+            echo "===== run $n ====="
+            grep -a "DRIBIT-TEST" logs/run$n.log | sed 's/.*DRIBIT-TEST //' || echo "(nothing logged)"
+          done
+          echo "===== what the app asked the build machine for ====="
+          grep -a -c "GET" logs/server.log || true
+          grep -a -q "DRIBIT-TEST app done = true" logs/run4.log || { echo "::error::The reminder offer check did not finish"; tail -n 30 logs/run4.log; exit 1; }
+          grep -a -q "DRIBIT-TEST app done = true" logs/run6.log || { echo "::error::The reminder check did not finish"; tail -n 30 logs/run6.log; exit 1; }
+          PLANNED=$(grep -a "DRIBIT-TEST app pending-count" logs/run6.log | tail -n 1 | sed 's/.*= //')
+          echo "Reminders planned on the phone: $PLANNED"
+          [ "${PLANNED:-0}" -ge 13 ] || { echo "::error::Expected the next 13 or 14 evenings to be planned, found ${PLANNED:-none}"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -111,6 +170,24 @@ jobs:
             shots
             logs
             ios/build.log
+            ios/build-local.log
+
+      # The pictures also go to a side ref (not a branch, it does not show in the list of branches), replaced on every
+      # run, for looking at them without the Actions page: git fetch origin refs/ios-shots/latest
+      - name: Keep the pictures on a side ref
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/pictures"
+          cp shots/*.png "$RUNNER_TEMP/pictures/" 2>/dev/null || true
+          cp -R logs "$RUNNER_TEMP/pictures/" 2>/dev/null || true
+          cd "$RUNNER_TEMP/pictures"
+          ls -la
+          git init -q
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Simulator pictures: run ${{ github.run_number }} of ${{ github.sha }}" || exit 0
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/ios-shots/latest \
+            || echo "::warning::The pictures could not be kept on the side ref"
 
   release:
     name: Sign and upload to App Store Connect

@@ -2,6 +2,7 @@ import Network
 import SafariServices
 import StoreKit
 import UIKit
+import UserNotifications
 import WebKit
 
 /// The whole app is one screen: the web app, edge to edge under the clock, with no browser bars.
@@ -19,6 +20,24 @@ final class WebViewController: UIViewController {
         chromeColor.isLight ? .darkContent : .lightContent
     }
 
+    #if DEBUG
+    private static let quietAnalytics = """
+    (function () {
+      var realFetch = window.fetch;
+      window.fetch = function (input) {
+        var url = String((input && input.url) || input);
+        if (url.indexOf('posthog') >= 0) return Promise.resolve(new Response('{}', { status: 200 }));
+        return realFetch.apply(this, arguments);
+      };
+      var realBeacon = navigator.sendBeacon;
+      if (realBeacon) navigator.sendBeacon = function (url) {
+        if (String(url).indexOf('posthog') >= 0) return true;
+        return realBeacon.apply(this, arguments);
+      };
+    })();
+    """
+    #endif
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = chromeColor
@@ -33,6 +52,10 @@ final class WebViewController: UIViewController {
         let content = configuration.userContentController
         content.addUserScript(WKUserScript(source: Bridge.script(), injectionTime: .atDocumentStart, forMainFrameOnly: true))
         content.addScriptMessageHandler(Bridge(owner: self), contentWorld: .page, name: "dribit")
+        #if DEBUG
+        // test builds never report usage: the build machine is not a person, and must not show up in the numbers
+        content.addUserScript(WKUserScript(source: Self.quietAnalytics, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        #endif
 
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
@@ -353,6 +376,10 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
         case "debug.log": // test builds: the build workflow reads these lines from the simulator
             NSLog("DRIBIT-TEST %@", text("text"))
             replyHandler(true, nil)
+        case "debug.provisional": // test builds: quiet permission with no question, so the workflow can check real planning
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .provisional]) { granted, _ in
+                DispatchQueue.main.async { replyHandler(["granted": granted], nil) }
+            }
         #endif
         default:
             replyHandler(nil, "unknown command: \(cmd)")
