@@ -1544,7 +1544,7 @@
         '<button class="link quiet" data-act="partner-check" data-v="undo" ' + d + '>' + esc(c.undo) + '</button></div></div>';
     }
     return '<div class="offer-gate offer-act" ' + d + '>' +
-      '<p class="offer-disc">' + ICON.user + '<span><b>גילוי נאות:</b> ' + offerFill(p, o.disclosure) + '</span></p>' +
+      '<p class="offer-disc">' + ICON.user + '<span>' + offerFill(p, o.disclosure) + '</span></p>' +
       '<a class="btn ghost" href="' + esc(p.url) + '" target="_blank" rel="noopener sponsored" data-act="partner-link" ' + d + '>' +
         '<span>' + offerFill(p, o.cta) + '</span>' + ICON.ext + '<span class="sr-only"> (' + offerFill(p, o.ctaNote) + ')</span></a>' +
       '<p class="offer-note" aria-hidden="true">' + offerFill(p, o.ctaNote) + '</p>' +
