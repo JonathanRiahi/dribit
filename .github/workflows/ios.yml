@@ -1,0 +1,167 @@
+# The iPhone app (the ios/ folder): a native shell around the live web app.
+# Every change under ios/ is built here on a Mac in the cloud and opened in an iPhone simulator; the pictures of what it
+# shows are kept with the run (Artifacts > ios-screens).
+# To send a build to App Store Connect: Actions > iOS app > Run workflow > tick "upload". That needs four repository
+# secrets (Settings > Secrets and variables > Actions): APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8.
+name: iOS app
+
+on:
+  push:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Sign the app and upload it to App Store Connect'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    name: Build and open in a simulator
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: |
+          xcodebuild -version
+          which xcodegen || brew install xcodegen
+          xcodegen --version
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build
+        working-directory: ios
+        run: |
+          xcodebuild -project Dribit.xcodeproj -scheme Dribit -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 \
+            || { grep -n -E "error:|error generated|fatal" build.log | head -60; echo "----- end of log -----"; tail -n 40 build.log; exit 1; }
+          echo "Built. Warnings in our own files:"
+          grep -E "Dribit/.*warning:" build.log | sed 's/.*Dribit\//Dribit\//' | sort -u | head -40 || true
+
+      - name: Open in an iPhone simulator
+        run: |
+          set -x
+          mkdir -p shots logs
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          best = None
+          for runtime, devices in json.load(sys.stdin)['devices'].items():
+              if 'iOS' not in runtime: continue
+              version = tuple(int(n) for n in runtime.split('iOS-')[-1].split('-'))
+              for d in devices:
+                  if 'iPhone' not in d['name']: continue
+                  key = (version, 'Pro Max' in d['name'], d['name'])
+                  if best is None or key > best[0]: best = (key, d['udid'], d['name'], runtime)
+          sys.stderr.write('Simulator: %s (%s)\n' % (best[2], best[3]))
+          print(best[1])")
+          APP=ios/build/Build/Products/Debug-iphonesimulator/Dribit.app
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl status_bar "$DEVICE" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 || true
+          xcrun simctl install "$DEVICE" "$APP"
+
+          # 1. a normal first open, with the bridge check running inside the page
+          xcrun simctl launch --stderr="$PWD/logs/run1.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/check.js)"
+          sleep 2;  xcrun simctl io "$DEVICE" screenshot shots/01-opening.png
+          sleep 28; xcrun simctl io "$DEVICE" screenshot shots/02-first-screen.png
+
+          # 2. a second open: what was saved on the phone is still there, and the offline copy is in place
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl launch --stderr="$PWD/logs/run2.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/check.js)"
+          sleep 20; xcrun simctl io "$DEVICE" screenshot shots/03-second-open.png
+
+          # 3. the reminder permission question, as people will see it
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl launch "$DEVICE" com.dribit.app -dribitJS "DribitNative.call('notifications.request')"
+          sleep 16; xcrun simctl io "$DEVICE" screenshot shots/04-reminder-question.png
+
+          # 4. no way to reach the site: the app's own "no connection" screen
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+          xcrun simctl uninstall "$DEVICE" com.dribit.app
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch "$DEVICE" com.dribit.app -dribitURL "https://jonathanriahi.github.io:9/dribit/"
+          sleep 30; xcrun simctl io "$DEVICE" screenshot shots/05-no-connection.png
+          xcrun simctl terminate "$DEVICE" com.dribit.app
+
+          set +x
+          echo "===== bridge check, first open ====="
+          grep -a "DRIBIT-TEST" logs/run1.log | sed 's/.*DRIBIT-TEST //' || echo "(nothing logged)"
+          echo "===== bridge check, second open ====="
+          grep -a "DRIBIT-TEST" logs/run2.log | sed 's/.*DRIBIT-TEST //' || echo "(nothing logged)"
+          grep -a -q "DRIBIT-TEST done = true" logs/run1.log || { echo "::error::The bridge check did not finish"; tail -n 30 logs/run1.log; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-screens
+          path: |
+            shots
+            logs
+            ios/build.log
+
+  release:
+    name: Sign and upload to App Store Connect
+    if: github.event_name == 'workflow_dispatch' && inputs.upload
+    needs: simulator
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secrets
+        run: |
+          for name in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            [ -n "${!name}" ] || { echo "::error::The repository secret $name is missing"; exit 1; }
+          done
+
+      - name: The App Store Connect key
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          KEY="$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8"
+          # the secret may hold the .p8 file as it is, or base64 of it
+          if printf '%s' "$ASC_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then printf '%s\n' "$ASC_KEY_P8" > "$KEY"; else printf '%s' "$ASC_KEY_P8" | base64 --decode > "$KEY"; fi
+          echo "ASC_KEY_PATH=$KEY" >> "$GITHUB_ENV"
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: |
+          which xcodegen || brew install xcodegen
+          xcodegen generate
+
+      - name: Archive
+        working-directory: ios
+        run: |
+          xcodebuild -project Dribit.xcodeproj -scheme Dribit -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Dribit.xcarchive" CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGNING_ALLOWED=NO archive > archive.log 2>&1 \
+            || { grep -n -E "error:|fatal" archive.log | head -60; tail -n 40 archive.log; exit 1; }
+          echo "Archived build ${{ github.run_number }}"
+
+      - name: Sign and upload
+        working-directory: ios
+        run: |
+          sed "s/__TEAM__/$APPLE_TEAM_ID/" ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Dribit.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" > export.log 2>&1 \
+            || { grep -n -E "error|Error" export.log | head -60; tail -n 60 export.log; exit 1; }
+          tail -n 15 export.log
+          echo "Uploaded build ${{ github.run_number }}. It shows in App Store Connect (TestFlight tab) after Apple finishes processing, usually 5 to 30 minutes."
