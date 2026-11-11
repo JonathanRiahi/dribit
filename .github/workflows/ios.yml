@@ -115,7 +115,15 @@ jobs:
       - name: This branch's web app inside the app
         run: |
           set -x
-          serve() { python3 -m http.server 8765 >> logs/server.log 2>&1 & SERVER=$!; sleep 2; }
+          # the site's files, served from this machine; "serve" waits until it really answers
+          serve() {
+            python3 ios/tests/serve.py 8765 >> logs/server.log 2>&1 & SERVER=$!
+            for try in $(seq 1 40); do
+              if curl -sf -o /dev/null http://localhost:8765/config.js; then echo "The local copy of the site answers (try $try)"; return 0; fi
+              sleep 1
+            done
+            echo "::error::The local copy of the site did not start"; tail -n 20 logs/server.log; return 1
+          }
           serve
           curl -sf http://localhost:8765/config.js | grep -m1 "version:"
           APP=ios/build-local/Build/Products/Debug-iphonesimulator/Dribit.app
@@ -131,7 +139,7 @@ jobs:
 
           # 4. the site cannot be reached, and the app was opened before: it opens from the copy kept on the phone
           xcrun simctl terminate "$DEVICE" com.dribit.app
-          kill "$SERVER"; sleep 1
+          kill "$SERVER"; wait "$SERVER" 2>/dev/null || true
           xcrun simctl launch --stderr="$PWD/logs/run5.log" "$DEVICE" com.dribit.app -dribitJS "$(cat ios/tests/after.js)"
           sleep 14; xcrun simctl io "$DEVICE" screenshot shots/06-open-without-connection.png
 
@@ -149,6 +157,7 @@ jobs:
           xcrun simctl install "$DEVICE" "$APP"
           xcrun simctl launch --stderr="$PWD/logs/run7.log" "$DEVICE" com.dribit.app -dribitJS "window.__seed='ask'; $(cat ios/tests/seed.js)"
           sleep 18; xcrun simctl io "$DEVICE" screenshot shots/08-reminder-offer.png
+          curl -s -o /dev/null -w "The local copy of the site, asked from this machine: %{http_code} in %{time_total}s\n" http://localhost:8765/config.js || true
 
           # 7. the next open: the same offer, and a tap on its button brings the phone's own question.
           #    Last, because the phone's question stays on the simulator's screen after the app is closed.

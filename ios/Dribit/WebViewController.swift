@@ -272,6 +272,14 @@ extension WebViewController: WKNavigationDelegate {
         if navigationAction.targetFrame == nil && AppConfig.isAppPage(url) { webView.load(navigationAction.request) } else { openOutside(url) }
     }
 
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        note("asked the site")
+    }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        note("the site answered")
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         note("finished \(webView.url?.absoluteString ?? "(no address)")")
         // only a page of the app counts: an empty page left behind by a failed load must not hide the "no connection" screen
