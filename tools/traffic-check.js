@@ -102,7 +102,7 @@ let FIRST_OPEN = `
     FROM events WHERE event = 'landing_view' AND timestamp >= toDateTime('${HOURS_FROM} 00:00:00') - INTERVAL 3 HOUR AND ${T}
     GROUP BY d, 2, 3, 4, 5 ORDER BY d, 6 DESC`));
   // where the new people stop: everyone whose first app open is after NEW_FROM (Israel time)
-  const NEW_FROM = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(process.env.NEW_FROM || '') ? process.env.NEW_FROM : '2026-11-09 19:00';
+  const NEW_FROM = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(process.env.NEW_FROM || '') ? process.env.NEW_FROM : '2026-11-09 00:00';
   const NEWP = `SELECT person_id, c FROM (${FIRST_OPEN}) WHERE t0 >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem')`;
   const PER = `
     SELECT e.person_id AS pid, n.c AS c,
@@ -118,6 +118,19 @@ let FIRST_OPEN = `
     GROUP BY e.person_id, n.c`;
   print(`אנשים חדשים מאז ${NEW_FROM}: איפה עוצרים`, ['country', 'people', 'onboarding_done (tapped start)', 'lesson_started', 'saw a lesson step', 'answered a question', 'lesson_completed'], await hogql(`
     SELECT c, count(), sum(ob), sum(ls), sum(sv), sum(qa), sum(lc) FROM (${PER}) GROUP BY c ORDER BY c`));
+  // the same funnel by how they arrived: tapped the link inside TikTok (ad button / bio) vs typed the address or searched it
+  print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): לפי דרך ההגעה`, ['how', 'people', 'tapped start', 'answered a question', 'lesson_completed'], await hogql(`
+    SELECT how, count(), sum(ob), sum(qa), sum(lc) FROM (
+      SELECT e.person_id AS pid,
+        any(multiIf(n.ref = 'lp_tiktok', 'link inside TikTok', n.ref LIKE 'lp_%google%', 'Google app', n.ref = 'lp_direct', 'typed dribit.app',
+          n.ref = 'lp_ig', 'Instagram', n.src = 'homescreen', 'home screen icon', concat('other: ', n.src, ' ', n.ref))) AS how,
+        max(if(e.event = 'onboarding_done', 1, 0)) AS ob, max(if(e.event = 'question_answered', 1, 0)) AS qa,
+        max(if(e.event = 'lesson_completed', 1, 0)) AS lc
+      FROM events e INNER JOIN (SELECT person_id, c, src, ref FROM (${FIRST_OPEN}) WHERE t0 >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem') AND c = 'IL') n
+        ON e.person_id = n.person_id
+      WHERE e.timestamp >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem') - INTERVAL 1 HOUR
+      GROUP BY e.person_id)
+    GROUP BY how ORDER BY 2 DESC`));
   print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): כמה זמן היו באפליקציה`, ['time from first to last event', 'people', 'tapped start'], await hogql(`
     SELECT multiIf(secs < 5, '0-4s', secs < 15, '5-14s', secs < 60, '15-59s', secs < 300, '1-5m', '5m+') AS b, count(), sum(ob)
     FROM (${PER}) WHERE c = 'IL' GROUP BY b ORDER BY b`));
