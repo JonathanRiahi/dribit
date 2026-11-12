@@ -213,13 +213,13 @@
     var needsTools = !('tools' in s);
     // before 0.12 there were no colors: someone with points meets them once in an intro sheet
     var needsSkins = !('skins' in s);
-    // before 0.28 there was no walkthrough: someone who already finished a lesson knows the screens
+    // before 0.28 there was no walkthrough: everyone meets it too (Jonathan, 12.11), each screen at its next visit
     var needsTour = !('tour' in s);
     var base = freshState();
     for (var k in base) if (!(k in s)) s[k] = base[k];
     if (needsTools) s.tools.introSeen = !(+s.xp > 0);
     if (needsSkins) s.skins = { id: 'forest', seen: [], introSeen: !(+s.xp > 0) };
-    if (needsTour) { var known = +s.xp > 0; s.tour = { home: known, practice: known, tools: known, profile: known }; }
+    if (needsTour) s.tour = { home: false, practice: false, tools: false, profile: false };
     if (s.actions) { // v1 kept a single checkbox per lesson
       Object.keys(s.actions).forEach(function (id) { if (s.actions[id]) s.missions[id] = { steps: [], done: true }; });
       delete s.actions;
@@ -1373,6 +1373,8 @@
     var was = sheetOpen;
     sheetOpen = false;
     if (was && !keepEntry && topIsSheet) { topIsSheet = false; histBack(1); }
+    // 0.28: a screen whose walkthrough waited for this popup gets it now
+    if (was && !tour) tourAfterRender();
   }
 
   function pointsList(l, bx) { // 0.19: no longer on the lesson preview (Daniel: "יותר מידי אופציות"); kept for later use
