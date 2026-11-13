@@ -1,0 +1,20 @@
+2026-11-13 14:49:50.499 Dribit[7946:28380] DRIBIT-APP load https://jonathanriahi.github.io/dribit/?source=ios
+2026-11-13 14:49:51.155 Dribit[7946:28380] DRIBIT-APP asked the site
+2026-11-13 14:49:52.586 Dribit[7946:28380] DRIBIT-APP the site answered
+2026-11-13 14:49:52.670 Dribit[7946:28380] DRIBIT-APP page ready
+2026-11-13 14:49:53.083 Dribit[7946:28380] DRIBIT-APP finished https://jonathanriahi.github.io/dribit/?source=ios
+2026-11-13 14:49:56.870 Dribit[7946:28380] DRIBIT-TEST native = {"platform":"ios","appVersion":"1.0.0","build":"1","os":"26.5"}
+2026-11-13 14:49:56.871 Dribit[7946:28380] DRIBIT-TEST page = {"title":"דריבית","url":"https://jonathanriahi.github.io/dribit/?source=ios","w":440,"h":894,"dpr":3}
+2026-11-13 14:49:56.871 Dribit[7946:28380] DRIBIT-TEST ua = Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 DribitApp/1.0.0
+2026-11-13 14:49:56.872 Dribit[7946:28380] DRIBIT-TEST safe-area = {"top":0,"bottom":34}
+2026-11-13 14:49:56.873 Dribit[7946:28380] DRIBIT-TEST web-features = {"serviceWorker":true,"push":false,"notification":false,"share":"function","vibrate":"undefined","standalone":false,"displayStandalone":false}
+2026-11-13 14:49:56.874 Dribit[7946:28380] DRIBIT-TEST service-worker = {"registered":true,"scope":"https://jonathanriahi.github.io/dribit/","controlled":true}
+2026-11-13 14:49:56.876 Dribit[7946:28380] DRIBIT-TEST caches = ["dribit-0.31.1-6e83f0f0","dribit-fonts"]
+2026-11-13 14:49:56.876 Dribit[7946:28380] DRIBIT-TEST storage = {"fromEarlierRun":"1794581385293","progress":true}
+2026-11-13 14:49:56.880 Dribit[7946:28380] DRIBIT-TEST notifications.status = {"permission":"default"}
+2026-11-13 14:49:56.880 Dribit[7946:28380] DRIBIT-TEST launch.info = {"notification":null}
+2026-11-13 14:49:56.889 Dribit[7946:28380] DRIBIT-TEST schedule = {"scheduled":2}
+2026-11-13 14:49:56.895 Dribit[7946:28380] DRIBIT-TEST pending = {"items":[]}
+2026-11-13 14:49:56.904 Dribit[7946:28380] DRIBIT-TEST pending-after-cancel = {"items":[]}
+2026-11-13 14:49:56.907 Dribit[7946:28380] DRIBIT-TEST unknown-command = rejected: unknown command: no.such.command
+2026-11-13 14:49:56.908 Dribit[7946:28380] DRIBIT-TEST done = true

@@ -1,0 +1,10 @@
+2026-11-13 14:50:11.371 Dribit[8660:30507] DRIBIT-APP load http://localhost:8765/?source=ios
+2026-11-13 14:50:12.707 Dribit[8660:30507] DRIBIT-APP asked the site
+2026-11-13 14:50:12.817 Dribit[8660:30507] DRIBIT-APP the site answered
+2026-11-13 14:50:13.303 Dribit[8660:30507] DRIBIT-APP page ready
+2026-11-13 14:50:13.320 Dribit[8660:30507] DRIBIT-APP finished http://localhost:8765/?source=ios
+2026-11-13 14:50:17.533 Dribit[8660:30507] DRIBIT-TEST seed provisional = {"granted":true}
+2026-11-13 14:50:17.538 Dribit[8660:30507] DRIBIT-TEST seed reminder = saved
+2026-11-13 14:50:17.546 Dribit[8660:30507] DRIBIT-APP asked the site
+2026-11-13 14:50:17.583 Dribit[8660:30507] DRIBIT-APP the site answered
+2026-11-13 14:50:18.072 Dribit[8660:30507] DRIBIT-APP finished http://localhost:8765/?source=ios

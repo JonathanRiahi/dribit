@@ -1,0 +1,15 @@
+2026-11-13 14:52:04.051 Dribit[12354:41504] DRIBIT-APP load http://localhost:8765/?source=ios
+2026-11-13 14:52:04.701 Dribit[12354:41504] DRIBIT-APP asked the site
+2026-11-13 14:52:04.746 Dribit[12354:41504] DRIBIT-APP the site answered
+2026-11-13 14:52:04.810 Dribit[12354:41504] DRIBIT-APP page ready
+2026-11-13 14:52:04.939 Dribit[12354:41504] DRIBIT-APP finished http://localhost:8765/?source=ios
+2026-11-13 14:52:09.005 Dribit[12354:41504] DRIBIT-TEST app version = 0.31.1
+2026-11-13 14:52:09.006 Dribit[12354:41504] DRIBIT-TEST app sheet = להדליק התראות? | הודעה קצרה אחת בערב, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר. | להדליק התראות | לא עכשיו
+2026-11-13 14:52:09.007 Dribit[12354:41504] DRIBIT-TEST app install-asks = false
+2026-11-13 14:52:09.007 Dribit[12354:41504] DRIBIT-TEST app online = true
+2026-11-13 14:52:09.007 Dribit[12354:41504] DRIBIT-TEST app offline-copy = {"registered":true,"controlled":true}
+2026-11-13 14:52:09.009 Dribit[12354:41504] DRIBIT-TEST app status = {"permission":"default"}
+2026-11-13 14:52:09.010 Dribit[12354:41504] DRIBIT-TEST app pending-count = 0
+2026-11-13 14:52:09.010 Dribit[12354:41504] DRIBIT-TEST app state = {"reminder":null,"installSeen":true,"lessons":1}
+2026-11-13 14:52:09.010 Dribit[12354:41504] DRIBIT-TEST app tap #sheet [data-act="popup-reminder-on"] = true
+2026-11-13 14:52:09.015 Dribit[12354:41504] DRIBIT-TEST app done = true

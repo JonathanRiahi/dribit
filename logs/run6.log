@@ -1,0 +1,4 @@
+2026-11-13 14:51:36.449 Dribit[11474:38664] DRIBIT-APP load http://localhost:8765/?source=ios
+2026-11-13 14:51:37.081 Dribit[11474:38664] DRIBIT-APP asked the site
+2026-11-13 14:51:37.107 Dribit[11474:38664] DRIBIT-APP failed NSURLErrorDomain -1004
+2026-11-13 14:51:37.107 Dribit[11474:38664] DRIBIT-APP no connection screen

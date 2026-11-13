@@ -1,0 +1,17 @@
+2026-11-13 14:51:12.515 Dribit[10311:35571] DRIBIT-APP load http://localhost:8765/?source=ios
+2026-11-13 14:51:13.929 Dribit[10311:35571] DRIBIT-APP asked the site
+2026-11-13 14:51:14.052 Dribit[10311:35571] DRIBIT-APP the site answered
+2026-11-13 14:51:14.161 Dribit[10311:35571] DRIBIT-APP page ready
+2026-11-13 14:51:14.209 Dribit[10311:35571] DRIBIT-APP finished http://localhost:8765/?source=ios
+2026-11-13 14:51:18.361 Dribit[10311:35571] DRIBIT-TEST app version = 0.31.1
+2026-11-13 14:51:18.363 Dribit[10311:35571] DRIBIT-TEST app sheet = (closed)
+2026-11-13 14:51:18.370 Dribit[10311:35571] DRIBIT-TEST app install-asks = false
+2026-11-13 14:51:18.371 Dribit[10311:35571] DRIBIT-TEST app online = true
+2026-11-13 14:51:18.372 Dribit[10311:35571] DRIBIT-TEST app offline-copy = {"registered":true,"controlled":true}
+2026-11-13 14:51:18.376 Dribit[10311:35571] DRIBIT-TEST app status = {"permission":"granted"}
+2026-11-13 14:51:18.391 Dribit[10311:35571] DRIBIT-TEST app pending-count = 14
+2026-11-13 14:51:18.398 Dribit[10311:35571] DRIBIT-TEST app pending-first = {"id":"daily-2026-11-13","at":"Fri Nov 13 2026 18:00:00 GMT+0000 (Coordinated Universal Time)","body":"הנקודות של היום עדיין מחכות לך."}
+2026-11-13 14:51:18.403 Dribit[10311:35571] DRIBIT-TEST app pending-last = {"id":"daily-2026-11-26","at":"Thu Nov 26 2026 18:00:00 GMT+0000 (Coordinated Universal Time)"}
+2026-11-13 14:51:18.407 Dribit[10311:35571] DRIBIT-TEST app state = {"reminder":{"on":true,"native":true,"hour":18,"since":"2026-11-12"},"installSeen":true,"lessons":1}
+2026-11-13 14:51:18.408 Dribit[10311:35571] DRIBIT-TEST app tap nav [data-to="profile"] = true
+2026-11-13 14:51:18.419 Dribit[10311:35571] DRIBIT-TEST app done = true
