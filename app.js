@@ -134,6 +134,12 @@
   }
   function reducedMotion() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
   var IN_FRAME = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+  // 0.29 (Jonathan, 13.11: "המסך הראשון אמור להיות מסך הבית עם המפה של השלבים", like Duolingo): a new person lands on
+  // home with the path, and the first lesson's circle says "להתחיל". config.firstScreen 'button' brings back the
+  // one-button screen of 0.22. S.onboarded still means "started a first lesson" (onboarding_done), so inApp() is the
+  // test for "is on the app's own screens".
+  var HOME_FIRST = CFG.firstScreen !== 'button';
+  function inApp() { return S.onboarded || HOME_FIRST; }
   var IS_IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var IS_ANDROID = /android/i.test(navigator.userAgent);
   // 0.26.1: which app's built-in browser opened us (TikTok sends most new people since 9.11)
@@ -636,7 +642,7 @@
       if (n > enLast) save();
       var sh = document.querySelector('#sheet .energy-sheet');
       if (sh && enLast === 0 && n > 0) closeSheet();
-      if (view !== 'lesson' && view !== 'done' && !sheetOpen && S.onboarded) render();
+      if (view !== 'lesson' && view !== 'done' && !sheetOpen && inApp()) render();
     }
     enLast = n;
   }
@@ -908,7 +914,14 @@
     Object.keys(at).forEach(add); // "_end", or a card id that does not exist
     return steps;
   }
+  // 0.29: the time on the lesson card is what people really take. Lesson 0.2, first time: half finish in under
+  // 3 minutes (median 174 s over 5 cards and 5 questions), so about 20 s a card and 15 s a question.
   function lessonMinutes(l) {
+    return Math.max(3, Math.round((l.vScreens.length * 20 + l.vQuestions.length * 15) / 60));
+  }
+  // The speed bonus keeps its roomier clock from before 0.29 (45 s a card, 30 s a question), so the shorter
+  // estimate on the card takes points from nobody. The done screen shows this clock ("2:54 מתוך 6:00").
+  function speedMinutes(l) {
     return Math.max(3, Math.round((l.vScreens.length * 45 + l.vQuestions.length * 30) / 60));
   }
 
@@ -1156,7 +1169,7 @@
     histDepth = st.depth || 0;
     topIsSheet = false; // a sheet entry reached by forward shows its view without the sheet
     if (sheetOpen) closeSheet(true);
-    if (!S.onboarded) { render(); window.scrollTo(0, 0); return; }
+    if (!inApp()) { render(); window.scrollTo(0, 0); return; }
     var v = st.view || 'home';
     if (v === 'notes' && !(notesId && BY_ID[notesId])) v = 'home';
     if ((v === 'lesson' || v === 'done') && !session) v = 'home';
@@ -1182,9 +1195,11 @@
     if (tour && TOUR_IDS.indexOf(view) < 0) tourEnd('left');
     if (S.onboarded && view === 'lesson' && session) { root.innerHTML = renderPlayer(); afterPlayerRender(); return; }
     if (S.onboarded && view === 'done' && session) { root.innerHTML = renderDone(); return; }
-    // 0.22: before the first finished lesson, one screen with one button; then the status question, once
-    if (!S.onboarded || !doneCount()) { root.innerHTML = renderStart(); startShown(); return; }
-    if (!S.status) { root.innerHTML = renderStatusPick(); return; }
+    // 0.22: before the first finished lesson, one screen with one button; then the status question, once.
+    // 0.29: by default that first screen is home itself (HOME_FIRST), and the status question still waits for lesson 1
+    var fresh = !doneCount();
+    if (!HOME_FIRST && (!S.onboarded || fresh)) { root.innerHTML = renderStart(); startShown(); return; }
+    if (!fresh && !S.status) { root.innerHTML = renderStatusPick(); return; }
     if (view === 'notes' && notesId && BY_ID[notesId]) { root.innerHTML = renderNotes(BY_ID[notesId]); return; }
     var body = view === 'practice' ? renderPractice() : view === 'missions' && MISSIONS_ON ? renderMissions()
       : view === 'profile' ? renderProfile() : view === 'tools' && toolsTab() ? renderTools() : renderPath();
@@ -1192,6 +1207,7 @@
     if (view === 'home') revealCurrent();
     if (view === 'home' && offToast && !sheetOpen) showOffToast();
     tourAfterRender();
+    if (fresh) startShown(); // the first screen of a new person: how long until a lesson starts
   }
   function showOffToast() {
     var o = offToast;
@@ -1333,7 +1349,10 @@
     var cur = currentLesson();
     var r = levelInfo(S.xp);
     var html = homeCards(), nsk = r.last ? null : skinsAtLevel(r.n + 1)[0];
-    html += '<button class="rank-strip' + (nsk ? ' has-skin' : '') + '" data-act="explain" data-what="points">' +
+    // 0.29: the level strip waits for the first finished lesson. On 3.11 "שלב 1 מתוך 11" and "עוד 100 נקודות ליום חופש"
+    // were the first things a new person read; without the strip the first thing on the screen is the path
+    var fresh = !doneCount();
+    if (!fresh) html += '<button class="rank-strip' + (nsk ? ' has-skin' : '') + '" data-act="explain" data-what="points">' +
       '<span class="rank-badge">' + ICON.coins + '</span>' +
       '<span class="rank-txt"><b>' + esc(levelLabel(r)) + '</b><span>' + nextLevelLine(r) + '</span></span>' +
       '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
@@ -1363,7 +1382,7 @@
         var dx = Math.round(Math.sin(i * 1.1) * 70);
         var icon = state === 'done' ? ICON.check : state === 'current' ? ICON.star : ICON.lock;
         var tip = S.inProgress && S.inProgress.lessonId === l.id ? 'להמשיך' : !enCanStart() ? batteryIcon(0, enMax()) + enTimer('next') : doneCount() ? 'המשך כאן' : 'מתחילים';
-        html += '<div class="node-wrap ' + state + '" style="--dx:' + dx + 'px">' +
+        html += '<div class="node-wrap ' + state + (state === 'current' && fresh ? ' first' : '') + '" style="--dx:' + dx + 'px">' +
           (state === 'current' ? '<div class="start-tip' + (tip.indexOf('etimer') >= 0 ? ' wait' : '') + '">' + tip + '</div>' : '') +
           '<button class="node ' + state + '" data-act="preview" data-id="' + esc(l.id) + '" aria-label="' + esc(l.title) + '">' + icon + '</button>' +
           '<div class="node-label">' + esc(l.title) + '</div></div>';
@@ -1409,7 +1428,7 @@
       '<li><span>כל תשובה נכונה</span><b>' + plus(P.correct) + '</b></li>' +
       '<li><span>סיום השיעור</span><b>' + plus(P.lessonDone) + '</b></li>' +
       '<li><span>שיעור בלי אף טעות</span><b>' + plus(P.perfect) + '</b></li>' +
-      '<li><span>' + ICON.bolt + 'מסיימים תוך ' + lessonMinutes(l) + ' דקות, עם 80% נכונות</span><b>' + plus(P.speed) + '</b></li>' +
+      '<li><span>' + ICON.bolt + 'מסיימים תוך ' + speedMinutes(l) + ' דקות, עם 80% נכונות</span><b>' + plus(P.speed) + '</b></li>' +
       (bx > 1 ? '<li class="streak-x"><span>' + ICON.flame + 'בזכות הרצף, על הכול</span><b>' + timesText(bx) + '</b></li>' : '') + '</ul>';
   }
 
@@ -1440,8 +1459,9 @@
       '<p class="lead">' + esc(l.what) + '</p>' +
       '<div class="chips"><span class="chip">' + ICON.clock + 'כ-' + lessonMinutes(l) + ' דקות</span>' +
       '<span class="chip">' + l.vQuestions.filter(scored).length + ' שאלות</span>' +
-      '<span class="chip pts">' + ICON.coin + 'עד ' + Math.round(maxLessonPoints(l) * bx) + ' נקודות</span>' +
-      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + enChip + '</div>' +
+      // 0.29: before the first finished lesson the card speaks only of the lesson; points and the battery are met inside it
+      (doneCount() ? '<span class="chip pts">' + ICON.coin + 'עד ' + Math.round(maxLessonPoints(l) * bx) + ' נקודות</span>' : '') +
+      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + (doneCount() ? enChip : '') + '</div>' +
       main +
       (replay ? '<button class="btn text" data-act="notes" data-id="' + esc(l.id) + '">לקרוא שוב את ההסברים</button>' : ''), 'tall');
   }
@@ -1466,7 +1486,7 @@
           '<li><span>שאלת חזרה או תרגול</span><b>' + plus(P.review) + '</b></li>' +
           '<li><span>סיום שיעור</span><b>' + plus(P.lessonDone) + '</b></li>' +
           '<li><span>שיעור בלי אף טעות</span><b>' + plus(P.perfect) + '</b></li>' +
-          '<li><span>מסיימים בזמן שכתוב בתחילת השיעור</span><b>' + plus(P.speed) + '</b></li>' +
+          '<li><span>מסיימים שיעור מהר, עם 80% נכונות</span><b>' + plus(P.speed) + '</b></li>' +
           (MISSIONS_ON ? '<li><span>משימה מחוץ לאפליקציה</span><b>' + plus(P.mission) + '</b></li>' : checksOn() ? '<li><span>בדיקה יומית בטלפון</span><b>' + plus(P.mission) + '</b></li>' : '') +
           sbTiers().map(function (t) { return '<li class="streak-x"><span>' + ICON.flame + 'רצף של ' + t.days + ' ימים ומעלה, על שיעור ותרגול</span><b>' + timesText(t.times) + '</b></li>'; }).join('') +
         '</ul>';
@@ -2054,6 +2074,7 @@
       if (s) {
         session = s;
         var rs = s.resumed, ago = rs.savedAt ? daysBetween(dayKey(new Date(rs.savedAt)), dayKey()) : 0;
+        cameIn(l);
         track('lesson_resumed', { lesson_id: l.id, step_index: s.idx, step_count: s.steps.length, answered_before: rs.answered, jumped: rs.jumped, days_since: ago, from: startFrom });
         setView('lesson');
         if (rs.jumped || ago > 0) resumeToast(rs.answered, ago, rs.savedAt);
@@ -2073,6 +2094,7 @@
       steps.push(buildQuestionStep(pool[0], { review: true }));
     }
     session = newSession('lesson', l, steps);
+    cameIn(l);
     track('lesson_started', { lesson_id: l.id, unit_id: l.unit.id, lesson_title: l.title, replay: isDone(l.id), restart: !!restart, from: startFrom });
     setView('lesson');
   }
@@ -2522,7 +2544,7 @@
     s.acc = acc; s.time = elapsed(); s.bonus = 0; s.perfectBonus = 0; s.speedBonus = 0;
     s.pctBefore = before.pct;
     if (s.mode === 'lesson') {
-      s.target = lessonMinutes(l) * 60000;
+      s.target = speedMinutes(l) * 60000;
       s.bonus = P.lessonDone;
       s.perfectBonus = perfect ? P.perfect : 0;
       s.speedBonus = s.time <= s.target && acc >= 80 ? P.speed : 0;
@@ -3065,26 +3087,31 @@
   function startShown() {
     if (startAt) return;
     startAt = Date.now();
-    track('start_screen_shown', { returning: S.onboarded, ref: OPEN_REF, source: OPEN_SOURCE });
+    track('start_screen_shown', { returning: S.onboarded, ref: OPEN_REF, source: OPEN_SOURCE, screen: HOME_FIRST ? 'home' : 'button' });
     [3, 10, 30].forEach(function (sec) {
       setTimeout(function () {
-        if (onStartScreen() && document.visibilityState !== 'hidden') { track('start_screen_still', { seconds: sec, taps: startTaps }); flush(); }
+        if (onStartScreen() && document.visibilityState !== 'hidden') { track('start_screen_still', { seconds: sec, taps: startTaps, screen: HOME_FIRST ? 'home' : 'button' }); flush(); }
       }, sec * 1000);
     });
   }
   function startLeft(how) {
     if (!onStartScreen()) return;
     startEnded = true;
-    track('start_screen_left', { seconds: startSecs(), taps: startTaps, how: how });
+    track('start_screen_left', { seconds: startSecs(), taps: startTaps, how: how, screen: HOME_FIRST ? 'home' : 'button' });
+  }
+  // a lesson is about to open: the end of the first screen's count, and the moment a new person "comes in"
+  // (onboarding_done keeps its name, the reports count it as "tapped start")
+  function cameIn(l) {
+    var from = startFrom || 'home';
+    if (onStartScreen()) { startEnded = true; track('start_screen_tapped', { seconds: startSecs(), taps: startTaps, from: from, screen: HOME_FIRST ? 'home' : 'button' }); }
+    if (!S.onboarded) {
+      S.onboarded = true; save();
+      track('onboarding_done', { flow: HOME_FIRST ? 'home_first' : 'lesson_first', from: from, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: l.id, $set: { goal_xp: S.goalXp } });
+    }
   }
   function beginFirst(from) {
     var l = currentLesson();
     if (!l) return;
-    if (onStartScreen()) { startEnded = true; track('start_screen_tapped', { seconds: startSecs(), taps: startTaps, from: from }); }
-    if (!S.onboarded) {
-      S.onboarded = true; save();
-      track('onboarding_done', { flow: 'lesson_first', from: from, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: l.id, $set: { goal_xp: S.goalXp } });
-    }
     startFrom = from; startLesson(l.id); startFrom = null;
   }
 
@@ -5229,7 +5256,7 @@
       (view === 'done' && !!root.querySelector('.done-wrap .intent:not(.done):not(.later), .done-wrap .compare.on-done')); // a one-time question or the one-shot offer still waiting
     var limit = keep ? AWAY_KEEP_MS : AWAY_HOME_MS;
     if (sheetOpen && sheetHasText()) limit = Infinity;
-    if (away >= limit && S.onboarded && (view !== 'home' || sheetOpen)) {
+    if (away >= limit && inApp() && (view !== 'home' || sheetOpen)) {
       if (view === 'lesson' && session) leaveSession('away');
       else if (view === 'done') session = null;
       setView('home');
