@@ -914,7 +914,14 @@
     Object.keys(at).forEach(add); // "_end", or a card id that does not exist
     return steps;
   }
+  // 0.29: the time on the lesson card is what people really take. Lesson 0.2, first time: half finish in under
+  // 3 minutes (median 174 s over 5 cards and 5 questions), so about 20 s a card and 15 s a question.
   function lessonMinutes(l) {
+    return Math.max(3, Math.round((l.vScreens.length * 20 + l.vQuestions.length * 15) / 60));
+  }
+  // The speed bonus keeps its roomier clock from before 0.29 (45 s a card, 30 s a question), so the shorter
+  // estimate on the card takes points from nobody. The done screen shows this clock ("2:54 מתוך 6:00").
+  function speedMinutes(l) {
     return Math.max(3, Math.round((l.vScreens.length * 45 + l.vQuestions.length * 30) / 60));
   }
 
@@ -1421,7 +1428,7 @@
       '<li><span>כל תשובה נכונה</span><b>' + plus(P.correct) + '</b></li>' +
       '<li><span>סיום השיעור</span><b>' + plus(P.lessonDone) + '</b></li>' +
       '<li><span>שיעור בלי אף טעות</span><b>' + plus(P.perfect) + '</b></li>' +
-      '<li><span>' + ICON.bolt + 'מסיימים תוך ' + lessonMinutes(l) + ' דקות, עם 80% נכונות</span><b>' + plus(P.speed) + '</b></li>' +
+      '<li><span>' + ICON.bolt + 'מסיימים תוך ' + speedMinutes(l) + ' דקות, עם 80% נכונות</span><b>' + plus(P.speed) + '</b></li>' +
       (bx > 1 ? '<li class="streak-x"><span>' + ICON.flame + 'בזכות הרצף, על הכול</span><b>' + timesText(bx) + '</b></li>' : '') + '</ul>';
   }
 
@@ -1479,7 +1486,7 @@
           '<li><span>שאלת חזרה או תרגול</span><b>' + plus(P.review) + '</b></li>' +
           '<li><span>סיום שיעור</span><b>' + plus(P.lessonDone) + '</b></li>' +
           '<li><span>שיעור בלי אף טעות</span><b>' + plus(P.perfect) + '</b></li>' +
-          '<li><span>מסיימים בזמן שכתוב בתחילת השיעור</span><b>' + plus(P.speed) + '</b></li>' +
+          '<li><span>מסיימים שיעור מהר, עם 80% נכונות</span><b>' + plus(P.speed) + '</b></li>' +
           (MISSIONS_ON ? '<li><span>משימה מחוץ לאפליקציה</span><b>' + plus(P.mission) + '</b></li>' : checksOn() ? '<li><span>בדיקה יומית בטלפון</span><b>' + plus(P.mission) + '</b></li>' : '') +
           sbTiers().map(function (t) { return '<li class="streak-x"><span>' + ICON.flame + 'רצף של ' + t.days + ' ימים ומעלה, על שיעור ותרגול</span><b>' + timesText(t.times) + '</b></li>'; }).join('') +
         '</ul>';
@@ -2537,7 +2544,7 @@
     s.acc = acc; s.time = elapsed(); s.bonus = 0; s.perfectBonus = 0; s.speedBonus = 0;
     s.pctBefore = before.pct;
     if (s.mode === 'lesson') {
-      s.target = lessonMinutes(l) * 60000;
+      s.target = speedMinutes(l) * 60000;
       s.bonus = P.lessonDone;
       s.perfectBonus = perfect ? P.perfect : 0;
       s.speedBonus = s.time <= s.target && acc >= 80 ? P.speed : 0;
