@@ -134,6 +134,12 @@
   }
   function reducedMotion() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
   var IN_FRAME = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+  // 0.29 (Jonathan, 13.11: "המסך הראשון אמור להיות מסך הבית עם המפה של השלבים", like Duolingo): a new person lands on
+  // home with the path, and the first lesson's circle says "להתחיל". config.firstScreen 'button' brings back the
+  // one-button screen of 0.22. S.onboarded still means "started a first lesson" (onboarding_done), so inApp() is the
+  // test for "is on the app's own screens".
+  var HOME_FIRST = CFG.firstScreen !== 'button';
+  function inApp() { return S.onboarded || HOME_FIRST; }
   var IS_IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var IS_ANDROID = /android/i.test(navigator.userAgent);
   // 0.26.1: which app's built-in browser opened us (TikTok sends most new people since 9.11)
@@ -636,7 +642,7 @@
       if (n > enLast) save();
       var sh = document.querySelector('#sheet .energy-sheet');
       if (sh && enLast === 0 && n > 0) closeSheet();
-      if (view !== 'lesson' && view !== 'done' && !sheetOpen && S.onboarded) render();
+      if (view !== 'lesson' && view !== 'done' && !sheetOpen && inApp()) render();
     }
     enLast = n;
   }
@@ -1156,7 +1162,7 @@
     histDepth = st.depth || 0;
     topIsSheet = false; // a sheet entry reached by forward shows its view without the sheet
     if (sheetOpen) closeSheet(true);
-    if (!S.onboarded) { render(); window.scrollTo(0, 0); return; }
+    if (!inApp()) { render(); window.scrollTo(0, 0); return; }
     var v = st.view || 'home';
     if (v === 'notes' && !(notesId && BY_ID[notesId])) v = 'home';
     if ((v === 'lesson' || v === 'done') && !session) v = 'home';
@@ -1182,9 +1188,11 @@
     if (tour && TOUR_IDS.indexOf(view) < 0) tourEnd('left');
     if (S.onboarded && view === 'lesson' && session) { root.innerHTML = renderPlayer(); afterPlayerRender(); return; }
     if (S.onboarded && view === 'done' && session) { root.innerHTML = renderDone(); return; }
-    // 0.22: before the first finished lesson, one screen with one button; then the status question, once
-    if (!S.onboarded || !doneCount()) { root.innerHTML = renderStart(); startShown(); return; }
-    if (!S.status) { root.innerHTML = renderStatusPick(); return; }
+    // 0.22: before the first finished lesson, one screen with one button; then the status question, once.
+    // 0.29: by default that first screen is home itself (HOME_FIRST), and the status question still waits for lesson 1
+    var fresh = !doneCount();
+    if (!HOME_FIRST && (!S.onboarded || fresh)) { root.innerHTML = renderStart(); startShown(); return; }
+    if (!fresh && !S.status) { root.innerHTML = renderStatusPick(); return; }
     if (view === 'notes' && notesId && BY_ID[notesId]) { root.innerHTML = renderNotes(BY_ID[notesId]); return; }
     var body = view === 'practice' ? renderPractice() : view === 'missions' && MISSIONS_ON ? renderMissions()
       : view === 'profile' ? renderProfile() : view === 'tools' && toolsTab() ? renderTools() : renderPath();
@@ -1192,6 +1200,7 @@
     if (view === 'home') revealCurrent();
     if (view === 'home' && offToast && !sheetOpen) showOffToast();
     tourAfterRender();
+    if (fresh) startShown(); // the first screen of a new person: how long until a lesson starts
   }
   function showOffToast() {
     var o = offToast;
@@ -1333,7 +1342,10 @@
     var cur = currentLesson();
     var r = levelInfo(S.xp);
     var html = homeCards(), nsk = r.last ? null : skinsAtLevel(r.n + 1)[0];
-    html += '<button class="rank-strip' + (nsk ? ' has-skin' : '') + '" data-act="explain" data-what="points">' +
+    // 0.29: the level strip waits for the first finished lesson. On 3.11 "שלב 1 מתוך 11" and "עוד 100 נקודות ליום חופש"
+    // were the first things a new person read; without the strip the first thing on the screen is the path
+    var fresh = !doneCount();
+    if (!fresh) html += '<button class="rank-strip' + (nsk ? ' has-skin' : '') + '" data-act="explain" data-what="points">' +
       '<span class="rank-badge">' + ICON.coins + '</span>' +
       '<span class="rank-txt"><b>' + esc(levelLabel(r)) + '</b><span>' + nextLevelLine(r) + '</span></span>' +
       '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
@@ -1363,7 +1375,7 @@
         var dx = Math.round(Math.sin(i * 1.1) * 70);
         var icon = state === 'done' ? ICON.check : state === 'current' ? ICON.star : ICON.lock;
         var tip = S.inProgress && S.inProgress.lessonId === l.id ? 'להמשיך' : !enCanStart() ? batteryIcon(0, enMax()) + enTimer('next') : doneCount() ? 'המשך כאן' : 'מתחילים';
-        html += '<div class="node-wrap ' + state + '" style="--dx:' + dx + 'px">' +
+        html += '<div class="node-wrap ' + state + (state === 'current' && fresh ? ' first' : '') + '" style="--dx:' + dx + 'px">' +
           (state === 'current' ? '<div class="start-tip' + (tip.indexOf('etimer') >= 0 ? ' wait' : '') + '">' + tip + '</div>' : '') +
           '<button class="node ' + state + '" data-act="preview" data-id="' + esc(l.id) + '" aria-label="' + esc(l.title) + '">' + icon + '</button>' +
           '<div class="node-label">' + esc(l.title) + '</div></div>';
@@ -1440,8 +1452,9 @@
       '<p class="lead">' + esc(l.what) + '</p>' +
       '<div class="chips"><span class="chip">' + ICON.clock + 'כ-' + lessonMinutes(l) + ' דקות</span>' +
       '<span class="chip">' + l.vQuestions.filter(scored).length + ' שאלות</span>' +
-      '<span class="chip pts">' + ICON.coin + 'עד ' + Math.round(maxLessonPoints(l) * bx) + ' נקודות</span>' +
-      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + enChip + '</div>' +
+      // 0.29: before the first finished lesson the card speaks only of the lesson; points and the battery are met inside it
+      (doneCount() ? '<span class="chip pts">' + ICON.coin + 'עד ' + Math.round(maxLessonPoints(l) * bx) + ' נקודות</span>' : '') +
+      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + (doneCount() ? enChip : '') + '</div>' +
       main +
       (replay ? '<button class="btn text" data-act="notes" data-id="' + esc(l.id) + '">לקרוא שוב את ההסברים</button>' : ''), 'tall');
   }
@@ -2054,6 +2067,7 @@
       if (s) {
         session = s;
         var rs = s.resumed, ago = rs.savedAt ? daysBetween(dayKey(new Date(rs.savedAt)), dayKey()) : 0;
+        cameIn(l);
         track('lesson_resumed', { lesson_id: l.id, step_index: s.idx, step_count: s.steps.length, answered_before: rs.answered, jumped: rs.jumped, days_since: ago, from: startFrom });
         setView('lesson');
         if (rs.jumped || ago > 0) resumeToast(rs.answered, ago, rs.savedAt);
@@ -2073,6 +2087,7 @@
       steps.push(buildQuestionStep(pool[0], { review: true }));
     }
     session = newSession('lesson', l, steps);
+    cameIn(l);
     track('lesson_started', { lesson_id: l.id, unit_id: l.unit.id, lesson_title: l.title, replay: isDone(l.id), restart: !!restart, from: startFrom });
     setView('lesson');
   }
@@ -3039,89 +3054,23 @@
   // the first lesson is done the app is one screen with one button: no points, streak, level, path, tabs or popups.
   // Lesson 0.2 opens the path for every status, so the status question waits for after it. The landing page's button
   // lands here too: Jonathan (3.11) wants the person to tap to start, not to be dropped into the lesson.
-  // 0.29 (13.11): the first screen is one question. Of the 58 new people of 9-12.11, the 40 who came through the paid
-  // TikTok button never tapped "להתחיל את השיעור הראשון", and the people who typed the address tapped it 10 times of 14.
-  // A question is something to answer, not a gate to pass: any answer shows a short explanation, and the button under it
-  // opens the first lesson (Jonathan, 3.11: the person taps to start, nobody is dropped into the lesson). Nothing is
-  // marked wrong here, since nothing was taught yet. Texts: config.startQuestion (null = the one-button screen of 0.22).
-  var startAns = -1; // the answer picked on this screen, -1 = none yet
-  function startQ() {
-    var q = CFG.startQuestion;
-    return q && q.prompt && q.options && q.options.length > 1 && q.feedback ? q : null;
-  }
-  // Noam, the character of the TikTok story videos: he asks the question, and his face answers the pick
-  function noam(face) {
-    var eyes = face === 'grin' ? '<path d="M145 232 Q162 210 179 232M221 232 Q238 210 255 232" stroke="#1E1A17" stroke-width="9" fill="none" stroke-linecap="round"/>'
-      : face === 'wow' ? '<circle cx="162" cy="228" r="27" fill="#fff" stroke="#1E1A17" stroke-width="4"/><circle cx="238" cy="228" r="27" fill="#fff" stroke="#1E1A17" stroke-width="4"/><circle cx="162" cy="230" r="12" fill="#1E1A17"/><circle cx="238" cy="230" r="12" fill="#1E1A17"/>'
-      : '<ellipse cx="162" cy="228" rx="14" ry="19" fill="#1E1A17"/><ellipse cx="238" cy="228" rx="14" ry="19" fill="#1E1A17"/><circle cx="167" cy="220" r="5" fill="#fff"/><circle cx="243" cy="220" r="5" fill="#fff"/>';
-    var mouth = face === 'grin' ? '<path d="M158 278 Q200 345 242 278 Z" fill="#7A2E22"/><path d="M178 312 Q200 300 222 312 Q210 330 200 330 Q190 330 178 312 Z" fill="#E36B6B"/><path d="M162 279 L238 279 L232 290 L168 290 Z" fill="#fff"/>'
-      : face === 'wow' ? '<ellipse cx="200" cy="298" rx="16" ry="20" fill="#7A2E22"/>'
-      : '<path d="M168 285 Q200 316 232 285" stroke="#7A2E22" stroke-width="9" fill="none" stroke-linecap="round"/>';
-    return '<svg viewBox="10 56 380 380" aria-hidden="true">' +
-      '<path d="M110 395 Q200 365 290 395 L340 640 L60 640 Z" fill="#14907A"/>' +
-      '<path d="M168 380 Q200 420 232 380" fill="none" stroke="#0E6E58" stroke-width="10" stroke-linecap="round"/>' +
-      '<rect x="178" y="320" width="44" height="66" rx="16" fill="#E3AC83"/>' +
-      '<circle cx="84" cy="235" r="26" fill="#EDB58B"/><circle cx="316" cy="235" r="26" fill="#EDB58B"/>' +
-      '<ellipse cx="200" cy="225" rx="122" ry="128" fill="#F4C7A1"/>' +
-      '<path d="M78 215 C70 95 160 70 205 78 C270 70 335 110 322 215 C305 165 270 150 240 160 C215 140 175 150 150 140 C120 160 95 175 78 215 Z" fill="#3B2A20"/>' +
-      '<path d="M150 140 C160 110 190 100 215 110" fill="none" stroke="#3B2A20" stroke-width="18" stroke-linecap="round"/>' +
-      '<path d="M140 186 Q160 176 180 184M220 184 Q240 176 260 186" stroke="#3B2A20" stroke-width="9" fill="none" stroke-linecap="round"/>' +
-      eyes + '<circle cx="130" cy="272" r="18" fill="#F49B8A" opacity=".55"/><circle cx="270" cy="272" r="18" fill="#F49B8A" opacity=".55"/>' + mouth + '</svg>';
-  }
   function renderStart() {
     var l = currentLesson();
     if (!l) return '';
     var ip = S.inProgress && S.inProgress.lessonId === l.id ? S.inProgress : null;
     var pct = ip ? Math.round(resumeAt(ip) / Math.max(1, ip.steps.length) * 100) : 0;
-    var q = startQ();
-    var top = '<div class="logo">' + esc(CFG.appName) + '</div><p class="tag">' + esc(q && CFG.startTag || CFG.tagline) + '</p>';
-    var fine = '<p class="fine center">' + esc(CFG.disclaimer) + '.</p>';
-    if (q && !ip) {
-      var done = startAns >= 0, right = startAns === q.correctIndex;
-      var opts = q.options.map(function (o, i) {
-        var c = 'opt' + (!done ? '' : i === q.correctIndex ? ' right' : i === startAns ? ' sel' : ' off');
-        return '<button class="' + c + '" data-act="start-pick" data-i="' + i + '"' + (done ? ' disabled' : '') + '>' + esc(o) + '</button>';
-      }).join('');
-      var foot = !done ? '' : '<div class="player-foot start-foot gutter ' + (right ? 'ok' : 'wow') + '" role="status">' +
-        '<div class="verdict"><div class="badge">' + (right ? ICON.check : ICON.bolt) + '</div><div>' +
-        '<h3>' + esc((right ? q.rightTitle : q.wrongTitle) || '') + '</h3><p>' + esc(q.feedback[startAns] || '') + '</p>' +
-        (q.bridge ? '<p class="bridge">' + esc(q.bridge) + '</p>' : '') + '</div></div>' +
-        '<button class="btn' + (right ? ' ok' : '') + ' start-btn" data-act="first-lesson" data-from="start_question">' + ICON.play + esc(q.button || 'להמשיך') + '</button></div>';
-      return '<div class="welcome start ask-first' + (done ? ' answered' : '') + '"><div class="start-body gutter">' + top +
-        '<div class="ask"><div class="who">' + noam(!done ? 'smile' : right ? 'grin' : 'wow') + '</div>' +
-        '<div class="bubble">' + (q.kicker ? '<div class="kicker">' + esc(q.kicker) + '</div>' : '') +
-        (q.scenario ? '<p class="sc">' + esc(q.scenario) + '</p>' : '') + '<h1 class="q-prompt">' + esc(q.prompt) + '</h1></div></div>' +
-        '<div class="options start-opts">' + opts + '</div>' +
-        (done ? '' : '<div class="spacer"></div>' + fine) + '</div>' + foot + '</div>';
-    }
-    // a lesson left in the middle, or no question in the config: one button. The picture and the card start the lesson
-    // too, so almost any tap on the screen does it
-    var art = q ? '<div class="ask"><div class="who">' + noam('smile') + '</div><div class="bubble"><p class="sc">' + esc(q.resume || 'ממשיכים מאיפה שהפסקת?') + '</p></div></div>'
-      : CFG.images && CFG.images.welcome ? '<div class="welcome-art" data-act="first-lesson"><img src="' + esc(CFG.images.welcome) + '" alt=""></div>' : '';
-    return '<div class="welcome start gutter">' + top + art +
+    // the picture and the card start the lesson too, so almost any tap on the screen does it
+    var art = CFG.images && CFG.images.welcome ? '<div class="welcome-art" data-act="first-lesson"><img src="' + esc(CFG.images.welcome) + '" alt=""></div>' : '';
+    return '<div class="welcome start gutter">' +
+      '<div class="logo">' + esc(CFG.appName) + '</div>' +
+      '<p class="tag">' + esc(CFG.tagline) + '</p>' + art +
       '<button class="first-card u' + esc(l.unit.id) + '" data-act="first-lesson" aria-hidden="true" tabindex="-1">' +
         '<span class="eyebrow">' + (ip ? 'עצרת באמצע השיעור' : 'השיעור הראשון') + '</span>' +
         '<b>' + esc(l.title) + '</b>' + (l.what ? '<span class="fc-what">' + esc(l.what) + '</span>' : '') +
         (ip ? '<span class="bar"><i style="width:' + pct + '%"></i></span>' : '') + '</button>' +
       '<div class="spacer"></div>' +
       '<button class="btn gold start-btn" data-act="first-lesson">' + ICON.play + (ip ? 'להמשיך את השיעור' : 'להתחיל את השיעור הראשון') + '</button>' +
-      fine + '</div>';
-  }
-  function pickStart(i) {
-    var q = startQ();
-    if (!q || startAns >= 0 || !(i >= 0 && i < q.options.length)) return;
-    startAns = i;
-    var right = i === q.correctIndex;
-    if (right) sfx.right(1); else sfx.tap();
-    track('start_question_answered', { option: i, correct: right, seconds: onStartScreen() ? startSecs() : null, taps: startTaps });
-    flush();
-    render();
-    // short phones: the explanation and its button come up from the bottom, so the page follows them
-    setTimeout(function () {
-      if (startAns < 0 || !root.querySelector('.start-foot')) return;
-      var h = document.documentElement.scrollHeight;
-      try { window.scrollTo({ top: h, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, h); }
-    }, 60);
+      '<p class="fine center">' + esc(CFG.disclaimer) + '.</p></div>';
   }
   // 0.26.1 (10.11): 42 of 46 new people from TikTok opened the app and never tapped start, and nothing tells us if they
   // read the screen or left at once. These events say how long the first screen was in front of them.
@@ -3131,26 +3080,31 @@
   function startShown() {
     if (startAt) return;
     startAt = Date.now();
-    track('start_screen_shown', { returning: S.onboarded, ref: OPEN_REF, source: OPEN_SOURCE });
+    track('start_screen_shown', { returning: S.onboarded, ref: OPEN_REF, source: OPEN_SOURCE, screen: HOME_FIRST ? 'home' : 'button' });
     [3, 10, 30].forEach(function (sec) {
       setTimeout(function () {
-        if (onStartScreen() && document.visibilityState !== 'hidden') { track('start_screen_still', { seconds: sec, taps: startTaps }); flush(); }
+        if (onStartScreen() && document.visibilityState !== 'hidden') { track('start_screen_still', { seconds: sec, taps: startTaps, screen: HOME_FIRST ? 'home' : 'button' }); flush(); }
       }, sec * 1000);
     });
   }
   function startLeft(how) {
     if (!onStartScreen()) return;
     startEnded = true;
-    track('start_screen_left', { seconds: startSecs(), taps: startTaps, how: how });
+    track('start_screen_left', { seconds: startSecs(), taps: startTaps, how: how, screen: HOME_FIRST ? 'home' : 'button' });
+  }
+  // a lesson is about to open: the end of the first screen's count, and the moment a new person "comes in"
+  // (onboarding_done keeps its name, the reports count it as "tapped start")
+  function cameIn(l) {
+    var from = startFrom || 'home';
+    if (onStartScreen()) { startEnded = true; track('start_screen_tapped', { seconds: startSecs(), taps: startTaps, from: from, screen: HOME_FIRST ? 'home' : 'button' }); }
+    if (!S.onboarded) {
+      S.onboarded = true; save();
+      track('onboarding_done', { flow: HOME_FIRST ? 'home_first' : 'lesson_first', from: from, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: l.id, $set: { goal_xp: S.goalXp } });
+    }
   }
   function beginFirst(from) {
     var l = currentLesson();
     if (!l) return;
-    if (onStartScreen()) { startEnded = true; track('start_screen_tapped', { seconds: startSecs(), taps: startTaps, from: from }); }
-    if (!S.onboarded) {
-      S.onboarded = true; save();
-      track('onboarding_done', { flow: 'lesson_first', from: from, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: l.id, $set: { goal_xp: S.goalXp } });
-    }
     startFrom = from; startLesson(l.id); startFrom = null;
   }
 
@@ -5056,8 +5010,7 @@
         render(); if (sheetOpen) explainSheet('goal');
         break;
       case 'status': setStatus(el.getAttribute('data-v'), el.getAttribute('data-source') || 'profile'); render(); break;
-      case 'first-lesson': sfx.tap(); beginFirst(el.getAttribute('data-from') || 'start_screen'); break;
-      case 'start-pick': pickStart(+el.getAttribute('data-i')); break;
+      case 'first-lesson': sfx.tap(); beginFirst('start_screen'); break;
       case 'pick-status': {
         sfx.tap();
         setStatus(el.getAttribute('data-v'), 'after_first_lesson');
@@ -5218,7 +5171,7 @@
       case 'reset-confirm': {
         var uid = S.uid, team = S.team;
         if (S.reminder && S.reminder.on) disableReminder('reset');
-        closeSheet(true); S = freshState(); S.uid = uid; S.team = team; session = null; startAns = -1;
+        closeSheet(true); S = freshState(); S.uid = uid; S.team = team; session = null;
         applySkin();
         track('progress_reset', {});
         save(); indexContent(); migrateContent(); setView('home');
@@ -5296,7 +5249,7 @@
       (view === 'done' && !!root.querySelector('.done-wrap .intent:not(.done):not(.later), .done-wrap .compare.on-done')); // a one-time question or the one-shot offer still waiting
     var limit = keep ? AWAY_KEEP_MS : AWAY_HOME_MS;
     if (sheetOpen && sheetHasText()) limit = Infinity;
-    if (away >= limit && S.onboarded && (view !== 'home' || sheetOpen)) {
+    if (away >= limit && inApp() && (view !== 'home' || sheetOpen)) {
       if (view === 'lesson' && session) leaveSession('away');
       else if (view === 'done') session = null;
       setView('home');

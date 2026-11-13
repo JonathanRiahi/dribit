@@ -119,12 +119,11 @@ let FIRST_OPEN = `
   print(`אנשים חדשים מאז ${NEW_FROM}: איפה עוצרים`, ['country', 'people', 'onboarding_done (tapped start)', 'lesson_started', 'saw a lesson step', 'answered a question', 'lesson_completed'], await hogql(`
     SELECT c, count(), sum(ob), sum(ls), sum(sv), sum(qa), sum(lc) FROM (${PER}) GROUP BY c ORDER BY c`));
   // the same funnel by how they arrived: tapped the link inside TikTok (ad button / bio) vs typed the address or searched it
-  print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): לפי דרך ההגעה`, ['how', 'people', 'answered the first-screen question (0.29)', 'went on to the lesson', 'answered a lesson question', 'lesson_completed'], await hogql(`
-    SELECT how, count(), sum(sq), sum(ob), sum(qa), sum(lc) FROM (
+  print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): לפי דרך ההגעה`, ['how', 'people', 'tapped start', 'answered a question', 'lesson_completed'], await hogql(`
+    SELECT how, count(), sum(ob), sum(qa), sum(lc) FROM (
       SELECT e.person_id AS pid,
         any(multiIf(n.ref = 'lp_tiktok', 'link inside TikTok', n.ref LIKE 'lp_%google%', 'Google app', n.ref = 'lp_direct', 'typed dribit.app',
           n.ref = 'lp_ig', 'Instagram', n.src = 'homescreen', 'home screen icon', concat('other: ', n.src, ' ', n.ref))) AS how,
-        max(if(e.event = 'start_question_answered', 1, 0)) AS sq,
         max(if(e.event = 'onboarding_done', 1, 0)) AS ob, max(if(e.event = 'question_answered', 1, 0)) AS qa,
         max(if(e.event = 'lesson_completed', 1, 0)) AS lc
       FROM events e INNER JOIN (SELECT person_id, c, src, ref FROM (${FIRST_OPEN}) WHERE t0 >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem') AND c = 'IL') n
@@ -132,15 +131,16 @@ let FIRST_OPEN = `
       WHERE e.timestamp >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem') - INTERVAL 1 HOUR
       GROUP BY e.person_id)
     GROUP BY how ORDER BY 2 DESC`));
-  // the first screen (events since 0.26.1): how many stayed 3 / 10 / 30 seconds, answered its question (0.29), went on to the lesson
-  print('המסך הראשון מאז 2026-11-10 (ישראל): כמה נשארו עליו', ['day', 'in_app', 'saw it', 'still at 3s', '10s', '30s', 'answered the question', 'went on to the lesson'], await hogql(`
-    SELECT toDate(${IL}) AS d, toString(properties.in_app) AS ia, uniqIf(person_id, event = 'start_screen_shown'),
+  // the first screen (events since 0.26.1): how many stayed 3 / 10 / 30 seconds and how many went on to a lesson.
+  // screen: 'button' = the one-button screen (also every event before 0.29, which has no screen), 'home' = home with the path (0.29)
+  print('המסך הראשון מאז 2026-11-10 (ישראל): כמה נשארו עליו', ['day', 'screen', 'in_app', 'saw it', 'still at 3s', '10s', '30s', 'went on to the lesson'], await hogql(`
+    SELECT toDate(${IL}) AS d, if(toString(properties.screen) = 'home', 'home', 'button') AS sc, toString(properties.in_app) AS ia,
+      uniqIf(person_id, event = 'start_screen_shown'),
       uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 3), uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 10),
-      uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 30), uniqIf(person_id, event = 'start_question_answered'),
-      uniqIf(person_id, event = 'start_screen_tapped')
-    FROM events WHERE event IN ('start_screen_shown', 'start_screen_still', 'start_question_answered', 'start_screen_tapped')
+      uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 30), uniqIf(person_id, event = 'start_screen_tapped')
+    FROM events WHERE event IN ('start_screen_shown', 'start_screen_still', 'start_screen_tapped')
       AND timestamp >= toDateTime('2026-11-10 00:00:00') AND ${CTRY} = 'IL' AND ${T}
-    GROUP BY d, ia ORDER BY d, ia`));
+    GROUP BY d, sc, ia ORDER BY d, sc, ia`));
   print('שיעור 0.2, פעם ראשונה, מאז 2026-11-03: כמה זמן לוקח לסיים (שניות)', ['finished', 'p25', 'median', 'p75'], await hogql(`
     SELECT count(), round(quantile(0.25)(toFloat(properties.duration_sec))), round(quantile(0.5)(toFloat(properties.duration_sec))), round(quantile(0.75)(toFloat(properties.duration_sec)))
     FROM events WHERE event = 'lesson_completed' AND toString(properties.lesson_id) = '0.2' AND toString(properties.first_time) = 'true'

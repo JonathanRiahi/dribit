@@ -334,6 +334,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   content: ''; position: absolute; top: 100%; left: 50%; margin-left: -7px;
   border: 7px solid transparent; border-top-color: var(--line);
 }
+/* 0.29: a new person's first screen is this path, so the first circle's "מתחילים" is a little bigger */
+.node-wrap.current.first .start-tip { font-size: 17px; padding: 8px 18px; border-radius: 14px; }
 .node-label { text-align: center; font-size: 13px; color: var(--ink-2); margin-top: 12px; max-width: 110px; line-height: 1.25; }
 .unit-end { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 13px; font-weight: 700; padding-top: 6px; }
 .unit-end svg { width: 22px; height: 22px; }
@@ -662,62 +664,6 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 @media (max-height: 600px) { .welcome.start .welcome-art { display: none; } .welcome.start { padding-top: 20px; } }
 @keyframes start-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
 @media (prefers-reduced-motion: reduce) { .welcome.start .start-btn { animation: none; } }
-/* 0.29: the first screen is one question (config.startQuestion). Noam asks it in a speech bubble, any answer brings up
-   the explanation and the button that opens the first lesson */
-.welcome.start { flex: 1 0 auto; }
-.welcome.start .logo { font-size: 40px; }
-.welcome.start .tag { font-size: 16.5px; line-height: 1.4; max-width: none; margin-top: -10px; }
-.welcome.start.ask-first { padding-block: 0; gap: 0; }
-.start-body { flex: 1 0 auto; display: flex; flex-direction: column; gap: 16px; padding-block: 24px calc(20px + env(safe-area-inset-bottom, 0px)); }
-.ask-first.answered .start-body { padding-bottom: 20px; }
-.ask { display: flex; align-items: flex-end; gap: 14px; }
-.ask .who { width: 76px; height: 76px; flex: none; border-radius: 50%; overflow: hidden; background: var(--brand-soft); border: 2px solid var(--line); }
-.ask .who svg { display: block; width: 100%; height: 100%; }
-.ask .bubble {
-  position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;
-  background: var(--surface); border: 2px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px 16px;
-}
-.ask .bubble::after {
-  content: ""; position: absolute; right: -9px; bottom: 28px; width: 14px; height: 14px; transform: rotate(45deg);
-  background: var(--surface); border: 2px solid var(--line); border-left: 0; border-bottom: 0; border-top-right-radius: 4px;
-}
-.ask .sc { font-size: 17px; line-height: 1.45; color: var(--ink-2); text-wrap: balance; }
-.ask .q-prompt { font-size: 23px; line-height: 1.25; animation: none; }
-.ask-first:not(.answered) .ask .bubble { animation: up .3s ease both; }
-.start-opts .opt {
-  justify-content: center; text-align: center; min-height: 58px;
-  font-family: var(--font-display); font-weight: 600; font-size: 20px;
-}
-.ask-first:not(.answered) .start-opts .opt { animation: up .3s ease both; }
-.ask-first:not(.answered) .start-opts .opt:nth-child(1) { animation-delay: .08s; }
-.ask-first:not(.answered) .start-opts .opt:nth-child(2) { animation-delay: .14s; }
-.ask-first:not(.answered) .start-opts .opt:nth-child(3) { animation-delay: .2s; }
-.ask-first:not(.answered) .start-opts .opt:nth-child(4) { animation-delay: .26s; }
-.start-opts .opt.off { opacity: .45; box-shadow: none; }
-.start-opts .opt.sel { border-color: var(--gold-deep); background: var(--gold-soft); box-shadow: 0 3px 0 var(--gold-deep); }
-.start-foot { margin-top: auto; border-top: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; animation: up .25s ease; }
-.start-foot .verdict { animation: none; }
-.player-foot.wow { background: var(--gold-soft); border-color: transparent; }
-.player-foot.wow .verdict { color: var(--gold-ink); }
-.start-foot .bridge { font-weight: 700; margin-top: 8px; }
-/* once answered, the explanation needs the room: the lines that did their job step aside, more of them on short phones */
-.ask-first.answered .tag, .ask-first.answered .kicker { display: none; }
-@media (max-height: 720px) { .ask-first.answered .logo { display: none; } }
-@media (max-height: 660px) { .ask-first.answered .sc { display: none; } }
-@media (max-height: 620px) {
-  .start-foot { gap: 10px; padding-top: 14px; }
-  .start-body { gap: 12px; padding-top: 16px; }
-  .welcome.start .logo { font-size: 34px; }
-  .ask .who { width: 64px; height: 64px; }
-  .ask .q-prompt { font-size: 21px; }
-  .start-opts { gap: 8px; }
-  .start-opts .opt { min-height: 52px; padding-block: 10px; }
-  .ask-first.answered .start-body { padding-bottom: 14px; }
-  .welcome.start .start-foot .start-btn { min-height: 56px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ask-first .ask .bubble, .ask-first .start-opts .opt, .start-foot { animation: none; }
-}
 .status-pick .eyebrow { color: var(--ok, var(--brand)); font-size: 14px; }
 .status-pick .goal-opt svg { width: 20px; height: 20px; flex: none; opacity: .6; }
 .goal-pick { display: flex; flex-direction: column; gap: 10px; }
