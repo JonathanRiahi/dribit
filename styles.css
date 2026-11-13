@@ -317,6 +317,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .node.done:active { box-shadow: 0 1px 0 var(--gold-deep); }
 .node.current { position: relative; background: var(--u, var(--brand)); color: #fff; box-shadow: 0 7px 0 var(--u-deep, var(--brand-deep)); }
 .node.current:active { box-shadow: 0 1px 0 var(--u-deep, var(--brand-deep)); }
+.node.open { background: var(--u, var(--brand)); color: #fff; box-shadow: 0 7px 0 var(--u-deep, var(--brand-deep)); opacity: .8; }
+.node.open:active { box-shadow: 0 1px 0 var(--u-deep, var(--brand-deep)); }
+.node.open svg { width: 26px; height: 26px; }
 .node.current::before {
   content: ''; position: absolute; inset: -9px; border-radius: 50%;
   border: 4px solid var(--u, var(--brand)); opacity: .28; pointer-events: none;
@@ -401,7 +404,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .lesson-row .dot { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--lock); color: var(--ink-3); }
 .lesson-row .dot svg { width: 18px; height: 18px; }
 .lesson-row.done .dot { background: var(--gold); color: #5A3D00; }
-.lesson-row.current .dot { background: var(--brand); color: #fff; }
+.lesson-row.current .dot, .lesson-row.open .dot { background: var(--brand); color: #fff; }
 .lesson-row .t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
 .lesson-row .t span { font-size: 14px; color: var(--ink-3); }
 .rules { display: flex; flex-direction: column; }
@@ -1325,7 +1328,7 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 
 /* ---------- 0.12: colors that open by level (Jonathan, 21.10: "נפתחים לפי שלב") ---------- */
 /* AA fixes every color needs (some already fail today) */
-.lesson-row.current .dot { color: var(--on-brand); }
+.lesson-row.current .dot, .lesson-row.open .dot { color: var(--on-brand); }
 .switch[aria-checked="true"]::after { background: var(--on-brand); }
 .invite-bar { background: linear-gradient(90deg, var(--brand), var(--brand-2)); color: var(--on-brand); }
 .seg button[aria-pressed="true"] small { color: var(--brand); }
