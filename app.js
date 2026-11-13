@@ -206,7 +206,7 @@
       // 0.28 the first-time walkthrough (Jonathan, 11.11): each screen explained once, the first time it is opened after lesson 1
       tour: { home: false, practice: false, tools: false, profile: false },
       // 0.28.1 a team device (Jonathan and Nehorai, 13.11): marked with ?team=1 or 7 taps on the version line in the profile.
-      // Its events carry team: true and the reports leave this person out of every count. Never in transfer codes.
+      // Its events carry team: true and the reports leave this person out of every count; 0.29.1: every lesson is open. Never in transfer codes.
       team: false
     };
   }
@@ -883,6 +883,7 @@
     return null;
   }
   function isUnlocked(l) {
+    if (S.team) return true; // 0.29.1: on a team device (Jonathan and Nehorai, 13.11) every lesson is open
     var cur = currentLesson();
     return isDone(l.id) || (cur && cur.id === l.id);
   }
@@ -986,7 +987,7 @@
     verTaps = [];
     setTeam(!S.team, 'version_taps');
     render();
-    toast(S.team ? ICON.check + '<b>מכשיר צוות</b><span>מה שנעשה כאן לא נספר בנתונים</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
+    toast(S.team ? ICON.check + '<b>מכשיר צוות</b><span>לא נספר בנתונים, וכל השיעורים פתוחים</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
   }
 
   // ---------- Sound and effects ----------
@@ -1378,9 +1379,9 @@
         '<span class="art' + (img ? ' pic' : '') + '">' + (img ? '<img src="' + esc(img) + '" alt="">' : u.n) + '</span></button>' +
         '<div class="path">';
       u.vis.forEach(function (l, i) {
-        var state = isDone(l.id) ? 'done' : (cur && cur.id === l.id ? 'current' : 'locked');
+        var state = isDone(l.id) ? 'done' : (cur && cur.id === l.id ? 'current' : S.team ? 'open' : 'locked');
         var dx = Math.round(Math.sin(i * 1.1) * 70);
-        var icon = state === 'done' ? ICON.check : state === 'current' ? ICON.star : ICON.lock;
+        var icon = state === 'done' ? ICON.check : state === 'current' ? ICON.star : state === 'open' ? ICON.play : ICON.lock;
         var tip = S.inProgress && S.inProgress.lessonId === l.id ? 'להמשיך' : !enCanStart() ? batteryIcon(0, enMax()) + enTimer('next') : doneCount() ? 'המשך כאן' : 'מתחילים';
         html += '<div class="node-wrap ' + state + (state === 'current' && fresh ? ' first' : '') + '" style="--dx:' + dx + 'px">' +
           (state === 'current' ? '<div class="start-tip' + (tip.indexOf('etimer') >= 0 ? ' wait' : '') + '">' + tip + '</div>' : '') +
@@ -1470,9 +1471,10 @@
     var u = UNITS.filter(function (x) { return String(x.id) === String(uid); })[0];
     if (!u) return;
     var rows = u.vis.map(function (l) {
-      var st = isDone(l.id) ? 'done' : isUnlocked(l) ? 'current' : 'locked';
+      var cur = currentLesson();
+      var st = isDone(l.id) ? 'done' : cur && cur.id === l.id ? 'current' : isUnlocked(l) ? 'open' : 'locked';
       return '<li><button class="lesson-row ' + st + '" data-act="preview" data-id="' + esc(l.id) + '">' +
-        '<span class="dot">' + (st === 'done' ? ICON.check : st === 'current' ? ICON.star : ICON.lock) + '</span>' +
+        '<span class="dot">' + (st === 'done' ? ICON.check : st === 'current' ? ICON.star : st === 'open' ? ICON.play : ICON.lock) + '</span>' +
         '<span class="t"><b>' + esc(l.title) + '</b><span>' + esc(l.what) + '</span></span>' + ICON.chevron + '</button></li>';
     }).join('');
     openSheet('<div class="eyebrow">יחידה ' + u.n + '</div><h3>' + esc(u.title) + '</h3><ul class="lesson-list">' + rows + '</ul>' + compareCard(u), 'tall');
@@ -5352,7 +5354,7 @@
         history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
       } catch (e) { /* ignore */ }
       if (teamChanged || teamOn) setTimeout(function () {
-        toast(teamOn ? ICON.check + '<b>מכשיר צוות</b><span>מה שנעשה כאן לא נספר בנתונים</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
+        toast(teamOn ? ICON.check + '<b>מכשיר צוות</b><span>לא נספר בנתונים, וכל השיעורים פתוחים</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
       }, 600);
     }
     checkStreakBreak();
