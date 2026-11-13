@@ -1,0 +1,31 @@
+// Final skin palette (judge). img = main-button/bar/toast gradient stops; mark = logo gradient stops; null = solid.
+module.exports = [
+ { id:'forest', name:'יער', level:1, hue:null,
+   light:{brand:'#0E6E58',deep:'#08503F',soft:'#D7EDE5',on:'#FFFFFF',b2:'#0B7480',img:null,mark:null},
+   dark: {brand:'#23A583',deep:'#157A5F',soft:'#112E27',on:'#04120E',b2:'#2BB3A6',img:null,mark:null}},
+ { id:'sea', name:'ים', level:2,
+   light:{brand:'#1D5FCC',deep:'#12438F',soft:'#DCE7FA',on:'#FFFFFF',b2:'#0E72A8',img:null,mark:null},
+   dark: {brand:'#5B9BF2',deep:'#2F64AD',soft:'#15284A',on:'#030F22',b2:'#4FB3E8',img:null,mark:null}},
+ { id:'sunset', name:'שקיעה', level:3,
+   light:{brand:'#A84A0C',deep:'#763206',soft:'#FCE6D6',on:'#FFFFFF',b2:'#C02B4A',img:null,mark:null},
+   dark: {brand:'#FB8A4C',deep:'#B2531F',soft:'#3A1D10',on:'#1C0A01',b2:'#FF7A8A',img:null,mark:null}},
+ { id:'galaxy', name:'גלקסיה', level:5,
+   light:{brand:'#6A3DD6',deep:'#4A2898',soft:'#ECE4FC',on:'#FFFFFF',b2:'#3B4FD8',img:null,mark:null},
+   dark: {brand:'#A98BFA',deep:'#6A4BB8',soft:'#2A2050',on:'#110628',b2:'#8EA2FF',img:null,mark:null}},
+ { id:'raspberry', name:'פטל', level:7,
+   light:{brand:'#C2185B',deep:'#8A0F40',soft:'#FBE0EB',on:'#FFFFFF',b2:'#9C27B0',img:null,mark:null},
+   dark: {brand:'#F47BAA',deep:'#B0406E',soft:'#3D1528',on:'#23030F',b2:'#D98BF2',img:null,mark:null}},
+ { id:'neon', name:'נאון', level:9,
+   light:{brand:'#0B6F8C',deep:'#084E63',soft:'#DCEFF4',on:'#FFFFFF',b2:'#7A3BD0',img:['#08775C','#0B6F8C','#7A3BD0'],mark:['#08775C','#0B6F8C','#7A3BD0']},
+   dark: {brand:'#45CBE0',deep:'#167486',soft:'#10323A',on:'#03131A',b2:'#C29BFF',img:['#3DD68C','#45CBE0','#C29BFF'],mark:['#3DD68C','#45CBE0','#C29BFF']}},
+ { id:'gold', name:'זהב', level:11, hue:85, inkChroma:0.5,
+   light:{brand:'#1F262B',deep:'#0A0D0F',soft:'#F5EBD3',on:'#F5C04A',b2:'#3B3428',img:['#1F262B','#3B3428'],mark:['#1F262B','#8C6107']},
+   dark: {brand:'#F2C14E',deep:'#7A5806',soft:'#352A0E',on:'#1F1703',b2:'#E9A92B',img:['#F7D774','#E9A92B'],mark:['#F7D774','#E9A92B']}},
+ // 0.31: two colors that only friends open (config.skins.list friends: 1 and 5), never by level
+ { id:'bronze', name:'ארד', friends:1,
+   light:{brand:'#8A4F1D',deep:'#5E3410',soft:'#F6E6D6',on:'#FFFFFF',b2:'#9A5A22',img:['#7A4419','#A0602A'],mark:['#7A4419','#A0602A']},
+   dark: {brand:'#E5A86A',deep:'#8A5A2A',soft:'#3A2614',on:'#1E1004',b2:'#F0B878',img:['#F3C893','#D99550'],mark:['#F3C893','#D99550']}},
+ { id:'diamond', name:'יהלום', friends:5, inkChroma:0.6,
+   light:{brand:'#1D3D6B',deep:'#0F2445',soft:'#DDE9F7',on:'#CFF0FF',b2:'#3A2F7A',img:['#1D3D6B','#3A2F7A'],mark:['#1D3D6B','#5A4FC8']},
+   dark: {brand:'#8FD8FF',deep:'#2A6A90',soft:'#11283A',on:'#03121C',b2:'#C3B5FF',img:['#B8ECFF','#A99BFF'],mark:['#B8ECFF','#A99BFF']}}
+];

@@ -19,10 +19,14 @@
   // colors that open by level (config.skins, 0.12): read by cleanState(), so they are set before the state loads.
   // Names live here, not in config. Every name works after "צבע ה" ("צבע הים").
   var SKINS = CFG.skins || { enabled: false, list: [] };
-  var SKIN_IDS = ['forest', 'sea', 'sunset', 'galaxy', 'raspberry', 'neon', 'gold'];
-  var SKIN_NAME = { forest: 'יער', sea: 'ים', sunset: 'שקיעה', galaxy: 'גלקסיה', raspberry: 'פטל', neon: 'נאון', gold: 'זהב' };
+  // friends and groups (config.social, 0.31): read when the state loads (the colors that open through friends)
+  var SOC = CFG.social || { enabled: false };
+  var SOC_API = String(SOC.api || '').trim().replace(/\/+$/, '');
+  var SOC_ALL = Math.max(1, Math.floor(SOC.unlockAllAt || 3));
+  var SKIN_IDS = ['forest', 'sea', 'sunset', 'galaxy', 'raspberry', 'neon', 'gold', 'bronze', 'diamond'];
+  var SKIN_NAME = { forest: 'יער', sea: 'ים', sunset: 'שקיעה', galaxy: 'גלקסיה', raspberry: 'פטל', neon: 'נאון', gold: 'זהב', bronze: 'ארד', diamond: 'יהלום' }; // 0.31: bronze and diamond open only through friends
   // the phone's status bar (Android) follows the color: its light brand
-  var SKIN_META = { forest: '#0E6E58', sea: '#1D5FCC', sunset: '#A84A0C', galaxy: '#6A3DD6', raspberry: '#C2185B', neon: '#0B6F8C', gold: '#1F262B' };
+  var SKIN_META = { forest: '#0E6E58', sea: '#1D5FCC', sunset: '#A84A0C', galaxy: '#6A3DD6', raspberry: '#C2185B', neon: '#0B6F8C', gold: '#1F262B', bronze: '#8A4F1D', diamond: '#1D3D6B' };
   var WISH_IDS = ['studies', 'training', 'driving', 'business', 'marriage', 'home', 'rent', 'car', 'trip', 'other'];
   var GOAL_IDS = ['studies', 'training', 'driving', 'business', 'marriage', 'home', 'wait5', 'unsure'];
   var STORE_KEY = 'dribit.progress.v1';
@@ -83,9 +87,13 @@
     sk_galaxy: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 2.5l1.9 5.6 5.6 1.9-5.6 1.9L10 17.5l-1.9-5.6L2.5 10l5.6-1.9z"/><path d="M18 13l1 2.9 3 1.1-3 1.1-1 2.9-1-2.9-3-1.1 3-1.1z"/></svg>',
     sk_raspberry: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="10.5" r="3"/><circle cx="15" cy="10.5" r="3"/><circle cx="12" cy="14.6" r="3"/><circle cx="8.3" cy="15.6" r="2.6"/><circle cx="15.7" cy="15.6" r="2.6"/><circle cx="12" cy="19.4" r="2.5"/><path d="M12 7.4C11 4.9 8.5 3.9 6 4.4c1.3 2.2 3.5 3.3 6 3zm0 0c1-2.5 3.5-3.5 6-3-1.3 2.2-3.5 3.3-6 3z"/></svg>',
     sk_neon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.6l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/></svg>',
-    sk_gold: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.8 3.5h10.4L22 9.2 12 21 2 9.2z"/><path d="M2 9.2h20M9.2 3.5L7.6 9.2 12 21l4.4-11.8-1.6-5.7" fill="none" stroke="rgba(0,0,0,.28)" stroke-width="1.2" stroke-linejoin="round"/></svg>'
+    sk_gold: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.8 3.5h10.4L22 9.2 12 21 2 9.2z"/><path d="M2 9.2h20M9.2 3.5L7.6 9.2 12 21l4.4-11.8-1.6-5.7" fill="none" stroke="rgba(0,0,0,.28)" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+    // 0.31: the friends' colors (a medal, a cut diamond) and friends / groups
+    sk_bronze: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h4l1.6 4.2L14.2 2h3.8l-3.4 7.2A6.5 6.5 0 1112 8.5c-.5 0-1 .1-1.5.2z" opacity=".75"/><circle cx="12" cy="15.5" r="5"/><path d="M12 12.6l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z" fill="rgba(0,0,0,.28)"/></svg>',
+    sk_diamond: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 4h8l4.5 5L12 20.5 3.5 9z"/><path d="M3.5 9h17M8 4l1.8 5L12 20.5 14.2 9 16 4" fill="none" stroke="rgba(0,0,0,.28)" stroke-width="1.2" stroke-linejoin="round"/><path d="M19.5 1.5l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3.6"/><path d="M2 20c.6-3.8 3.4-6 7-6s6.4 2.2 7 6z"/><circle cx="17" cy="9" r="2.8" opacity=".7"/><path d="M15.6 14.2c3.3-.4 5.8 1.6 6.4 5.3h-4.4c-.3-2-1-3.8-2-5.3z" opacity=".7"/></svg>',
   };
-  var SKIN_ICON = { forest: ICON.sk_forest, sea: ICON.sk_sea, sunset: ICON.sk_sunset, galaxy: ICON.sk_galaxy, raspberry: ICON.sk_raspberry, neon: ICON.sk_neon, gold: ICON.sk_gold };
+  var SKIN_ICON = { forest: ICON.sk_forest, sea: ICON.sk_sea, sunset: ICON.sk_sunset, galaxy: ICON.sk_galaxy, raspberry: ICON.sk_raspberry, neon: ICON.sk_neon, gold: ICON.sk_gold, bronze: ICON.sk_bronze, diamond: ICON.sk_diamond };
 
   // ---------- Utils ----------
   function esc(s) {
@@ -207,14 +215,18 @@
       tour: { home: false, practice: false, tools: false, profile: false },
       // 0.28.1 a team device (Jonathan and Nehorai, 13.11): marked with ?team=1 or 7 taps on the version line in the profile.
       // Its events carry team: true and the reports leave this person out of every count; 0.29.1: every lesson is open. Never in transfer codes.
-      team: false
+      team: false,
+      // 0.31 friends and groups (config.social): the server identity (token), my invite code, friends I brought and the
+      // ones already rewarded (seen), my groups as last seen, a friend's code (from) or group (group) from a link waiting
+      // for lesson 1, and all = every lesson open (3 friends). Travels in transfer codes.
+      social: cleanSocial({})
     };
   }
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
   // the open lesson or the event queue.
   var TRANSFER_KEYS = ['v', 'uid', 'status', 'startUnit', 'goalXp', 'sound', 'share', 'firstDay', 'contentV', 'xp', 'streak',
     'bestStreak', 'lastDay', 'lostStreak', 'days', 'lessons', 'missions', 'mistakes', 'answered', 'correct', 'ratings', 'intent', 'amount', 'ref', 'calc',
-    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools', 'skins', 'checks', 'tour'];
+    'daysOff', 'offLevel', 'offSince', 'offUsed', 'inviteOffDay', 'giftPending', 'giftGot', 'offIntroSeen', 'offRetro', 'tools', 'skins', 'checks', 'tour', 'social'];
   function migrate(s) {
     // before 0.9 there were no days off: checked before the defaults below fill offLevel in
     var needsOff = !('offLevel' in s);
@@ -300,6 +312,7 @@
     ['ratings', 'intent', 'amount'].forEach(function (k) { s[k] = cleanMap(s[k], function (v) { return okWord(v) ? v : null; }); });
     s.tools = cleanTools(s.tools);
     s.skins = cleanSkins(s.skins);
+    s.social = cleanSocial(s.social);
     s.checks = isRec(s.checks) ? { start: isDayKey(s.checks.start) ? s.checks.start : null,
       done: cleanMap(s.checks.done, function (v) { return isDayKey(v) ? v : null; }) } : { start: null, done: {} };
     var en = isRec(s.energy) ? s.energy : {}, enCap = EN.max > 0 ? Math.floor(EN.max) : 5;
@@ -887,7 +900,7 @@
     return null;
   }
   function isUnlocked(l) {
-    if (S.team) return true; // 0.29.1: on a team device (Jonathan and Nehorai, 13.11) every lesson is open
+    if (allOpen()) return true; // 0.29.1: on a team device (Jonathan and Nehorai, 13.11) every lesson is open; 0.31: also after 3 friends
     var cur = currentLesson();
     return isDone(l.id) || (cur && cur.id === l.id);
   }
@@ -1104,7 +1117,9 @@
     var get = function (k) { var m = new RegExp('[?&]' + k + '=([\\w-]+)').exec(q); return m ? m[1] : null; };
     var ref = get('ref');
     var lp = get('lp'); // 0.24: the dribit.app visit that opened the app (landing-5), so the two can be matched
-    return { source: get('source') || 'link', ref: ref && ref.length <= 40 ? ref : null, kind: get('kind'), lp: lp && lp.length <= 64 ? lp : null };
+    // 0.31: r = a friend's personal invite code, g = a group code (both 4 to 8 letters and digits)
+    var code = function (k) { var v = (get(k) || '').toUpperCase(); return /^[A-Z0-9]{4,8}$/.test(v) ? v : null; };
+    return { source: get('source') || 'link', ref: ref && ref.length <= 40 ? ref : null, kind: get('kind'), lp: lp && lp.length <= 64 ? lp : null, r: code('r'), g: code('g') };
   }
   // the same address loaded again in the same tab is not a new open: source 'update' (a reload the app made for a new
   // version) or 'reload' (pull to refresh, the phone reloading the app), with no ref or kind. The address itself keeps
@@ -1118,7 +1133,7 @@
       return upd === '1' ? 'update' : seen === here ? 'reload' : null;
     } catch (e) { return null; }
   })();
-  var OPEN = RELOAD_KIND ? { source: RELOAD_KIND, ref: null, kind: null, lp: null } : openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
+  var OPEN = RELOAD_KIND ? { source: RELOAD_KIND, ref: null, kind: null, lp: null, r: null, g: null } : openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
   function reloadForUpdate() {
     try {
       sessionStorage.setItem('dribit.reload', '1');
@@ -1207,11 +1222,13 @@
     if (!fresh && !S.status) { root.innerHTML = renderStatusPick(); return; }
     if (view === 'notes' && notesId && BY_ID[notesId]) { root.innerHTML = renderNotes(BY_ID[notesId]); return; }
     var body = view === 'practice' ? renderPractice() : view === 'missions' && MISSIONS_ON ? renderMissions()
-      : view === 'profile' ? renderProfile() : view === 'tools' && toolsTab() ? renderTools() : renderPath();
+      : view === 'profile' ? renderProfile() : view === 'tools' && toolsTab() ? renderTools()
+      : view === 'friends' && socTab() ? renderFriends() : view === 'group' && socTab() && socGroup ? renderGroup() : renderPath();
     root.innerHTML = renderTopbar() + '<main class="screen gutter">' + body + '</main>' + renderLegalBar() + renderNav();
     if (view === 'home') revealCurrent();
     if (view === 'home' && offToast && !sheetOpen) showOffToast();
     tourAfterRender();
+    if (socReward && !sheetOpen) socShowSoon(); // a friend's reward that arrived during a lesson
     if (fresh) startShown(); // the first screen of a new person: how long until a lesson starts
   }
   function showOffToast() {
@@ -1276,12 +1293,12 @@
   function renderNav() {
     var pending = openMissions().length;
     function b(id, icon, label, badge) {
-      return '<button data-act="nav" data-to="' + id + '"' + (view === id ? ' aria-current="page"' : '') + '>' +
+      return '<button data-act="nav" data-to="' + id + '"' + (view === id || (id === 'friends' && view === 'group') ? ' aria-current="page"' : '') + '>' +
         '<span class="ic">' + icon + (badge ? '<i class="badge">' + badge + '</i>' : '') + '</span>' + label + '</button>';
     }
-    var tools = toolsTab(), n = 3 + (tools ? 1 : 0) + (MISSIONS_ON ? 1 : 0);
+    var tools = toolsTab(), soc = socTab(), n = 3 + (tools ? 1 : 0) + (MISSIONS_ON ? 1 : 0) + (soc ? 1 : 0);
     return '<nav class="nav"><div class="nav-inner n' + n + '">' +
-      b('home', ICON.path, 'מסלול') + b('practice', ICON.dumbbell, 'תרגול') +
+      b('home', ICON.path, 'מסלול') + b('practice', ICON.dumbbell, 'תרגול') + (soc ? b('friends', ICON.users, 'חברים', S.social.group ? 1 : 0) : '') +
       (MISSIONS_ON ? b('missions', ICON.target, 'משימות', pending) : '') + (tools ? b('tools', ICON.toolbox, 'כלים', newToolsCount()) : '') + b('profile', ICON.user, 'פרופיל', view === 'profile' ? 0 : newSkinsCount()) +
       '</div></nav>';
   }
@@ -1390,7 +1407,7 @@
         '<span class="art' + (img ? ' pic' : '') + '">' + (img ? '<img src="' + esc(img) + '" alt="">' : u.n) + '</span></button>' +
         '<div class="path">';
       u.vis.forEach(function (l, i) {
-        var state = isDone(l.id) ? 'done' : (cur && cur.id === l.id ? 'current' : S.team ? 'open' : 'locked');
+        var state = isDone(l.id) ? 'done' : (cur && cur.id === l.id ? 'current' : allOpen() ? 'open' : 'locked');
         var dx = Math.round(Math.sin(i * 1.1) * 70);
         var icon = state === 'done' ? ICON.check : state === 'current' ? ICON.star : state === 'open' ? ICON.play : ICON.lock;
         var tip = S.inProgress && S.inProgress.lessonId === l.id ? 'להמשיך' : !enCanStart() ? batteryIcon(0, enMax()) + enTimer('next') : doneCount() ? 'המשך כאן' : 'מתחילים';
@@ -2632,6 +2649,7 @@
       track('repair_completed', props);
     } else track('practice_completed', props);
     nativeReminderPlan();
+    socQuiet(true); // 0.31: the group boards and refer-a-friend see the new points (the first lesson registers)
     sfx.done();
     setView('done');
     confetti(s.perfect || s.levelUp);
@@ -2751,7 +2769,8 @@
     html += legalLine(false) + '<div class="spacer"></div>';
     // after a lesson (or a rescued streak), not after practice: the win is worth sending to friends
     if (INVITE.enabled && doneCount() >= INVITE.afterLessons && (s.mode === 'lesson' || (s.mode === 'repair' && s.passed))) {
-      html += '<button class="btn text invite-link" data-act="invite" data-from="done" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + 'להזמין חבר</button>';
+      var chal = socOn() && !!S.social.ref && s.mode === 'lesson' && s.firstTry > 0 && !!l; // 0.31: "tries to beat me"
+      html += '<button class="btn text invite-link" data-act="invite" data-from="' + (chal ? 'challenge' : 'done') + '" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + (chal ? 'לאתגר חבר' : 'להזמין חבר') + '</button>';
     }
     html += '<button class="btn" data-act="home">המשך</button></div>';
     return html;
@@ -3612,12 +3631,13 @@
   var askTimer = null, lastTouchAt = 0, askOpenedAt = 0;
   function maybeAsk() {
     clearTimeout(askTimer);
-    if (openAsked || view !== 'home' || sheetOpen || tour || tourDue('home') || !doneCount() || !S.status || !(toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
+    if (openAsked || view !== 'home' || sheetOpen || tour || tourDue('home') || !doneCount() || !S.status || !(socAskDue() || toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
     askTimer = setTimeout(function tick() {
       var quiet = Date.now() - lastTouchAt;
       if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
       if (openAsked || view !== 'home' || sheetOpen || tour || tourDue('home') || document.visibilityState === 'hidden') return;
-      if (isStandalone() && notifAskState()) notifAskSheet(); // 0.21: in the home-screen app notifications come first
+      if (socAskDue()) { openAsked = true; socInviteSheet(S.social.group, null, 'link'); } // 0.31: the group they were invited to comes first
+      else if (isStandalone() && notifAskState()) notifAskSheet(); // 0.21: in the home-screen app notifications come first
       else if (toolsIntroDue()) { openAsked = true; toolsIntro(); } else if (skinsIntroDue()) { openAsked = true; skinsIntro(); }
       else if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
     }, 700);
@@ -3701,9 +3721,12 @@
   // ---------- Invite friends (config.invite) ----------
   var INVITE = CFG.invite || { enabled: false };
   if (INVITE.afterLessons == null) INVITE.afterLessons = 2;
-  function inviteUrl() {
+  function inviteUrl(group) {
     var base = String(INVITE.url || '').trim() || (location.origin + location.pathname);
-    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'ref=share';
+    // 0.31: with the friends server, the link carries my code (r=), so a friend who finishes a lesson counts for me,
+    // and a group's code (g=)
+    var r = socOn() && S.social.ref ? '&r=' + S.social.ref : '';
+    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'ref=share' + r + (group ? '&g=' + group : '');
   }
   // the day off for sharing the link: once every inviteEveryDays days, and only while fewer than maxHeld are held
   function inviteOffState() {
@@ -3759,9 +3782,29 @@
     return any ? out : '';
   }
   // the message, without the link (the link is added by the share sheet, or after the text in WhatsApp)
-  function inviteText(from, lesson) {
+  function inviteText(from, lesson, group) {
     var st = currentStreak(), done = doneCount(), name = CFG.appName;
-    var lines = [];
+    var lines = [], withRef = socOn() && !!S.social.ref;
+    var gift = withRef && DO.enabled && DO.friendGift
+      ? 'מתחילים מהקישור? מקבלים ' + DO.friendGift + ' ימי חופש לרצף' + (friendSkin(1) ? ' וצבע ' + skinName(friendSkin(1).id) + ' שאי אפשר להשיג אחרת' : '') + ', אחרי השיעור הראשון.' : '';
+    if (from === 'group' && group) {
+      var gr = socBoards[group] || S.social.groups.filter(function (x) { return x.code === group; })[0] || { name: group };
+      lines.push('בואו לקבוצה "' + gr.name + '" ב' + name + ': מתחרים מי צובר יותר נקודות השבוע. כל שבוע מתחיל מאפס.');
+      lines.push('כמה דקות ביום על כסף, בעברית, בלי חישובים.');
+      lines.push('קוד הקבוצה: ' + group + ' (כבר יש לכם את האפליקציה? לשונית חברים, "להצטרף עם קוד").');
+      if (gift) lines.push(gift);
+      lines.push('באייפון: פותחים את הקישור בספארי.');
+      lines.push('להצטרפות:');
+      return lines.join('\n');
+    }
+    if (from === 'challenge' && lesson && session && session.firstTry > 0) {
+      lines.push('עניתי נכון על ' + session.firstTryRight + ' מתוך ' + session.firstTry + ' בשיעור "' + lesson.title + '" ב' + name + '.');
+      lines.push('מי מצליח יותר ממני? כמה דקות, בלי חישובים.');
+      if (gift) lines.push(gift);
+      lines.push('באייפון: פותחים את הקישור בספארי.');
+      lines.push('לנסות:');
+      return lines.join('\n');
+    }
     if (from === 'done' && lesson) {
       lines.push('סיימתי עכשיו את השיעור "' + lesson.title + '" ב' + name + '.' + (st > 1 ? ' רצף של ' + st + ' ימים.' : ''));
       lines.push('כמה דקות ביום על כסף, בעברית, בלי חישובים.');
@@ -3773,7 +3816,8 @@
     }
     var grid = weekGrid();
     if (grid) lines.splice(1, 0, 'השבוע שלי: ' + grid + (grid.indexOf('\u26F1') >= 0 ? ' (\u26F1\uFE0F יום חופש לרצף)' : ''));
-    if (DO.enabled && DO.friendGift) lines.push('מתחילים מהקישור? מקבלים ' + DO.friendGift + ' ימי חופש לרצף אחרי השיעור הראשון.');
+    if (gift) lines.push(gift);
+    else if (DO.enabled && DO.friendGift) lines.push('מתחילים מהקישור? מקבלים ' + DO.friendGift + ' ימי חופש לרצף אחרי השיעור הראשון.');
     lines.push('באייפון: פותחים את הקישור בספארי, עושים את השיעור הראשון, ורק אז מוסיפים למסך הבית.');
     lines.push('בואו ללמוד ביחד:');
     return lines.join('\n');
@@ -3823,9 +3867,10 @@
     return w !== false;
   }
   var sharing = false, sharingAt = 0;
-  function invite(from, lessonId) {
+  function invite(from, lessonId, group) {
     if (sharing && Date.now() - sharingAt < 4000) return;
-    var l = lessonId && BY_ID[lessonId], url = inviteUrl(), text = inviteText(from, l);
+    if (socOn() && !S.social.ref) socQuiet(true); // no code yet (offline at lesson 1): this share goes without it, the next one has it
+    var l = lessonId && BY_ID[lessonId], url = inviteUrl(group), text = inviteText(from, l, group);
     var file = null, data = { title: CFG.appName, text: text, url: url };
     try {
       if (navigator.share && navigator.canShare) {
@@ -3836,7 +3881,7 @@
     } catch (e) { file = null; }
     var method = navigator.share ? 'native' : 'wa_link';
     var props = { from: from, method: method, with_image: !!file, lesson_id: l ? l.id : null, streak: currentStreak(), lessons_done: doneCount(), level: levelInfo(S.xp).n,
-      days_off_held: S.daysOff, reward_ready: inviteOffState().ready };
+      days_off_held: S.daysOff, reward_ready: inviteOffState().ready, with_code: socOn() && !!S.social.ref, group: !!group, friends: S.social.friends };
     track('share_clicked', props);
     if (method === 'native' && sharing) {
       // the last share never finished: no second share sheet (it would fail), WhatsApp instead
@@ -3868,6 +3913,379 @@
     }
     waInvite(text, url);
     grantInviteOff('wa_link');
+  }
+
+  // ---------- Friends and groups (config.social, 0.31) ----------
+  // Jonathan (13.11): "ליצור קבוצה ולהזמין חברים עם קוד, כמו קבוצה בוואטסאפ, ואז תחרויות", and refer-a-friend with every
+  // lesson open after 3 friends. Needs the small server in server/ (Cloudflare's free plan). Until config.social.api holds
+  // its address, all of this is hidden and nothing new leaves the phone. Lessons and progress never wait for the server.
+  // The server keeps a chosen nickname, points, this week's points, streak and lessons done; never a name or phone.
+  function socOn() { return !!(SOC.enabled && /^https?:\/\/[\w.-]+(:\d+)?$/.test(SOC_API)); }
+  // the friends tab: after the first lesson and the status question, like the other tabs
+  function socTab() { return socOn() && doneCount() > 0 && !!S.status; }
+  function socCode(c) { return typeof c === 'string' && /^[A-Z0-9]{4,8}$/.test(c) ? c : null; }
+  function socName(t, max) { return typeof t === 'string' && t.length > 0 && t.length <= max ? t : null; }
+  // S.social also travels in transfer codes (the same person on a new phone keeps their friends and groups)
+  function cleanSocial(x) {
+    x = isRec(x) ? x : {};
+    return {
+      token: typeof x.token === 'string' && /^[A-Z0-9]{10}\.[a-f0-9]{48}$/.test(x.token) ? x.token : null,
+      ref: socCode(x.ref), nick: socName(x.nick, 24), friends: Math.floor(num0(x.friends)), seen: Math.floor(num0(x.seen)),
+      names: Array.isArray(x.names) ? x.names.slice(0, 20).map(function (n) { return socName(n, 24); }) : [],
+      groups: Array.isArray(x.groups) ? x.groups.filter(function (g) { return isRec(g) && socCode(g.code); }).slice(0, 8).map(function (g) {
+        return { code: g.code, name: socName(g.name, 30) || g.code, size: Math.floor(num0(g.size)), rank: Math.floor(num0(g.rank)), owner: g.owner === true };
+      }) : [],
+      via: socName(x.via, 24), viaSeen: x.viaSeen === true, from: socCode(x.from), group: socCode(x.group),
+      at: num0(x.at), all: x.all === true, weekXp: Math.floor(num0(x.weekXp))
+    };
+  }
+  // every lesson open: 3 friends (sticky: a friend who leaves later takes nothing back)
+  function socAll() { return S.social.all || S.social.friends >= SOC_ALL; }
+  function allOpen() { return S.team || socAll(); }
+
+  // this week, Sunday to today, from the points per day the app already keeps (the server ranks by it)
+  function weekStartKey() { var d = new Date(); return dayKey(addDays(d, -d.getDay())); }
+  function weekXpNow() { var d = new Date(), n = 0; for (var i = 0; i <= d.getDay(); i++) n += Number(S.days[dayKey(addDays(d, -i))]) || 0; return n; }
+  function socScores() { return { xp: S.xp, week: weekStartKey(), weekXp: weekXpNow(), streak: currentStreak(), lessons: doneCount(), team: S.team }; }
+
+  function socCall(path, body) {
+    var h = { 'Content-Type': 'application/json' };
+    if (S.social.token) h.Authorization = 'Bearer ' + S.social.token;
+    return fetch(SOC_API + path, { method: body ? 'POST' : 'GET', headers: h, body: body ? JSON.stringify(body) : undefined }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.ok) return j;
+        var e = new Error(j.error || 'http_' + r.status); e.code = j.error || 'http'; e.status = r.status;
+        if (r.status === 401 && S.social.token) { S.social.token = null; save(); } // the server lost this person: register again next time
+        throw e;
+      });
+    }, function () { var e = new Error('offline'); e.code = 'offline'; throw e; });
+  }
+  var socBusy = null, socErr = null;
+  // registers on the first call after lesson 1 (with the friend's code from ?r=, if any), then sends the numbers.
+  // At most once a minute unless forced (a finished lesson, opening the friends tab or a group).
+  function socSync(force) {
+    if (!socOn() || !doneCount()) return Promise.resolve(null);
+    if (socBusy) return socBusy;
+    if (!force && S.social.token && Date.now() - S.social.at < 60000) return Promise.resolve(null);
+    var body = socScores(), first = !S.social.token;
+    if (first && S.social.from) body.ref = S.social.from;
+    socBusy = socCall(first ? '/v1/register' : '/v1/sync', body).then(function (j) {
+      socErr = null;
+      if (j.token) {
+        S.social.token = j.token;
+        track('social_registered', { from_link: !!S.social.from, invited: !!(j.me && j.me.invitedBy), lessons_done: doneCount() });
+      }
+      socApply(j.me);
+      socBusy = null;
+      return j.me;
+    }, function (e) { socBusy = null; socErr = e.code || 'offline'; throw e; });
+    return socBusy;
+  }
+  function socQuiet(force) { socSync(force).catch(function () { /* offline: next time */ }); }
+  function socApply(m) {
+    if (!isRec(m)) return;
+    var o = S.social, before = o.friends, hadVia = !!o.via, wasAll = socAll();
+    o.ref = m.ref; o.nick = m.nick || null; o.friends = num0(m.friends); o.names = Array.isArray(m.friendNicks) ? m.friendNicks : [];
+    o.groups = Array.isArray(m.groups) ? m.groups : []; o.at = Date.now(); o.weekXp = num0(m.weekXp); o.from = null;
+    if (m.invitedBy && m.counted) o.via = (m.invitedBy && m.invitedBy.nick) || 'חבר';
+    S.social = cleanSocial(o);
+    if (!wasAll && socAll()) { S.social.all = true; track('unlock_all_reached', { friends: S.social.friends }); }
+    save();
+    if (S.social.friends !== before || (!hadVia && S.social.via)) track('social_friends', { friends: S.social.friends, came_via_friend: !!S.social.via, $set: { friends_brought: S.social.friends, groups: S.social.groups.length } });
+    socRewards();
+    if ((view === 'friends' || view === 'group') && !sheetOpen && !socTyping()) render();
+  }
+  function socTyping() { var a = document.activeElement; return !!(a && /INPUT|TEXTAREA/.test(a.tagName)); }
+
+  // ----- rewards -----
+  // each friend who finished a lesson: a full battery and a day off for the streak (config.social.perFriend). The friend
+  // gets the friend gift (daysOff.friendGift) and the friends' color. 1 friend: the friends' color, 3: every lesson, 5: diamond.
+  var socReward = null;
+  function socRewards() {
+    var o = S.social, n = o.friends - o.seen;
+    if (n > 0) {
+      var off = 0;
+      if (DO.enabled && SOC.perFriend && SOC.perFriend.daysOff) { var b = S.daysOff; S.daysOff = Math.min(DO.maxHeld, S.daysOff + n * SOC.perFriend.daysOff); off = S.daysOff - b; }
+      var bat = !!(SOC.perFriend && SOC.perFriend.battery && enOn());
+      if (bat) { S.energy.n = enMax(); S.energy.at = Date.now(); }
+      var from = o.seen;
+      o.seen = o.friends;
+      save();
+      if (off) track('day_off_earned', { source: 'friend_joined', added: off, held: S.daysOff, at_cap: off < n });
+      track('friend_reward', { added: n, friends: o.friends, days_off: off, battery: bat, unlock_all: from < SOC_ALL && o.friends >= SOC_ALL });
+      socReward = { kind: 'friend', n: n, from: from, to: o.friends, off: off, bat: bat, name: o.names[0] || null };
+    } else if (o.via && !o.viaSeen) {
+      o.viaSeen = true; save();
+      socReward = { kind: 'via', name: o.via };
+    }
+    if (socReward) socShowSoon();
+  }
+  function socShowSoon() {
+    setTimeout(function () {
+      if (!socReward || sheetOpen || tour || view === 'lesson' || document.visibilityState === 'hidden') return;
+      var r = socReward; socReward = null;
+      socRewardSheet(r);
+    }, 900);
+  }
+  function friendSkin(n) { return skinList().filter(function (x) { return x.friends === n; })[0] || null; }
+  function socLadder() {
+    var f = S.social.friends, steps = [];
+    var s1 = friendSkin(1), s5 = friendSkin(5);
+    if (s1) steps.push({ n: 1, html: skinSw(s1.id, '', 26) + '<span>צבע ' + esc(skinName(s1.id)) + '</span>' });
+    steps.push({ n: SOC_ALL, html: '<span class="lad-ic">' + ICON.unlock + '</span><span>כל השיעורים פתוחים</span>' });
+    if (s5) steps.push({ n: 5, html: skinSw(s5.id, '', 26) + '<span>צבע ' + esc(skinName(s5.id)) + '</span>' });
+    var top = steps[steps.length - 1].n;
+    return '<div class="ladder"><span class="bar gold"><i style="width:' + fillPct(Math.min(1, f / top)) + '%"></i></span><ol>' + steps.map(function (s) {
+      var got = f >= s.n || (s.n === SOC_ALL && socAll());
+      return '<li class="' + (got ? 'got' : '') + '"><b>' + (got ? ICON.check : plural(s.n, 'חבר 1', 'חברים')) + '</b>' + s.html + '</li>';
+    }).join('') + '</ol></div>';
+  }
+  function socRewardSheet(r) {
+    var gifts = [];
+    if (r.kind === 'via') {
+      var sk = friendSkin(1);
+      track('friend_gift_seen', { skin: sk ? sk.id : null });
+      openSheet('<div class="ask-ic gift">' + '<img src="assets/pics/party-popper.svg" alt="">' + '</div><h3>הגעת דרך ' + esc(r.name) + '</h3>' +
+        '<p class="lead">מי שמגיע מקישור של חבר מקבל מתנה:</p><ul class="gift-list">' +
+        (DO.enabled && DO.friendGift ? '<li>' + ICON.dayoff + '<span>' + daysOffText(DO.friendGift) + '</span></li>' : '') +
+        (sk ? '<li>' + skinSw(sk.id, '', 26) + '<span>הצבע ' + esc(skinName(sk.id)) + ', שאפשר לקבל רק דרך חברים</span></li>' : '') + '</ul>' +
+        '<div class="lu-actions">' + (sk ? '<button class="btn" data-act="skin-try" data-id="' + sk.id + '" data-from="friend_gift">לנסות את הצבע</button>' : '') +
+        '<button class="btn' + (sk ? ' text' : '') + '" data-act="close-sheet">יאללה</button></div>', 'ask-welcome soc-gift');
+      return;
+    }
+    if (r.bat) gifts.push('<li>' + batteryIcon(enMax(), enMax()) + '<span>סוללה מלאה</span></li>');
+    if (r.off) gifts.push('<li>' + ICON.dayoff + '<span>' + daysOffText(r.off) + '</span></li>');
+    var opened = [];
+    var s1 = friendSkin(1), s5 = friendSkin(5);
+    if (s1 && r.from < 1 && r.to >= 1) opened.push({ skin: s1.id });
+    if (r.from < SOC_ALL && r.to >= SOC_ALL) opened.push({ all: true });
+    if (s5 && r.from < 5 && r.to >= 5) opened.push({ skin: s5.id });
+    opened.forEach(function (x) {
+      gifts.push(x.all ? '<li class="big">' + ICON.unlock + '<span><b>כל השיעורים פתוחים!</b> אפשר לקפוץ לכל נושא במסלול.</span></li>'
+        : '<li class="big">' + skinSw(x.skin, '', 26) + '<span><b>צבע חדש: ' + esc(skinName(x.skin)) + '</b> רק מי שמביא חברים מקבל אותו.</span></li>');
+    });
+    var who = r.n > 1 ? r.n + ' חברים הצטרפו בזכותך' : (r.name ? esc(r.name) + ' בפנים, בזכותך' : 'חבר חדש בפנים, בזכותך');
+    var nextStep = r.to < SOC_ALL ? 'עוד ' + plural(SOC_ALL - r.to, 'חבר אחד', 'חברים') + ' וכל השיעורים נפתחים.'
+      : s5 && r.to < 5 ? 'עוד ' + plural(5 - r.to, 'חבר אחד', 'חברים') + ' לצבע ' + esc(skinName(s5.id)) + '.' : '';
+    var sk = opened.filter(function (x) { return x.skin; })[0];
+    openSheet('<div class="ask-ic gift">' + '<img src="assets/pics/party-popper.svg" alt="">' + '</div><h3>' + who + '!</h3>' +
+      '<p class="lead">' + (r.n > 1 ? 'הם סיימו שיעור ראשון.' : 'השיעור הראשון הושלם.') + ' מה קיבלת:</p><ul class="gift-list">' + gifts.join('') + '</ul>' +
+      (nextStep ? '<p class="fine center">' + nextStep + '</p>' : '') +
+      '<div class="lu-actions">' + (sk ? '<button class="btn" data-act="skin-try" data-id="' + sk.skin + '" data-from="friend_reward">לנסות את הצבע</button>'
+        : '<button class="btn" data-act="invite" data-from="friend_reward">להזמין עוד חבר</button>') +
+      '<button class="btn text" data-act="close-sheet">מעולה</button></div>', 'ask-welcome soc-gift');
+  }
+
+  // ----- the friends tab -----
+  var socBoards = {}, socGroup = null, socBoardTab = 'week', socLoading = {};
+  function socErrText(code) {
+    return {
+      offline: 'אין חיבור כרגע. בודקים אינטרנט ומנסים שוב.', bad_nick: 'הכינוי לא מתאים. 2 עד 16 אותיות, בלי מספר טלפון ובלי קללות.',
+      bad_name: 'השם לא מתאים. 2 עד 24 אותיות, בלי מספר טלפון ובלי קללות.', no_group: 'אין קבוצה עם הקוד הזה. בודקים את הקוד ומנסים שוב.',
+      group_full: 'הקבוצה מלאה (' + (SOC.groupSize || 50) + ' חברים).', too_many_groups: 'אפשר להיות בעד 5 קבוצות. יוצאים מאחת ואז מצטרפים.',
+      slow_down: 'יותר מדי ניסיונות היום. נסו שוב מחר.', need_nick: 'צריך כינוי קודם.'
+    }[code] || 'משהו השתבש. נסו שוב עוד רגע.';
+  }
+  function socNickField(label) {
+    return '<label class="field"><span>' + (label || 'הכינוי שלך') + '</span><input id="soc-nick" maxlength="16" autocomplete="nickname" enterkeyhint="done" value="' + esc(S.social.nick || '') + '" placeholder="למשל: נועם או הצלף"></label>' +
+      '<p class="fine">זה מה שחברים בקבוצה רואים, עם הנקודות והרצף שלך. לא שם מלא ולא טלפון.</p>';
+  }
+  // "נועם, שירה ועוד 2": the friends who chose a nickname, and how many did not
+  function socNamesLine(o) {
+    var named = o.names.filter(Boolean), others = Math.max(0, o.friends - named.length);
+    if (!named.length) return '';
+    return '<p class="fine names">' + ICON.users + '<span>' + named.map(esc).join(', ') + (others ? ' ועוד ' + others : '') + '</span></p>';
+  }
+  function renderFriends() {
+    var o = S.social, html = '<div class="page friends"><h1>חברים</h1>';
+    if (o.group) html += '<button class="card invite-wait" data-act="group-invite-open" data-id="' + o.group + '">' + ICON.users + '<span><b>הוזמנת לקבוצה</b><span>לוחצים כדי להצטרף</span></span>' + ICON.chevron + '</button>';
+    // refer-a-friend
+    html += '<div class="card ref-card"><div class="eyebrow">חבר מביא חבר</div>' +
+      '<h2>' + (o.friends ? 'הבאת ' + plural(o.friends, 'חבר אחד', 'חברים') : 'מביאים חבר, ושניכם מקבלים') + '</h2>' + socLadder() +
+      '<p class="fine">על כל חבר שמסיים שיעור ראשון: לך סוללה מלאה ויום חופש לרצף. ' + (DO.enabled && DO.friendGift ? 'לחבר: ' + daysOffText(DO.friendGift).replace(' אחד', '') + (friendSkin(1) ? ' והצבע ' + esc(skinName(friendSkin(1).id)) : '') + '.' : '') + '</p>' +
+      socNamesLine(o) +
+      '<button class="btn gold" data-act="invite" data-from="friends">' + ICON.share + 'להזמין חבר</button>' +
+      (o.token ? '' : socErr ? '<p class="fine warn">' + esc(socErrText(socErr)) + '</p>' : '') + '</div>';
+    // groups
+    html += '<div class="sec-head"><h2>הקבוצות שלי</h2></div>';
+    if (o.groups.length) {
+      html += '<div class="group-list">' + o.groups.map(function (g) {
+        return '<button class="group-row" data-act="group-open" data-id="' + g.code + '"><span class="g-ic">' + ICON.trophy + '</span>' +
+          '<span class="g-txt"><b>' + esc(g.name) + '</b><span>' + (g.size > 1 ? 'מקום ' + g.rank + ' מתוך ' + g.size + ' השבוע' : 'רק את/ה בינתיים. מזמינים חברים!') + '</span></span>' +
+          (g.size > 1 && g.rank <= 3 ? '<span class="medal m' + g.rank + '">' + g.rank + '</span>' : '') + ICON.chevron + '</button>';
+      }).join('') + '</div>';
+    } else {
+      html += '<div class="card group-empty"><p>פותחים קבוצה לחבר׳ה מהיחידה, מהכיתה או מהעבודה, ומתחרים מי צובר יותר נקודות השבוע. כל שבוע מתחיל מאפס, והמנצח מקבל גביע.</p></div>';
+    }
+    html += '<div class="row two"><button class="btn" data-act="group-create">ליצור קבוצה</button><button class="btn ghost" data-act="group-join">להצטרף עם קוד</button></div>';
+    if (o.nick) html += '<p class="fine center">הכינוי שלך: <b>' + esc(o.nick) + '</b> · <button class="link" data-act="soc-nick">לשנות</button></p>';
+    html += '<p class="fine center">בקבוצה רואים רק כינוי, נקודות ורצף.</p></div>';
+    return html;
+  }
+  function renderGroup() {
+    var code = socGroup, b = socBoards[code], g = S.social.groups.filter(function (x) { return x.code === code; })[0];
+    var name = (b && b.name) || (g && g.name) || code;
+    var html = '<div class="page friends group"><button class="back-link" data-act="nav" data-to="friends">' + ICON.back + 'חברים</button>' +
+      '<h1>' + esc(name) + '</h1><p class="fine g-meta">' + (b ? plural(b.size, 'חבר אחד', 'חברים') + ' · ' : '') + 'קוד הקבוצה: <b dir="ltr">' + esc(code) + '</b></p>' +
+      '<button class="btn gold" data-act="group-share" data-id="' + code + '">' + ICON.share + 'להזמין לקבוצה</button>';
+    if (!b) return html + '<div class="card"><p class="fine">' + (socLoading[code] === 'err' ? esc(socErrText(socLoading.errCode)) : 'טוען את הטבלה...') + '</p>' +
+      (socLoading[code] === 'err' ? '<button class="btn ghost" data-act="group-open" data-id="' + code + '">לנסות שוב</button>' : '') + '</div></div>';
+    if (b.lastWinner) html += '<div class="card winner">' + ICON.trophy + '<span><span class="eyebrow">המנצח של השבוע שעבר</span><b>' + (b.lastWinner.me ? 'את/ה! ' : esc(b.lastWinner.nick)) + '</b> עם ' + fmt(b.lastWinner.xp) + ' נקודות</span></div>';
+    var wk = socBoardTab === 'week';
+    var people = (b.people || []).slice().sort(function (x, y) { return wk ? y.week - x.week || y.xp - x.xp : y.xp - x.xp || y.week - x.week; });
+    html += '<div class="seg two board-tabs"><button data-act="board-tab" data-v="week" aria-pressed="' + wk + '">השבוע</button><button data-act="board-tab" data-v="all" aria-pressed="' + !wk + '">כל הזמנים</button></div>' +
+      '<ol class="board">' + people.map(function (p, i) {
+        var pts = wk ? p.week : p.xp;
+        return '<li class="' + (p.me ? 'me' : '') + '"><span class="medal' + (i < 3 && pts > 0 ? ' m' + (i + 1) : '') + '">' + (i + 1) + '</span>' +
+          '<span class="b-name"><b>' + esc(p.nick) + (p.me ? ' (אני)' : '') + '</b>' + (p.streak > 0 ? '<span class="b-streak">' + ICON.flame + p.streak + '</span>' : '') + '</span>' +
+          '<span class="b-pts">' + fmt(pts) + '<small>נק׳</small></span>' +
+          (b.owner && !p.me ? '<button class="b-kick" data-act="group-kick" data-id="' + esc(p.id) + '" data-nick="' + esc(p.nick) + '" aria-label="להוציא את ' + esc(p.nick) + ' מהקבוצה">' + ICON.x + '</button>' : '') + '</li>';
+      }).join('') + '</ol>';
+    if (b.size < 2) html += '<p class="nudge">' + ICON.users + '<span>קבוצה של אחד זה לא תחרות. שולחים את הקישור או את הקוד לחבר׳ה.</span></p>';
+    html += '<p class="fine">' + (wk ? 'התחרות השבועית: מי שצובר הכי הרבה נקודות מיום ראשון עד שבת. ביום ראשון בחצות הטבלה מתאפסת, והמנצח מקבל גביע.' : 'כל הנקודות מאז שכל אחד התחיל.') + '</p>' +
+      '<button class="btn text" data-act="group-leave" data-id="' + code + '">לצאת מהקבוצה</button></div>';
+    return html;
+  }
+  function socOpenFriends() {
+    track('friends_viewed', { friends: S.social.friends, groups: S.social.groups.length, registered: !!S.social.token });
+    socQuiet(true);
+  }
+  function socOpenGroup(code, from) {
+    socGroup = code;
+    socLoading[code] = true;
+    if (view !== 'group') setView('group'); else render();
+    var go = function () {
+      return socCall('/v1/groups/' + code).then(function (j) {
+        var b = j.group;
+        socLoading[code] = false;
+        if (!b.member) { delete socBoards[code]; socInviteSheet(code, b, 'not_member'); return; }
+        socBoards[code] = b;
+        var me = (b.people || []).filter(function (p) { return p.me; })[0];
+        track('group_viewed', { size: b.size, rank: me ? me.rank : null, owner: !!b.owner, from: from || 'friends', has_winner: !!b.lastWinner });
+        if (view === 'group' && socGroup === code && !sheetOpen) render();
+      });
+    };
+    socSync(true).catch(function () { /* the board still loads */ }).then(go).catch(function (e) {
+      socLoading[code] = 'err'; socLoading.errCode = e.code;
+      if (e.code === 'no_group') { S.social.groups = S.social.groups.filter(function (x) { return x.code !== code; }); save(); }
+      if (view === 'group' && socGroup === code) render();
+    });
+  }
+
+  // ----- sheets: nickname, create, join -----
+  function socFormSheet(kind, code, preview) {
+    var needNick = !S.social.nick, inner;
+    if (kind === 'create') {
+      inner = '<h3>קבוצה חדשה</h3><p class="lead">קבוצה לחבר׳ה, עם טבלה שבועית: מי צובר יותר נקודות מיום ראשון עד שבת.</p>' +
+        '<label class="field"><span>שם הקבוצה</span><input id="soc-name" maxlength="24" enterkeyhint="done" placeholder="למשל: גולני 51 או החבר׳ה מהשכונה"></label>' + (needNick ? socNickField() : '') +
+        '<p class="fine warn soc-err" hidden></p><button class="btn" data-act="group-create-go">ליצור קבוצה</button>';
+    } else if (kind === 'join') {
+      inner = (preview ? '<div class="eyebrow">הוזמנת לקבוצה</div><h3>' + esc(preview.name) + '</h3><p class="lead">' + plural(preview.size, 'חבר אחד', 'חברים') + ' כבר בפנים. כל שבוע: מי צובר יותר נקודות.</p>'
+          : '<h3>להצטרף לקבוצה</h3><p class="lead">מקבלים את הקוד ממי שפתח את הקבוצה. 6 אותיות ומספרים.</p>' +
+            '<label class="field"><span>קוד הקבוצה</span><input id="soc-code" class="code" maxlength="8" dir="ltr" autocapitalize="characters" autocomplete="off" enterkeyhint="done" placeholder="ABC123" value="' + esc(code || '') + '"></label>') +
+        (needNick ? socNickField() : '') + '<p class="fine warn soc-err" hidden></p>' +
+        '<button class="btn" data-act="group-join-go" data-id="' + esc(preview ? preview.code : '') + '">להצטרף' + (preview ? ' לקבוצה' : '') + '</button>';
+    } else {
+      inner = '<h3>הכינוי שלך</h3>' + socNickField('כינוי') + '<p class="fine warn soc-err" hidden></p><button class="btn" data-act="soc-nick-go">לשמור</button>';
+    }
+    openSheet(inner + '<button class="btn text" data-act="close-sheet">' + (preview ? 'לא עכשיו' : 'ביטול') + '</button>', 'tall soc-form');
+    var first = document.querySelector('#sheet input');
+    if (first && !preview) setTimeout(function () { try { first.focus(); } catch (e) { /* ignore */ } }, 250);
+  }
+  function socFormErr(code) {
+    var p = document.querySelector('#sheet .soc-err');
+    if (p) { p.textContent = socErrText(code); p.hidden = false; }
+    var s = document.querySelector('#sheet .sheet'); if (s) { s.classList.remove('shake'); void s.offsetWidth; s.classList.add('shake'); }
+    sfx.wrong();
+  }
+  function socFormBusy(on) {
+    var b = document.querySelector('#sheet .btn:not(.text)');
+    if (b) { b.disabled = on; b.classList.toggle('busy', on); }
+  }
+  function socVal(id) { var el = document.getElementById(id); return el ? el.value.replace(/\s+/g, ' ').trim() : ''; }
+  // register if needed, then the nickname if one was typed, then the step itself
+  function socSteps(step) {
+    var nick = document.getElementById('soc-nick') ? socVal('soc-nick') : null;
+    socFormBusy(true);
+    var ready = S.social.token ? Promise.resolve() : socSync(true);
+    return ready.then(function () {
+      if (!S.social.token) { var e = new Error('offline'); e.code = 'offline'; throw e; }
+      if (nick != null && nick !== S.social.nick) {
+        if (nick.length < 2) { var e2 = new Error('bad_nick'); e2.code = 'bad_nick'; throw e2; }
+        return socCall('/v1/nick', { nick: nick }).then(function (j) {
+          track('nick_set', { first: !S.social.nick });
+          socApply(j.me);
+        });
+      }
+    }).then(step).catch(function (e) { socFormBusy(false); socFormErr(e.code || 'offline'); });
+  }
+  function socCreate() {
+    var name = socVal('soc-name');
+    if (name.length < 2) { socFormErr('bad_name'); return; }
+    socSteps(function () {
+      return socCall('/v1/groups', { name: name }).then(function (j) {
+        var b = j.group;
+        socBoards[b.code] = b;
+        track('group_created', { name_len: name.length });
+        closeSheet(true);
+        return socSync(true).catch(function () { /* the list refreshes next time */ }).then(function () {
+          socGroup = b.code; setView('group');
+          setTimeout(function () { socShareSheet(b.code); }, 350);
+        });
+      });
+    });
+  }
+  function socJoin(code, from) {
+    code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (code.length < 4) { socFormErr('no_group'); return; }
+    socSteps(function () {
+      return socCall('/v1/groups/' + code + '/join', {}).then(function (j) {
+        socBoards[code] = j.group;
+        if (S.social.group === code) S.social.group = null;
+        save();
+        track('group_joined', { from: from, size: j.group.size, new_member: !!j.joined });
+        closeSheet(true);
+        toast(ICON.check + '<b>הצטרפת ל' + esc(j.group.name) + '</b><span>מי יצבור הכי הרבה נקודות השבוע?</span>', 'info', 3200);
+        return socSync(true).catch(function () { /* ignore */ }).then(function () { socGroup = code; setView('group'); });
+      });
+    });
+  }
+  // a group link (?g=): the name and size first, then nickname and join
+  function socInviteSheet(code, preview, from) {
+    var show = function (b) {
+      if (b.member) { S.social.group = null; save(); socOpenGroup(code, 'link'); return; }
+      track('group_invite_seen', { size: b.size, from: from || 'link' });
+      socFormSheet('join', code, b);
+    };
+    if (preview) { show(preview); return; }
+    socCall('/v1/groups/' + code).then(function (j) { show(j.group); }, function (e) {
+      if (e.code === 'no_group') { S.social.group = null; save(); toast('<b>הקבוצה לא נמצאה</b><span>אולי היא נסגרה. אפשר לבקש קוד חדש.</span>', 'info', 3400); }
+    });
+  }
+  function socAskDue() { return socOn() && !!S.social.group && doneCount() > 0 && !!S.status; }
+  function socShareSheet(code) {
+    var b = socBoards[code];
+    openSheet('<div class="ask-ic">' + ICON.users + '</div><h3>הקבוצה מוכנה!</h3><p class="lead">עכשיו מזמינים את החבר׳ה. מי שמצטרף רואה את הטבלה, וכל שבוע מתחילים מאפס.</p>' +
+      '<div class="code-big" dir="ltr">' + esc(code) + '</div><p class="fine center">אפשר גם להגיד את הקוד: בלשונית חברים, "להצטרף עם קוד".</p>' +
+      '<button class="btn gold" data-act="group-share" data-id="' + code + '">' + ICON.share + 'לשלוח בוואטסאפ</button><button class="btn text" data-act="close-sheet">אחר כך</button>', 'ask-welcome', null);
+    track('group_share_sheet', { size: b ? b.size : 1 });
+  }
+  function socConfirm(title, text, act, id, extra) {
+    openSheet('<h3>' + title + '</h3><p class="lead">' + text + '</p><div class="row"><button class="btn bad" data-act="' + act + '" data-id="' + esc(id) + '"' + (extra || '') + '>כן</button>' +
+      '<button class="btn ghost" data-act="close-sheet">ביטול</button></div>');
+  }
+  function socLeave(code) {
+    socCall('/v1/groups/' + code + '/leave', {}).then(function () {
+      delete socBoards[code];
+      S.social.groups = S.social.groups.filter(function (x) { return x.code !== code; }); save();
+      track('group_left', {});
+      closeSheet(true); setView('friends'); socQuiet(true);
+    }, function (e) { closeSheet(); toast('<b>לא הצלחתי</b><span>' + esc(socErrText(e.code)) + '</span>', 'info', 3000); });
+  }
+  function socKick(code, user) {
+    socCall('/v1/groups/' + code + '/kick', { user: user }).then(function (j) {
+      socBoards[code] = j.group; track('group_kick', {}); closeSheet(); render();
+    }, function (e) { closeSheet(); toast('<b>לא הצלחתי</b><span>' + esc(socErrText(e.code)) + '</span>', 'info', 3000); });
   }
 
   // ---------- Discharge calculator (config.calculator) ----------
@@ -4064,24 +4482,27 @@
     if (!skinsOn()) return [];
     var n = levelIndex(S.xp) + 1, ids = [], src = SKINS.list.some(function (x) { return x && x.id === 'forest'; }) ? SKINS.list : [{ id: 'forest', level: 1 }].concat(SKINS.list);
     var out = src.filter(function (x) { var ok = !!x && SKIN_IDS.indexOf(x.id) >= 0 && ids.indexOf(x.id) < 0 && skinLevelOf(x) <= CFG.levels.length; if (ok) ids.push(x.id); return ok; })
-      .map(function (x) { var lv = skinLevelOf(x); return { id: x.id, level: lv, open: lv <= n }; })
-      .sort(function (a, b) { return a.level - b.level; });
+      .filter(function (x) { return !x.friends || socOn() || friendSkinOpen(x.friends); }) // 0.31: friends' colors need the friends server
+      .map(function (x) { var lv = skinLevelOf(x); return x.friends ? { id: x.id, level: 0, friends: Math.floor(x.friends), open: friendSkinOpen(x.friends) } : { id: x.id, level: lv, open: lv <= n }; })
+      .sort(function (a, b) { return (a.friends ? 100 + a.friends : a.level) - (b.friends ? 100 + b.friends : b.level); });
     return out.length > 1 ? out : [];
   }
+  // 0.31: bronze opens with the first friend (or by coming through a friend's link), diamond with the fifth
+  function friendSkinOpen(n) { return S.social.friends >= n || (n <= 1 && !!S.social.via); }
   function skinInfo(id) { return skinList().filter(function (x) { return x.id === id; })[0] || null; }
   // a chosen color that is locked again (an import with fewer points) is kept, and forest shows until its level
   function activeSkin() { var x = skinInfo(S.skins.id); return x && x.open ? x.id : 'forest'; }
   function skinsAtLevel(n) { return n > 1 ? skinList().filter(function (x) { return x.level === n; }) : []; }
-  function nextSkin() { return skinList().filter(function (x) { return !x.open; })[0] || null; }
+  function nextSkin() { return skinList().filter(function (x) { return !x.open && !x.friends; })[0] || null; }
   // the colors a level-up from level index a to level index b opened
   function skinsCrossed(a, b) { return skinList().filter(function (x) { return x.level > a + 1 && x.level <= b + 1; }); }
   function skinPointsTo(x) { var L = CFG.levels[x.level - 1]; return L ? Math.max(0, L.min - S.xp) : 0; }
   function skinsOpenCount() { return skinList().filter(function (x) { return x.open; }).length; }
-  function newSkinsCount() { return skinList().filter(function (x) { return x.open && x.level > 1 && S.skins.seen.indexOf(x.id) < 0; }).length; }
+  function newSkinsCount() { return skinList().filter(function (x) { return x.open && (x.level > 1 || x.friends) && S.skins.seen.indexOf(x.id) < 0; }).length; }
   function skinsIntroDue() { return skinList().length > 0 && S.onboarded && !!S.status && !S.skins.introSeen; }
   function skinName(id) { return SKIN_NAME[id] || ''; }
   function markSkinsSeen() {
-    var add = skinList().filter(function (x) { return x.open && x.level > 1 && S.skins.seen.indexOf(x.id) < 0; });
+    var add = skinList().filter(function (x) { return x.open && (x.level > 1 || x.friends) && S.skins.seen.indexOf(x.id) < 0; });
     if (!add.length) return;
     add.forEach(function (x) { S.skins.seen.push(x.id); });
     save();
@@ -4137,10 +4558,11 @@
     return '<div class="skin-grid" role="group" aria-label="הצבעים שלך">' + skinList().map(function (x) {
       var nm = esc(skinName(x.id));
       if (!x.open) {
-        return '<button class="skin-opt locked" data-act="skin" data-id="' + x.id + '" data-from="' + from + '" aria-label="' + nm + ', צבע נעול. נפתח בשלב ' + x.level + '">' +
-          skinSw(x.id, swLock()) + '<b>' + nm + '</b><small>שלב ' + x.level + '</small></button>';
+        var need = x.friends ? plural(x.friends, 'חבר 1', 'חברים') : 'שלב ' + x.level;
+        return '<button class="skin-opt locked" data-act="skin" data-id="' + x.id + '" data-from="' + from + '" aria-label="' + nm + ', צבע נעול. נפתח ב' + (x.friends ? 'הזמנת ' : '') + need + '">' +
+          skinSw(x.id, swLock()) + '<b>' + nm + '</b><small>' + (x.friends ? ICON.users : '') + need + '</small></button>';
       }
-      var on = x.id === act, fresh = !on && x.level > 1 && S.skins.seen.indexOf(x.id) < 0;
+      var on = x.id === act, fresh = !on && (x.level > 1 || x.friends) && S.skins.seen.indexOf(x.id) < 0;
       return '<button class="skin-opt" data-act="skin" data-id="' + x.id + '" data-from="' + from + '" aria-pressed="' + on + '">' + skinSw(x.id, on ? swOn() : '') + '<b>' + nm + '</b>' +
         (on ? '<small>בשימוש</small>' : fresh ? '<span class="chip gold">חדש</span>' : '<small></small>') + '</button>';
     }).join('') + '</div>';
@@ -4150,7 +4572,8 @@
     var sl = skinList();
     if (!sl.length) return '';
     var ns = nextSkin(), html = '<div class="card skins-card" id="skins"><div class="sk-head"><h2>הצבעים שלך</h2><span class="chip">' + skinsOpenCount() + ' מתוך ' + sl.length + '</span></div>' +
-      '<p class="fine">' + (ns ? 'כל כמה שלבים נפתח צבע חדש.' : 'פתחת את כל הצבעים.') + ' בוחרים, וכל האפליקציה מתחלפת.</p>' + skinGrid('profile');
+      '<p class="fine">' + (ns ? 'כל כמה שלבים נפתח צבע חדש.' : 'פתחת את כל הצבעים.') + ' בוחרים, וכל האפליקציה מתחלפת.' +
+        (sl.some(function (x) { return x.friends && !x.open; }) ? ' ' + andList(sl.filter(function (x) { return x.friends; }).map(function (x) { return esc(skinName(x.id)); })) + ' נפתחים רק דרך חברים.' : '') + '</p>' + skinGrid('profile');
     if (ns) { var pts = skinPointsTo(ns); html += '<p class="fine">הצבע הבא: ' + esc(skinName(ns.id)) + ', בשלב ' + ns.level + ': עוד ' + plural(pts, 'נקודה אחת', 'נקודות') + '. ' + lessonsToGo(pts) + '</p>'; }
     return html + '</div>';
   }
@@ -4186,6 +4609,7 @@
   }
   // a locked color: the sheet is drawn in that color, with a small preview
   function skinLockedSheet(x, from) {
+    if (x.friends) { friendSkinSheet(x, from); return; }
     var pts = skinPointsTo(x), grad = x.id === 'neon' || x.id === 'gold';
     track('skin_locked_tapped', { skin_id: x.id, level_needed: x.level, to_next_band: pointsBand(pts), from: from || 'profile' });
     openSheet('<div class="eyebrow">' + ICON.lock + 'נפתח בשלב ' + x.level + '</div><h3>' + esc(skinName(x.id)) + '</h3>' +
@@ -4194,6 +4618,18 @@
         '<span class="bar"><i style="width:62%"></i></span><p class="nudge">' + ICON.star + '<span>השיעור הבא מחכה לך</span></p><span class="btn">התחל שיעור</span></div>' +
       '<p class="lock-note">' + ICON.coins + '<span>עוד ' + plural(pts, 'נקודה אחת', 'נקודות') + ' לשלב ' + x.level + '. ' + lessonsToGo(pts) + '</span></p>' +
       nextStepBtn('skin-lesson', 'locked') + '<button class="btn text" data-act="close-sheet">הבנתי</button>', 'tall', x.id);
+  }
+  // 0.31: a locked friends' color: how many friends, and the invite
+  function friendSkinSheet(x, from) {
+    var left = Math.max(0, x.friends - S.social.friends);
+    track('skin_locked_tapped', { skin_id: x.id, friends_needed: x.friends, friends: S.social.friends, from: from || 'profile' });
+    openSheet('<div class="eyebrow">' + ICON.users + 'נפתח ב' + plural(x.friends, 'חבר 1', 'חברים') + '</div><h3>' + esc(skinName(x.id)) + '</h3>' +
+      '<p class="lead">צבע לכל האפליקציה, עם מעבר צבעים, שאי אפשר לקבל בנקודות. רק מי שמביא חברים.</p>' +
+      '<div class="skin-preview" aria-hidden="true"><div class="sp-top"><span class="brandmark">' + esc(CFG.appName) + '</span>' + skinSw(x.id, '', 28) + '</div>' +
+        '<span class="bar"><i style="width:62%"></i></span><p class="nudge">' + ICON.star + '<span>השיעור הבא מחכה לך</span></p><span class="btn">התחל שיעור</span></div>' +
+      '<p class="lock-note">' + ICON.users + '<span>' + (S.social.friends ? 'הבאת ' + plural(S.social.friends, 'חבר אחד', 'חברים') + '. ' : '') + 'עוד ' + plural(left, 'חבר אחד', 'חברים') + '. חבר נספר כשהוא מסיים שיעור ראשון מהקישור שלך.</span></p>' +
+      '<button class="btn" data-act="invite" data-from="skin_locked">' + ICON.share + 'להזמין חבר</button>' +
+      (socTab() ? '<button class="btn ghost" data-act="skin-friends">ללשונית חברים</button>' : '') + '<button class="btn text" data-act="close-sheet">הבנתי</button>', 'tall', x.id);
   }
   // the one-time sheet for people who had points before 0.12 (one popup per open, after the tools intro)
   function skinsIntro() {
@@ -4865,6 +5301,7 @@
       case 'nav': {
         var navTo = el.getAttribute('data-to');
         setView(navTo);
+        if (navTo === 'friends' && view === 'friends') socOpenFriends();
         if (navTo === 'tools' && view === 'tools') toolsViewed(el.getAttribute('data-from') || 'nav');
         break;
       }
@@ -4958,6 +5395,22 @@
         break; // no preventDefault: the link opens
       }
       case 'close-sheet': closeSheet(); break;
+      // 0.31 friends and groups
+      case 'group-open': socOpenGroup(id, el.getAttribute('data-from') || 'friends'); break;
+      case 'group-create': socFormSheet('create'); track('group_create_opened', {}); break;
+      case 'group-join': socFormSheet('join'); track('group_join_opened', {}); break;
+      case 'group-create-go': socCreate(); break;
+      case 'group-join-go': socJoin(id || socVal('soc-code'), id ? 'link' : 'code'); break;
+      case 'group-invite-open': socInviteSheet(id, null, 'friends_card'); break;
+      case 'group-share': invite('group', null, id); break;
+      case 'group-leave': socConfirm('לצאת מהקבוצה?', 'הנקודות שלך נשארות. אפשר לחזור עם הקוד.', 'group-leave-go', id); break;
+      case 'group-leave-go': socLeave(id); break;
+      case 'group-kick': socConfirm('להוציא את ' + esc(el.getAttribute('data-nick') || '') + '?', 'הוא או היא כבר לא יראו את הטבלה של הקבוצה.', 'group-kick-go', id); break;
+      case 'group-kick-go': socKick(socGroup, id); break;
+      case 'board-tab': socBoardTab = el.getAttribute('data-v') === 'all' ? 'all' : 'week'; render(); break;
+      case 'soc-nick': socFormSheet('nick'); break;
+      case 'soc-nick-go': socSteps(function () { closeSheet(); render(); toast(ICON.check + '<b>הכינוי נשמר</b>', 'info', 1800); }); break;
+      case 'skin-friends': closeSheet(true); setView('friends'); socOpenFriends(); break;
       case 'start': notesId = null; startLesson(id); break;
       case 'restart': notesId = null; startLesson(id, true); break;
       case 'notes': notesId = id; setView('notes'); break;
@@ -5189,9 +5642,9 @@
           '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn bad" data-act="reset-confirm">לאפס</button></div>');
         break;
       case 'reset-confirm': {
-        var uid = S.uid, team = S.team;
+        var uid = S.uid, team = S.team, soc = S.social;
         if (S.reminder && S.reminder.on) disableReminder('reset');
-        closeSheet(true); S = freshState(); S.uid = uid; S.team = team; session = null;
+        closeSheet(true); S = freshState(); S.uid = uid; S.team = team; S.social = soc; session = null;
         applySkin();
         track('progress_reset', {});
         save(); indexContent(); migrateContent(); setView('home');
@@ -5212,6 +5665,12 @@
   function onKey(e) {
     if (tour && tourKey(e)) return;
     if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }
+    if (e.key === 'Enter' && sheetOpen && e.target.closest && e.target.closest('.soc-form') && e.target.tagName === 'INPUT') {
+      e.preventDefault();
+      var go = document.querySelector('#sheet .soc-form .btn:not(.text)');
+      if (go && !go.disabled) go.click();
+      return;
+    }
     if (view !== 'lesson' || !session || sheetOpen) return;
     var st = step();
     var typing = e.target.classList && e.target.classList.contains('num');
@@ -5258,6 +5717,7 @@
       // 0.19.3: an app kept in memory (an iPhone home-screen app, a tab left open) never reloads, so coming back to it
       // the next day sent nothing and the return was missing from Retention. Back after 10 minutes is a new open.
       track('app_opened', { returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: 'resume', away_min: Math.round(away / 60000) });
+      socQuiet(false);
     }
     checkForUpdate();
     if (S.onboarded) checkStreakBreak();
@@ -5375,10 +5835,18 @@
       track('app_installed', { method: IS_NATIVE ? 'ios_app_store' : IS_IOS ? 'ios_first_standalone_open' : 'first_standalone_open', imported: !!S.importedAt });
     }
     if (OPEN_REF && !S.ref) { S.ref = OPEN_REF; save(); }
+    // 0.31: a friend's personal link (?r=) counts only on a fresh device; a group link (?g=) waits for lesson 1 on any device
+    if (socOn() && OPEN.r && !S.social.token && !hasProgress()) {
+      S.social.from = OPEN.r;
+      if (DO.enabled && DO.friendGift && !S.giftPending && !S.giftGot) S.giftPending = true;
+      save();
+    }
+    if (socOn() && OPEN.g && !S.social.groups.some(function (x) { return x.code === OPEN.g; })) { S.social.group = OPEN.g; save(); }
     // a friend's invite link on a fresh device: the gift waits for the first lesson (nothing for someone with progress)
     if (DO.enabled && DO.friendGift && OPEN_REF === 'share' && !S.giftPending && !S.giftGot && !S.xp && !doneCount()) { S.giftPending = true; save(); }
     track('app_opened', {
       returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND, landing_id: OPEN.lp,
+      friend_link: !!OPEN.r, group_link: !!OPEN.g,
       reminders: !!(S.reminder && S.reminder.on), days_off: S.daysOff, learned_days_7: learned7(),
       $set: skinList().length ? { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff, skin: activeSkin(), skins_open: skinsOpenCount() }
         : { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff },
@@ -5408,6 +5876,7 @@
     else if (OPEN_SOURCE !== 'push') maybeAsk();
     registerSW();
     syncPush();
+    socQuiet(false);
     flush();
   }
 

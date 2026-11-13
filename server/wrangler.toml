@@ -1,0 +1,11 @@
+# Cloudflare Worker for groups and refer-a-friend (0.31). Deployed by .github/workflows/server.yml, which fills in
+# database_id from the Cloudflare account (the database "dribit-social" is created on the first run).
+name = "dribit-social"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dribit-social"
+database_id = "00000000-0000-0000-0000-000000000000"

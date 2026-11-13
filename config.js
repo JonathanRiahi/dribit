@@ -2,7 +2,7 @@
 window.DRIBIT_CONFIG = {
   appName: 'דריבית',
   appNameEn: 'Dribit',
-  version: '0.29.3',
+  version: '0.31.0',
   tagline: 'כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.',
 
   // המסך הראשון של מי שעוד לא סיים שיעור (0.29): 'home' = מסך הבית עם המסלול, כמו לכולם. 'button' = המסך של כפתור אחד מ-0.22.
@@ -174,6 +174,13 @@ window.DRIBIT_CONFIG = {
   // ומי שפותח ממנו בפעם הראשונה מקבל את המתנה של daysOff.friendGift. אין בקישור שום מזהה של השולח.
   invite: { enabled: true, url: 'https://jonathanriahi.github.io/dribit/', image: true, afterLessons: 2 },
 
+  // 0.31 חברים וקבוצות (יהונתן, 13.11): לשונית "חברים" עם חבר מביא חבר, וקבוצות עם קוד וטבלה שבועית.
+  // צריך את השרת הקטן שבתיקייה server/ (Cloudflare, בחינם). api = הכתובת שהפעולה "Server deploy" מדפיסה,
+  // למשל 'https://dribit-social.NAME.workers.dev'. כל עוד api ריק, כל זה מוסתר ושום דבר חדש לא יוצא מהטלפון.
+  // חבר נספר כשהוא מסיים שיעור ראשון מהקישור האישי (r=). על כל חבר: perFriend (סוללה מלאה, ימי חופש לרצף).
+  // החבר מקבל את daysOff.friendGift ואת הצבע ארד. אחרי unlockAllAt חברים כל השיעורים פתוחים. groupSize = גם בשרת.
+  social: { enabled: true, api: '', unlockAllAt: 3, perFriend: { battery: true, daysOff: 1 }, groupSize: 50 },
+
   // התקנה בטלפון: כרטיס ההתקנה מופיע אחרי שיעור ראשון (afterLessons). באייפון הוא מופיע גם במסך הסיום של אותו שיעור (showOnDone),
   // כי באייפון רק במסך הבית ההתקדמות נשמרת בבטחה (היא עוברת לשם לבד, בלי קוד).
   // askEveryOpen (יהונתן, 19.10): בכל פתיחה, בטלפון ומחוץ לאפליקציה המותקנת, חלון שמבקש להוסיף את האפליקציה למסך הבית.
@@ -308,7 +315,10 @@ window.DRIBIT_CONFIG = {
       { id: 'galaxy', level: 5 },     // גלקסיה
       { id: 'raspberry', level: 7 },  // פטל
       { id: 'neon', level: 9 },       // נאון, עם מעבר צבעים
-      { id: 'gold', level: 11 }       // זהב, עם מעבר צבעים
+      { id: 'gold', level: 11 },      // זהב, עם מעבר צבעים
+      // 0.31: שני צבעים שנפתחים רק דרך חברים (social), לא בנקודות. ארד: החבר הראשון שהבאת, או מי שהגיע מקישור של חבר.
+      { id: 'bronze', friends: 1 },   // ארד
+      { id: 'diamond', friends: 5 }   // יהלום
     ]
   },
 
