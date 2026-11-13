@@ -4658,7 +4658,7 @@
   }
   function growthRows(st) {
     var dep = roundShow(st.amount + 12 * st.years * st.monthly);
-    return (TG.rates || [0, 2, 4, 6]).map(function (r) { return { r: r, v: r > 0 ? roundShow(fv(st.amount, st.monthly, r / 100, st.years)) : dep, dep: dep }; });
+    return (TG.rates || [0, 4, 7, 10]).map(function (r) { return { r: r, v: r > 0 ? roundShow(fv(st.amount, st.monthly, r / 100, st.years)) : dep, dep: dep }; });
   }
   function rateLabel(r) { return r > 0 ? 'גדל ב-' + ltr(r + '%') + ' בשנה' : 'רק יושב בעו״ש'; }
   // RTL bars that grow from the right: what was put in, and what time added
@@ -4681,10 +4681,15 @@
       return '';
     });
     var years = (TG.years || []).map(function (y) { return chipBtn(setAttrs('growth', 'years', y), st.years === y, yearsText(y)); }).join('');
-    var lines = '<p>ב-' + ltr('6%') + ' בשנה סכום מוכפל בערך כל 12 שנים, וב-' + ltr('4%') + ' בערך כל 18.</p>' +
+    // 0.30: the example rates come from config.tools.growth.rates (4, 7 and 10 since Jonathan's "תן ממוצע של 10% בשנה", 13.11)
+    var pos = rows.filter(function (x) { return x.r > 0; }).map(function (x) { return x.r; }), hi = pos[pos.length - 1], lo = pos[0];
+    var rateList = pos.map(function (r) { return ltr(r + '%'); });
+    var listOr = rateList.length > 1 ? rateList.slice(0, -1).join(', ') + ' או ' + rateList[rateList.length - 1] : rateList[0];
+    var listAnd = rateList.length > 1 ? rateList.slice(0, -1).join(', ') + ' ו-' + rateList[rateList.length - 1] : rateList[0];
+    var lines = '<p>ב-' + ltr(hi + '%') + ' בשנה סכום מוכפל בערך כל ' + Math.round(72 / hi) + ' שנים' + (lo !== hi ? ', וב-' + ltr(lo + '%') + ' בערך כל ' + Math.round(72 / lo) : '') + '.</p>' +
       (st.years >= 20 ? '<p>כל עשור מוסיף יותר מהעשור שלפניו: רווח שנשאר בפנים מרוויח בעצמו.</p>' : '') +
       (gain > dep ? '<p>ב-' + ltr(top.r + '%') + ', רוב הסכום הגיע מהריבית דריבית, לא מהכיס.</p>' : '');
-    return '<h3>מכונת הזמן</h3><p class="lead">בוחרים סכום ומספר שנים, ורואים מה הזמן עושה לו: כשהוא רק יושב בעו״ש, וכשהוא גדל ב-' + ltr('2%') + ', ' + ltr('4%') + ' או ' + ltr('6%') + ' בשנה.</p>' +
+    return '<h3>מכונת הזמן</h3><p class="lead">בוחרים סכום ומספר שנים, ורואים מה הזמן עושה לו: כשהוא רק יושב בעו״ש, וכשהוא גדל ב-' + listOr + ' בשנה.</p>' +
       amountPicker('growth', st) +
       '<div class="calc-field"><span class="eyebrow">כמה שנים</span><div class="chips">' + years + '</div></div>' +
       monthlyPicker('growth', st) +
@@ -4692,7 +4697,7 @@
         '<div class="tm-legend"><span><i class="dep"></i>מהכיס</span><span><i class="gain"></i>ריבית דריבית</span></div>' + '<div class="tr-lines">' + lines + '</div></div>' +
       '<p class="tool-note">לפי הסדר מהשיעורים: קודם קרן חירום, ורק אחר כך כסף לטווח ארוך.</p>' +
       (S.status !== 'civ' ? '<p class="tool-note">את הפיקדון לא מחשבים כאן: בחמש השנים הראשונות הוא נעול לשש מטרות. המענק מותר לכל מטרה מהיום הראשון.</p>' : '') +
-      '<p class="fine caveat">' + ltr('2%') + ', ' + ltr('4%') + ' ו-' + ltr('6%') + ' הם אחוזים לדוגמה מהשיעורים, לא תחזית ולא הבטחה. בשוק ההון התשואה לא קבועה, ויש שנים של ירידות. רק במחשבון הכסף גדל באותו אחוז בכל שנה.</p>' +
+      '<p class="fine caveat">' + listAnd + ' הם אחוזים לדוגמה מהשיעורים, לא תחזית ולא הבטחה. בשוק ההון התשואה לא קבועה, ויש שנים של ירידות. רק במחשבון הכסף גדל באותו אחוז בכל שנה.</p>' +
       '<div class="tool-links">' + lessonLink('3.1', 'איך זה עובד? לשיעור על ריבית דריבית') + toolLink('fees', 'וכמה מזה הולך לדמי ניהול?', 'tool_link', st.src, st.amount) + '</div>' +
       toolFoot('הכלי מחשב לפי מה שבחרת, והוא לא אומר איפה להחזיק את הכסף.');
   }
@@ -4705,7 +4710,7 @@
   }
   // both totals are rounded first, so the gap on screen always adds up
   function feesCalc(st) {
-    var gross = TF.gross || 6, A = roundShow(fv(st.amount, st.monthly, gross / 100, st.years)), B = roundShow(fv(st.amount, st.monthly, (gross - st.gap) / 100, st.years));
+    var gross = TF.gross || 10, A = roundShow(fv(st.amount, st.monthly, gross / 100, st.years)), B = roundShow(fv(st.amount, st.monthly, (gross - st.gap) / 100, st.years));
     return { gross: gross, net: +(gross - st.gap).toFixed(2), A: A, B: B, cost: A - B, share: A ? Math.round((A - B) / A * 100) : 0 };
   }
   function feesBars(f, still) {
@@ -4726,7 +4731,7 @@
       '<div class="tool-result"><div class="tr-head">אם המסלול הזול גדל ב-' + pctText(f.gross) + ' בשנה אחרי דמי ניהול, והיקר ב-' + pctText(f.net) + ':</div>' + feesBars(f) +
         '<div class="fees-gap"><b>הפער עלה ' + money(f.cost) + '</b><span>כ-' + ltr(f.share + '%') + ' ממה שהיה נצבר במסלול הזול.</span></div>' +
         '<div class="tr-lines"><p>אותן השקעות בדיוק, רק מחיר אחר.</p>' +
-        (st.gap === 1 && f.gross === 6 ? '<p>פער של ' + ltr('1%') + ' בשנה, כשהתשואה ' + ltr('6%') + ', הוא שישית מהרווח השנתי.</p>' : '') + '</div></div>' +
+        (st.gap === 1 && (f.gross === 10 || f.gross === 6) ? '<p>פער של ' + ltr('1%') + ' בשנה, כשהתשואה ' + ltr(f.gross + '%') + ', הוא ' + (f.gross === 10 ? 'עשירית' : 'שישית') + ' מהרווח השנתי.</p>' : '') + '</div></div>' +
       (l33 && l33.remember ? '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l33.remember) + '</p></div>' : '') +
       '<p class="tool-note">החוק קובע רק תקרה, ומתחתיה אפשר להתמקח. משווים מסלולים דומים באתרים של רשות שוק ההון: גמל נט ופנסיה נט. מה שנגבה בפועל מופיע בדוח השנתי.</p>' +
       '<p class="fine">' + pctText(f.gross) + ' הם תשואה לדוגמה מהשיעור, לא תחזית. התשואה האמיתית לא ידועה מראש, והפער בדמי הניהול נגבה בכל שנה.</p>' +
