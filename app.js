@@ -140,6 +140,10 @@
   // test for "is on the app's own screens".
   var HOME_FIRST = CFG.firstScreen !== 'button';
   function inApp() { return S.onboarded || HOME_FIRST; }
+  // 0.30 (the funnel to the trading-account offers, 13.11): a link with ?go=<name> (config.deepLinks, e.g. dribit.app/?go=invest
+  // from a TikTok about investing) opens that lesson's card at once, even when it is not the next one on the path. JUMP is
+  // that lesson's id for this visit only; GO is the name from the link (it goes with app_opened and the first-screen events).
+  var JUMP = null, GO = null;
   var IS_IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var IS_ANDROID = /android/i.test(navigator.userAgent);
   // 0.26.1: which app's built-in browser opened us (TikTok sends most new people since 9.11)
@@ -856,6 +860,12 @@
     // v24 (3.11, the soldier test: "תשפר את ממצא 1234"): true/false answers flipped and wrong answers rewritten, the first
     // three lessons lost questions, and 1.4 and 3.3 moved in between the market lessons. A saved session starts over.
     if ((S.contentV || 0) < 24 && v >= 24) S.inProgress = null;
+    // v25 (13.11, the funnel to the trading-account offers): a short investing lesson 0.5 among the first three lessons
+    // ("100 ₪ בחודש"). Like v22: an unfinished lesson that now sits after the next lesson in the path is dropped.
+    if ((S.contentV || 0) < 25 && v >= 25 && S.inProgress) {
+      var ip25 = BY_ID[S.inProgress.lessonId], cur25 = currentLesson();
+      if (ip25 && cur25 && !isDone(ip25.id) && shown(ip25) && ip25.order > cur25.order) S.inProgress = null;
+    }
     S.contentV = v;
     save();
   }
@@ -884,6 +894,7 @@
   }
   function isUnlocked(l) {
     if (S.team) return true; // 0.29.1: on a team device (Jonathan and Nehorai, 13.11) every lesson is open
+    if (JUMP && l.id === JUMP) return true; // 0.30: the lesson a ?go= link opened
     var cur = currentLesson();
     return isDone(l.id) || (cur && cur.id === l.id);
   }
@@ -1100,7 +1111,8 @@
     var get = function (k) { var m = new RegExp('[?&]' + k + '=([\\w-]+)').exec(q); return m ? m[1] : null; };
     var ref = get('ref');
     var lp = get('lp'); // 0.24: the dribit.app visit that opened the app (landing-5), so the two can be matched
-    return { source: get('source') || 'link', ref: ref && ref.length <= 40 ? ref : null, kind: get('kind'), lp: lp && lp.length <= 64 ? lp : null };
+    var go = get('go');
+    return { source: get('source') || 'link', ref: ref && ref.length <= 40 ? ref : null, kind: get('kind'), lp: lp && lp.length <= 64 ? lp : null, go: go && go.length <= 20 ? go : null };
   }
   // the same address loaded again in the same tab is not a new open: source 'update' (a reload the app made for a new
   // version) or 'reload' (pull to refresh, the phone reloading the app), with no ref or kind. The address itself keeps
@@ -1114,7 +1126,7 @@
       return upd === '1' ? 'update' : seen === here ? 'reload' : null;
     } catch (e) { return null; }
   })();
-  var OPEN = RELOAD_KIND ? { source: RELOAD_KIND, ref: null, kind: null, lp: null } : openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
+  var OPEN = RELOAD_KIND ? { source: RELOAD_KIND, ref: null, kind: null, lp: null, go: null } : openParams(), OPEN_SOURCE = OPEN.source, OPEN_REF = OPEN.ref, OPEN_KIND = OPEN.kind;
   function reloadForUpdate() {
     try {
       sessionStorage.setItem('dribit.reload', '1');
@@ -1386,7 +1398,7 @@
         '<span class="art' + (img ? ' pic' : '') + '">' + (img ? '<img src="' + esc(img) + '" alt="">' : u.n) + '</span></button>' +
         '<div class="path">';
       u.vis.forEach(function (l, i) {
-        var state = isDone(l.id) ? 'done' : (cur && cur.id === l.id ? 'current' : S.team ? 'open' : 'locked');
+        var state = isDone(l.id) ? 'done' : (cur && cur.id === l.id ? 'current' : S.team || JUMP === l.id ? 'open' : 'locked');
         var dx = Math.round(Math.sin(i * 1.1) * 70);
         var icon = state === 'done' ? ICON.check : state === 'current' ? ICON.star : state === 'open' ? ICON.play : ICON.lock;
         var tip = S.inProgress && S.inProgress.lessonId === l.id ? 'להמשיך' : !enCanStart() ? batteryIcon(0, enMax()) + enTimer('next') : doneCount() ? 'המשך כאן' : 'מתחילים';
@@ -1743,6 +1755,41 @@
       ps.map(function (p) { return partnerOffer(p, p.optionId, 'profile', true); }).join('') +
       '<p class="fine">' + esc(P.notRanking) + '</p>' +
       '<button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">' + esc(C.compareLink || P.doneBack) + '</button></div></div>';
+  }
+
+  // 0.30 (13.11, the funnel to the trading-account offers): on the done screen of an investing lesson (config.partner.doneTeaser),
+  // the first time it is finished, one small card: "want to start for real? there is a benefit". A tap opens a sheet with the same
+  // folded offer trays as the profile (place 'done_teaser'). Never on a replay, never next to 5.2's own offer, and the lesson's
+  // id goes with every event, so the report can say which lesson brings people to the offers.
+  var teaserSeen = {};
+  function teaserInfo(l) {
+    var P = CFG.partner, C = P && P.doneTeaser;
+    if (!C || !C.enabled || !l || (C.lessons || []).indexOf(l.id) < 0 || (P.offerLessons || []).indexOf(l.id) >= 0) return null;
+    var ps = livePartners().filter(function (p) { return p.offer; });
+    return ps.length ? { C: C, ps: ps } : null;
+  }
+  function doneTeaser(s, l) {
+    var t = s.mode === 'lesson' && s.firstTime ? teaserInfo(l) : null;
+    if (!t) return '';
+    if (teaserSeen[l.id] !== s) { teaserSeen[l.id] = s; track('partner_teaser_viewed', { lesson_id: l.id, place: 'done_teaser', partners: t.ps.length, lessons_done: doneCount() }); }
+    var names = t.ps.map(function (p) { return p.name; });
+    var who = names.length > 1 ? names.slice(0, -1).join(', ') + ' ו' + names[names.length - 1] : names[0];
+    return '<div class="card done-teaser"><div class="eyebrow">' + esc(t.C.eyebrow || CFG.partner.doneEyebrow) + '</div>' +
+      '<b>' + esc(t.C.title) + '</b><p>' + fillIn(t.C.text, { partners: who }) + '</p>' +
+      '<button class="btn ghost" data-act="teaser" data-id="' + esc(l.id) + '">' + ICON.coins + '<span>' + esc(t.C.cta) + '</span></button></div>';
+  }
+  function teaserSheet(id) {
+    var l = BY_ID[id], t = teaserInfo(l), P = CFG.partner;
+    if (!t) return;
+    track('partner_teaser_tapped', { lesson_id: l.id, place: 'done_teaser', partners: t.ps.length, lessons_done: doneCount() });
+    openSheet('<div class="compare on-done teaser-sheet"><h3>' + esc(t.C.sheetTitle || t.C.title) + '</h3>' +
+      '<div class="eyebrow">' + esc(P.doneEyebrow || 'לא המלצה') + '</div>' +
+      '<p class="lead">' + esc(t.ps.length > 1 ? P.doneLeadMany : P.doneLead) + '</p>' +
+      (t.C.first ? '<p class="offer-caution">' + ICON.info + '<span>' + esc(t.C.first) + '</span></p>' : '') +
+      t.ps.map(function (p) { return partnerOffer(p, p.optionId, 'done_teaser', true); }).join('') +
+      '<p class="fine">' + esc(P.notRanking) + '</p>' +
+      '<button class="link" data-act="unit" data-id="' + esc(P.unitId) + '">' + esc(P.doneBack) + '</button>' +
+      '<button class="btn text" data-act="close-sheet">אחר כך</button></div>', 'tall');
   }
 
   function legalSheet() {
@@ -2735,7 +2782,7 @@
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-        ratingRow(l) + intentCard(l) + amountCard(l) + (MISSIONS_ON ? missionCard(l, true) : '') + offerCard(l);
+        ratingRow(l) + intentCard(l) + amountCard(l) + (MISSIONS_ON ? missionCard(l, true) : '') + offerCard(l) + doneTeaser(s, l);
     }
     // iPhone: the install ask comes right after the first lesson, while the win is fresh (Android keeps the home card)
     if (s.mode === 'lesson' && s.firstTime && INSTALL.showOnDone && IS_IOS && doneCount() === INSTALL.afterLessons) {
@@ -3091,31 +3138,33 @@
   // 0.26.1 (10.11): 42 of 46 new people from TikTok opened the app and never tapped start, and nothing tells us if they
   // read the screen or left at once. These events say how long the first screen was in front of them.
   var startAt = 0, startTaps = 0, startEnded = false;
+  // 'home_link' (0.30): home with a lesson card that a ?go= link opened, kept apart from 'home' so the first-screen comparison stays clean
+  function startScreenName() { return !HOME_FIRST ? 'button' : JUMP ? 'home_link' : 'home'; }
   function onStartScreen() { return startAt && !startEnded; }
   function startSecs() { return Math.round((Date.now() - startAt) / 100) / 10; }
   function startShown() {
     if (startAt) return;
     startAt = Date.now();
-    track('start_screen_shown', { returning: S.onboarded, ref: OPEN_REF, source: OPEN_SOURCE, screen: HOME_FIRST ? 'home' : 'button' });
+    track('start_screen_shown', { returning: S.onboarded, ref: OPEN_REF, source: OPEN_SOURCE, screen: startScreenName(), go: GO });
     [3, 10, 30].forEach(function (sec) {
       setTimeout(function () {
-        if (onStartScreen() && document.visibilityState !== 'hidden') { track('start_screen_still', { seconds: sec, taps: startTaps, screen: HOME_FIRST ? 'home' : 'button' }); flush(); }
+        if (onStartScreen() && document.visibilityState !== 'hidden') { track('start_screen_still', { seconds: sec, taps: startTaps, screen: startScreenName() }); flush(); }
       }, sec * 1000);
     });
   }
   function startLeft(how) {
     if (!onStartScreen()) return;
     startEnded = true;
-    track('start_screen_left', { seconds: startSecs(), taps: startTaps, how: how, screen: HOME_FIRST ? 'home' : 'button' });
+    track('start_screen_left', { seconds: startSecs(), taps: startTaps, how: how, screen: startScreenName() });
   }
   // a lesson is about to open: the end of the first screen's count, and the moment a new person "comes in"
   // (onboarding_done keeps its name, the reports count it as "tapped start")
   function cameIn(l) {
     var from = startFrom || 'home';
-    if (onStartScreen()) { startEnded = true; track('start_screen_tapped', { seconds: startSecs(), taps: startTaps, from: from, screen: HOME_FIRST ? 'home' : 'button' }); }
+    if (onStartScreen()) { startEnded = true; track('start_screen_tapped', { seconds: startSecs(), taps: startTaps, from: from, screen: startScreenName() }); }
     if (!S.onboarded) {
       S.onboarded = true; save();
-      track('onboarding_done', { flow: HOME_FIRST ? 'home_first' : 'lesson_first', from: from, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: l.id, $set: { goal_xp: S.goalXp } });
+      track('onboarding_done', { flow: HOME_FIRST ? 'home_first' : 'lesson_first', from: from, go: GO, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: l.id, $set: { goal_xp: S.goalXp } });
     }
   }
   function beginFirst(from) {
@@ -4925,6 +4974,7 @@
         break;
       }
       case 'preview': sfx.tap(); previewSheet(id); break;
+      case 'teaser': sfx.tap(); teaserSheet(id); break;
       case 'unit': unitSheet(id); break;
       case 'explain': explainSheet(el.getAttribute('data-what')); break;
       case 'src': {
@@ -4954,7 +5004,7 @@
         break; // no preventDefault: the link opens
       }
       case 'close-sheet': closeSheet(); break;
-      case 'start': notesId = null; startLesson(id); break;
+      case 'start': notesId = null; if (GO && id === JUMP && !isDone(id)) startFrom = 'deep_link'; startLesson(id); startFrom = null; break;
       case 'restart': notesId = null; startLesson(id, true); break;
       case 'notes': notesId = id; setView('notes'); break;
       case 'notes-close': notesId = null; setView('home'); break;
@@ -5370,11 +5420,21 @@
       S.installSeen = true; S.installHidden = true; save();
       track('app_installed', { method: IS_NATIVE ? 'ios_app_store' : IS_IOS ? 'ios_first_standalone_open' : 'first_standalone_open', imported: !!S.importedAt });
     }
+    // 0.30: ?go=<name> (config.deepLinks) opens that lesson's card; the parameter then leaves the address, like ?team=
+    if (OPEN.go) {
+      var goId = CFG.deepLinks && Object.prototype.hasOwnProperty.call(CFG.deepLinks, OPEN.go) ? CFG.deepLinks[OPEN.go] : null;
+      if (goId && shown(BY_ID[goId])) { JUMP = goId; GO = OPEN.go; }
+      try {
+        var restGo = (location.search || '').replace(/^\?/, '').split('&').filter(function (x) { return x && !/^go=/.test(x); }).join('&');
+        history.replaceState(history.state, '', location.pathname + (restGo ? '?' + restGo : '') + location.hash);
+      } catch (e) { /* ignore */ }
+      track('deep_link_opened', { go: OPEN.go, lesson_id: JUMP, known: !!JUMP, returning: S.onboarded, lessons_done: doneCount(), done_before: JUMP ? isDone(JUMP) : null });
+    }
     if (OPEN_REF && !S.ref) { S.ref = OPEN_REF; save(); }
     // a friend's invite link on a fresh device: the gift waits for the first lesson (nothing for someone with progress)
     if (DO.enabled && DO.friendGift && OPEN_REF === 'share' && !S.giftPending && !S.giftGot && !S.xp && !doneCount()) { S.giftPending = true; save(); }
     track('app_opened', {
-      returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND, landing_id: OPEN.lp,
+      returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND, landing_id: OPEN.lp, go: GO,
       reminders: !!(S.reminder && S.reminder.on), days_off: S.daysOff, learned_days_7: learned7(),
       $set: skinList().length ? { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff, skin: activeSkin(), skins_open: skinsOpenCount() }
         : { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff },
@@ -5400,7 +5460,9 @@
     render();
     if (carryCode) importProgress(carryCode, 'install');
     carrySoon();
-    if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
+    // the lesson card of a ?go= link comes first: no popup over it in this open
+    if (JUMP && view === 'home' && !sheetOpen && !carryCode) { openAsked = true; previewSheet(JUMP); }
+    else if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
     else if (OPEN_SOURCE !== 'push') maybeAsk();
     registerSW();
     syncPush();

@@ -133,8 +133,9 @@ let FIRST_OPEN = `
     GROUP BY how ORDER BY 2 DESC`));
   // the first screen (events since 0.26.1): how many stayed 3 / 10 / 30 seconds and how many went on to a lesson.
   // screen: 'button' = the one-button screen (also every event before 0.29, which has no screen), 'home' = home with the path (0.29)
+  // 'home_link' (0.30) = home with a lesson card opened by a ?go= link (a TikTok about investing): kept apart from 'home'
   print('המסך הראשון מאז 2026-11-10 (ישראל): כמה נשארו עליו', ['day', 'screen', 'in_app', 'saw it', 'still at 3s', '10s', '30s', 'went on to the lesson'], await hogql(`
-    SELECT toDate(${IL}) AS d, if(toString(properties.screen) = 'home', 'home', 'button') AS sc, toString(properties.in_app) AS ia,
+    SELECT toDate(${IL}) AS d, multiIf(toString(properties.screen) = 'home', 'home', toString(properties.screen) = 'home_link', 'home_link', 'button') AS sc, toString(properties.in_app) AS ia,
       uniqIf(person_id, event = 'start_screen_shown'),
       uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 3), uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 10),
       uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 30), uniqIf(person_id, event = 'start_screen_tapped')
