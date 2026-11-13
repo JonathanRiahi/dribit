@@ -1653,6 +1653,16 @@ img { -webkit-user-drag: none; }
   .tour-hole::after, .tour-tip.in > * { animation: none; }
 }
 
+/* ---------- 0.30: the offer teaser on the done screen of an investing lesson, and its sheet ---------- */
+.done-teaser { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-inline-start: 6px solid var(--gold, var(--brand)); }
+.done-teaser .eyebrow { color: var(--ink-2); }
+.done-teaser b { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--ink); text-wrap: balance; }
+.done-teaser p { margin: 0; color: var(--ink-2); font-size: 15px; line-height: 1.45; }
+.done-teaser .btn { margin-top: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.done-teaser .btn svg { width: 20px; height: 20px; flex: none; }
+.teaser-sheet h3 { margin: 0; }
+.teaser-sheet > .btn.text { align-self: center; }
+.teaser-sheet > .offer-caution { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; border-radius: var(--r-sm); background: var(--gold-soft); color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.45; }
 /* ---------- 0.31: friends and groups ---------- */
 .friends .eyebrow { color: var(--brand); }
 .ref-card h2 { margin-top: -6px; }
