@@ -1237,8 +1237,15 @@
     }
   }
 
+  // 0.30: a progress bar never starts empty (Jonathan 13.11, the "endowed progress" trick Duolingo uses). The fill starts at
+  // CFG.progressHeadStart and the real progress spreads over the rest, so the first step already moves a bar that was
+  // on its way. Only the drawn width: the numbers next to a bar and aria-valuenow stay the true ones.
+  var HEAD = Math.max(0, Math.min(0.5, +CFG.progressHeadStart || 0));
+  function fillFrac(x) { x = Math.max(0, Math.min(1, +x || 0)); return x >= 1 ? 1 : HEAD + (1 - HEAD) * x; }
+  function fillPct(x) { return Math.round(fillFrac(x) * 100); }
+
   function goalRing(size) {
-    var pct = Math.min(1, todayXp() / S.goalXp), c = 2 * Math.PI * 11;
+    var pct = fillFrac(todayXp() / S.goalXp), c = 2 * Math.PI * 11;
     return '<svg class="goal-ring" viewBox="0 0 30 30" style="width:' + size + 'px;height:' + size + 'px" aria-hidden="true">' +
       '<circle class="track" cx="15" cy="15" r="11" fill="none" stroke-width="4"/>' +
       '<circle class="fill" cx="15" cy="15" r="11" fill="none" stroke-width="4" stroke-linecap="round" ' +
@@ -1297,7 +1304,7 @@
     var html = '';
     var ip = S.inProgress, l = ip && BY_ID[ip.lessonId];
     if (l && shown(l)) {
-      var pct = Math.round(resumeAt(ip) / Math.max(1, ip.steps.length) * 100);
+      var pct = fillPct(resumeAt(ip) / Math.max(1, ip.steps.length));
       html += '<button class="resume-card u' + l.unit.id + '" data-act="start" data-id="' + esc(l.id) + '">' +
         '<span class="r-ic">' + ICON.play + '</span>' +
         '<span class="r-txt"><span class="eyebrow">להמשיך מאיפה שהפסקת</span><b>' + esc(l.title) + '</b>' +
@@ -1356,7 +1363,7 @@
     if (!fresh) html += '<button class="rank-strip' + (nsk ? ' has-skin' : '') + '" data-act="explain" data-what="points">' +
       '<span class="rank-badge">' + ICON.coins + '</span>' +
       '<span class="rank-txt"><b>' + esc(levelLabel(r)) + '</b><span>' + nextLevelLine(r) + '</span></span>' +
-      '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
+      '<span class="bar gold"><i style="width:' + fillPct(r.pct) + '%"></i></span>' +
       (nsk ? '<i class="pr-skin" data-skin="' + nsk.id + '" aria-hidden="true"></i>' : '') + '</button>';
     var st = currentStreak(), today = todayXp();
     if (cur && st > 0 && today === 0) {
@@ -1375,7 +1382,7 @@
       html += '<section class="unit u' + u.id + '">' +
         '<button class="unit-banner" data-act="unit" data-id="' + u.id + '"><span class="txt"><span class="eyebrow">יחידה ' + u.n + '</span>' +
         '<h2>' + esc(u.title) + '</h2><span class="meta">' + done + ' מתוך ' + u.vis.length + ' שיעורים</span>' +
-        '<span class="ubar"><i style="width:' + Math.round(done / u.vis.length * 100) + '%"></i></span></span>' +
+        '<span class="ubar"><i style="width:' + (done || (cur && cur.unit === u) ? fillPct(done / u.vis.length) : 0) + '%"></i></span></span>' +
         '<span class="art' + (img ? ' pic' : '') + '">' + (img ? '<img src="' + esc(img) + '" alt="">' : u.n) + '</span></button>' +
         '<div class="path">';
       u.vis.forEach(function (l, i) {
@@ -1505,7 +1512,7 @@
           : '<p class="lead">הנקודות מעלות אותך שלב וממלאות את היעד היומי.</p>') +
         '<div class="card tight points-now"><b>' + (r.last ? 'שלב ' + r.total + ' מתוך ' + r.total + ', השלב האחרון' : esc(levelLabel(r))) + '</b>' +
           (r.last ? '' : '<span class="pn-next">' + nextLevelLine(r) + '</span>') +
-          '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
+          '<span class="bar gold"><i style="width:' + fillPct(r.pct) + '%"></i></span>' +
           (DO.enabled ? '<p class="fine off-line">' + ICON.dayoff + '<span>ימי חופש לרצף: ' + S.daysOff + ' (אפשר לשמור עד ' + DO.maxHeld + ')</span></p>' : '') + '</div>' +
         (tl.length ? '<div class="eyebrow">הכלים שנפתחים בשלבים</div>' + toolLadder(tl, 'points_sheet') : '') +
         (sk ? '<div class="eyebrow">הצבעים שנפתחים בשלבים</div>' + skinGrid('points_sheet') : '') +
@@ -1722,7 +1729,7 @@
       track('partner_profile_viewed', { open: u.open, partners: ps.length, to_go_band: u.open ? null : pointsBand(u.toGo) });
     }
     if (!u.open) {
-      var lsn = u.lessons[0], pct = Math.min(100, Math.round(S.xp / Math.max(1, C.minXp) * 100));
+      var lsn = u.lessons[0], pct = fillPct(S.xp / Math.max(1, C.minXp));
       return '<div class="card acct-card locked">' + head + '<p class="fine">' + esc(C.lockedLead) + '</p>' +
         '<span class="bar gold"><i style="width:' + pct + '%"></i></span>' +
         '<p class="lock-note">' + ICON.lock + '<span>נפתח בשלב ' + u.level + ', עוד ' + plural(u.toGo, 'נקודה אחת', 'נקודות') + ' (' + lessonsToGo(u.toGo).replace(/\.$/, '') + ')' +
@@ -2212,7 +2219,7 @@
     return '<div class="player-top gutter">' +
       '<button class="icon-btn" data-act="quit" aria-label="יציאה">' + ICON.x + '</button>' +
       '<button class="icon-btn" data-act="back" aria-label="אחורה"' + (session.idx === 0 ? ' disabled' : '') + '>' + ICON.back + '</button>' +
-      '<div class="progress' + (session.combo >= 3 ? ' hot' : '') + '" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="progress' + (session.combo >= 3 ? ' hot' : '') + '" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + fillPct(session.idx / stepCount()) + '%"></i></div>' +
       '<div class="combo">' + (session.combo >= 3 ? ICON.flame + session.combo : '') + '</div></div>';
   }
 
@@ -2717,7 +2724,7 @@
       '</div>' +
       // 0.19 (Daniel: "המסך מבולגן"): the level bar and one line; where the points came from opens on a tap
       '<div class="card tight done-level">' +
-        '<div class="progress-row"><span>שלב ' + r.n + '</span><span class="bar gold"><i data-w="' + Math.round(r.pct * 100) + '" style="width:' + Math.round(s.pctBefore * 100) + '%"></i></span><span>' + (r.last ? '' : 'שלב ' + (r.n + 1)) +
+        '<div class="progress-row"><span>שלב ' + r.n + '</span><span class="bar gold"><i data-w="' + fillPct(r.pct) + '" style="width:' + fillPct(s.pctBefore) + '%"></i></span><span>' + (r.last ? '' : 'שלב ' + (r.n + 1)) +
           (nextAt ? '<i class="pr-tool t-' + nextAt.id + '" aria-hidden="true">' + toolIcon(nextAt.id) + '</i>' : '') +
           (nextSk ? '<i class="pr-skin" data-skin="' + nextSk.id + '" aria-hidden="true"></i>' : '') + '</span></div>' +
         (r.last ? '' : '<p class="fine">' + doneNextLine(r, s, l, nextAt) + '</p>') +
@@ -2873,7 +2880,7 @@
         '<button class="btn" data-act="nav" data-to="home">לשיעור הראשון</button></div>';
       return html + '</div>';
     }
-    html += '<div class="m-summary"><b>' + closed.length + '/' + done.length + '</b><span>משימות בוצעו</span><span class="bar"><i style="width:' + Math.round(closed.length / done.length * 100) + '%"></i></span></div>';
+    html += '<div class="m-summary"><b>' + closed.length + '/' + done.length + '</b><span>משימות בוצעו</span><span class="bar"><i style="width:' + fillPct(closed.length / done.length) + '%"></i></span></div>';
     if (open.length) html += '<h2 class="sec">מחכות לך</h2><div class="m-list">' + open.map(function (l) { return missionCard(l); }).join('') + '</div>';
     if (closed.length) html += '<h2 class="sec">בוצעו</h2><div class="m-list">' + closed.map(function (l) { return missionCard(l); }).join('') + '</div>';
     return html + '</div>';
@@ -3021,7 +3028,7 @@
       '<button class="card rank-card" data-act="explain" data-what="points">' +
         '<span class="rank-badge big">' + ICON.coins + '</span>' +
         '<span class="rank-txt"><span class="eyebrow">השלב שלך</span><b>' + esc(levelLabel(r)) + '</b>' +
-        '<span class="bar gold"><i style="width:' + Math.round(r.pct * 100) + '%"></i></span>' +
+        '<span class="bar gold"><i style="width:' + fillPct(r.pct) + '%"></i></span>' +
         '<span class="fine">' + nextLevelLine(r) + '</span></span></button>' +
       skinsCard() +
       '<div class="stat-grid">' +
@@ -3067,7 +3074,7 @@
     var l = currentLesson();
     if (!l) return '';
     var ip = S.inProgress && S.inProgress.lessonId === l.id ? S.inProgress : null;
-    var pct = ip ? Math.round(resumeAt(ip) / Math.max(1, ip.steps.length) * 100) : 0;
+    var pct = ip ? fillPct(resumeAt(ip) / Math.max(1, ip.steps.length)) : 0;
     // the picture and the card start the lesson too, so almost any tap on the screen does it
     var art = CFG.images && CFG.images.welcome ? '<div class="welcome-art" data-act="first-lesson"><img src="' + esc(CFG.images.welcome) + '" alt=""></div>' : '';
     return '<div class="welcome start gutter">' +
@@ -4305,7 +4312,7 @@
       html += '<button class="tools-next" data-act="tool" data-id="' + nt.id + '" data-from="tools">' +
         '<span class="rank-badge">' + toolIcon(nt.id) + '</span>' +
         '<span class="rank-txt"><b>הכלי הבא: ' + esc(toolShort(nt.id)) + ' · עוד ' + plural(pts, 'נקודה אחת', 'נקודות') + '</b><span>' + lessonsToGo(pts) + '</span></span>' +
-        '<span class="bar gold"><i style="width:' + (goal > base ? Math.round((S.xp - base) / (goal - base) * 100) : 0) + '%"></i></span></button>';
+        '<span class="bar gold"><i style="width:' + fillPct(goal > base ? (S.xp - base) / (goal - base) : 0) + '%"></i></span></button>';
     }
     html += '<div class="tool-list">' + open.concat(locked).map(function (t) { return toolCard(t, 'tools'); }).join('') + '</div>';
     var nsk = nextSkin(), allSk = !nsk && skinList().length > 0; // 0.12: with every tool open, the next color is what points still bring
