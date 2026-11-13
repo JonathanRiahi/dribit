@@ -1,0 +1,35 @@
+# Partner funnel: how many people reach the trading-account offers, per place in the app (seen, opened, tapped the link).
+# Counts only. Actions > Partner funnel > Run workflow. Same POSTHOG_API_KEY / POSTHOG_PROJECT_ID secrets as the other reports.
+name: Partner funnel
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'From (YYYY-MM-DD, Israel). Empty: 2026-10-26'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches: ['claude/project-thread-xp7af2']
+    paths: ['tools/partner-funnel.js', '.github/workflows/partner-funnel.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/partner-funnel.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          # optional: old device ids of Jonathan and Nehorai that can no longer be marked (see tools/team.js)
+          TEAM_IDS: ${{ secrets.TEAM_IDS }}
+          SINCE: ${{ inputs.since }}
