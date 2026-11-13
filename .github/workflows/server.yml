@@ -74,4 +74,5 @@ jobs:
           URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
           echo "### Server address" >> "$GITHUB_STEP_SUMMARY"
           echo "${URL:-not found in the log, see the deploy step}" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "$URL" ]; then curl -fsS "$URL/" && echo; fi
+          # a brand-new workers.dev address can answer 404 for a minute or two after the first deploy
+          if [ -n "$URL" ]; then curl -fsS --retry 8 --retry-delay 15 --retry-all-errors "$URL/" && echo || echo "::warning::$URL does not answer yet. A new address can take a few minutes; open it in a browser later."; fi
