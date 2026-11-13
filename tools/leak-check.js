@@ -23,7 +23,8 @@ async function hogql(query) {
   return j.results || [];
 }
 const DAY = "toDate(toTimeZone(timestamp, 'Asia/Jerusalem'))";
-const WHEN = `timestamp >= toDateTime('${SINCE} 00:00:00')`;
+let WHEN = `timestamp >= toDateTime('${SINCE} 00:00:00')`; // + not the team (tools/team.js), added once it is loaded
+const { loadTeam } = require('./team');
 const PAID = "(properties.$current_url LIKE '%ttclid%' OR properties.$current_url LIKE '%utm_%')";
 const print = (title, head, rows) => {
   console.log(`\n=== ${title} ===`);
@@ -35,6 +36,10 @@ const print = (title, head, rows) => {
   if (!API_KEY) throw new Error('POSTHOG_API_KEY is missing.');
   if (!PROJECT) PROJECT = String(((await api('/api/projects/')).results || [])[0].id);
   console.log(`Leak check since ${SINCE} (Israel days).`);
+  const team = await loadTeam(hogql);
+  const WHEN0 = WHEN;
+  WHEN = `${WHEN0} AND ${team.not()}`;
+  console.log(team.line());
 
   // 1. per day: landing visitors, paid-looking visitors, tapped start, app opens that came from dribit.app (ref lp_...)
   print('לפי יום', ['day', 'landing visitors', 'paid (ttclid/utm)', 'tapped start', 'app opens ref lp_ (people)', 'of them new (returning=false)'],

@@ -198,7 +198,10 @@
       // 0.14 battery (config.energy): bars at the time `at` (ms), and whether the one-time note was shown. Never in transfer codes.
       energy: { n: EN.max > 0 ? Math.floor(EN.max) : 5, at: 0, seen: false },
       // 0.28 the first-time walkthrough (Jonathan, 11.11): each screen explained once, the first time it is opened after lesson 1
-      tour: { home: false, practice: false, tools: false, profile: false }
+      tour: { home: false, practice: false, tools: false, profile: false },
+      // 0.28.1 a team device (Jonathan and Nehorai, 13.11): marked with ?team=1 or 7 taps on the version line in the profile.
+      // Its events carry team: true and the reports leave this person out of every count. Never in transfer codes.
+      team: false
     };
   }
   // what a transfer code carries to another browser or phone. Never the reminder (it belongs to this browser),
@@ -271,6 +274,7 @@
     if (s.startUnit != null && !(typeof s.startUnit === 'number' && isFinite(s.startUnit)) && !okKey(s.startUnit)) s.startUnit = null;
     if (typeof s.sound !== 'boolean') s.sound = true;
     if (typeof s.share !== 'boolean') s.share = true;
+    if (typeof s.team !== 'boolean') s.team = false;
     if (!isDayKey(s.firstDay)) s.firstDay = dayKey();
     if (s.lastDay != null && !isDayKey(s.lastDay)) { s.lastDay = null; s.streak = 0; }
     s.lostStreak = isRec(s.lostStreak) && isDayKey(s.lostStreak.lastDay) && num0(s.lostStreak.value) > 0
@@ -921,6 +925,7 @@
       status: S.status, standalone: isStandalone(), platform: IS_IOS ? 'ios' : IS_ANDROID ? 'android' : 'other', in_app: IN_APP
     };
     if (IS_NATIVE) { p.native = NATIVE.platform; p.native_version = NATIVE.appVersion; }
+    if (S.team) p.team = true;
     for (var k in props || {}) p[k] = props[k];
     EQ.push({ uuid: uuid(), event: event, properties: p, timestamp: new Date().toISOString() });
     if (EQ.length > 600) EQ = EQ.slice(-600);
@@ -947,6 +952,28 @@
         if (EQ.length) setTimeout(flush, 500);
       }).catch(function () { /* offline: try again later */ }).then(function () { flushing = false; });
     } catch (e) { flushing = false; }
+  }
+
+  // ---------- Team devices (0.28.1) ----------
+  // Jonathan and Nehorai use the app too. A device they mark sends team_device { on }, and tools/team.js leaves every
+  // person whose last team_device is on (and the dribit.app visits that opened the app there) out of the reports.
+  // The mark covers the device's whole history, because the reports drop the person, not only new events.
+  function setTeam(on, how) {
+    if (S.team === on) return false;
+    S.team = on; save();
+    track('team_device', { on: on, how: how, $set: { team: on } });
+    flush();
+    return true;
+  }
+  var verTaps = [];
+  function versionTap() {
+    var now = Date.now();
+    verTaps = verTaps.filter(function (t) { return now - t < 4000; }).concat(now);
+    if (verTaps.length < 7) return;
+    verTaps = [];
+    setTeam(!S.team, 'version_taps');
+    render();
+    toast(S.team ? ICON.check + '<b>מכשיר צוות</b><span>מה שנעשה כאן לא נספר בנתונים</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
   }
 
   // ---------- Sound and effects ----------
@@ -2993,7 +3020,7 @@
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
         (CFG.about ? '<button class="btn ghost" data-act="about" data-from="profile">' + esc(CFG.about.title) + '</button>' : '') +
         '<div class="toggle-row"><span id="share-l">שיתוף נתוני שימוש אנונימיים</span><button class="switch" role="switch" aria-labelledby="share-l" aria-checked="' + S.share + '" data-act="share"></button></div>' +
-        '<p class="fine">ההתקדמות נשמרת רק במכשיר הזה. גרסה ' + esc(CFG.version) + '.</p>' +
+        '<p class="fine" data-act="version-tap">ההתקדמות נשמרת רק במכשיר הזה. גרסה ' + esc(CFG.version) + (S.team ? ' · מכשיר צוות' : '') + '.</p>' +
         '<button class="btn text" data-act="reset">איפוס ההתקדמות</button></div>' +
       '</div>';
     markSkinsSeen(); // the "חדש" chips show on this render only, and the tab badge clears
@@ -4971,6 +4998,7 @@
         break;
       }
       case 'sound': S.sound = !S.sound; save(); render(); if (S.sound) sfx.right(0); break;
+      case 'version-tap': versionTap(); break;
       case 'share':
         if (S.share) {
           // the web reminder is found through the usage data, so it goes off with it; the iPhone app's own reminder stays
@@ -5121,9 +5149,9 @@
           '<div class="row"><button class="btn ghost" data-act="close-sheet">ביטול</button><button class="btn bad" data-act="reset-confirm">לאפס</button></div>');
         break;
       case 'reset-confirm': {
-        var uid = S.uid;
+        var uid = S.uid, team = S.team;
         if (S.reminder && S.reminder.on) disableReminder('reset');
-        closeSheet(true); S = freshState(); S.uid = uid; session = null;
+        closeSheet(true); S = freshState(); S.uid = uid; S.team = team; session = null;
         applySkin();
         track('progress_reset', {});
         save(); indexContent(); migrateContent(); setView('home');
@@ -5287,6 +5315,19 @@
     window.addEventListener('appinstalled', function () { track('app_installed', { method: 'appinstalled' }); S.installHidden = true; S.installSeen = true; save(); if (view === 'home') render(); });
     // iOS starts audio only from a touch
     document.addEventListener('touchstart', function unlock() { if (S.sound) audio(); document.removeEventListener('touchstart', unlock); }, { passive: true });
+    // 0.28.1: ?team=1 marks this device as a team device (?team=0 undoes it); the parameter then leaves the address,
+    // so a link copied from here does not carry it
+    var teamIn = /[?&]team=([01])(?=&|$)/.exec(location.search || '');
+    if (teamIn) {
+      var teamOn = teamIn[1] === '1', teamChanged = setTeam(teamOn, 'link');
+      try {
+        var rest = (location.search || '').replace(/^\?/, '').split('&').filter(function (x) { return x && !/^team=/.test(x); }).join('&');
+        history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+      } catch (e) { /* ignore */ }
+      if (teamChanged || teamOn) setTimeout(function () {
+        toast(teamOn ? ICON.check + '<b>מכשיר צוות</b><span>מה שנעשה כאן לא נספר בנתונים</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
+      }, 600);
+    }
     checkStreakBreak();
     // iPhone has no appinstalled event: the first open from the home-screen icon is the install
     if (isStandalone() && !S.installSeen) {

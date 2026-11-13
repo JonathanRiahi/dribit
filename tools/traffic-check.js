@@ -8,6 +8,8 @@ const PH_API = (process.env.POSTHOG_API_HOST || 'https://eu.posthog.com').replac
 const SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.SINCE || '') ? process.env.SINCE : '2026-11-02';
 const HOURS_FROM = /^\d{4}-\d{2}-\d{2}$/.test(process.env.HOURS_FROM || '') ? process.env.HOURS_FROM : '2026-11-06';
 let PROJECT = (process.env.POSTHOG_PROJECT_ID || '').trim();
+const { loadTeam } = require('./team');
+let T = '1 = 1'; // not the team (Jonathan and Nehorai), see tools/team.js
 
 async function api(pathname, body) {
   const r = await fetch(PH_API + pathname, {
@@ -32,11 +34,11 @@ const print = (title, head, rows) => {
 };
 
 // first app_opened ever per person (new app people)
-const FIRST_OPEN = `
+let FIRST_OPEN = `
   SELECT person_id, min(timestamp) AS t0,
     argMin(toString(properties.source), timestamp) AS src, argMin(toString(properties.ref), timestamp) AS ref,
     argMin(${CTRY}, timestamp) AS c
-  FROM events WHERE event = 'app_opened' AND timestamp >= toDateTime('2026-10-01 00:00:00')
+  FROM events WHERE event = 'app_opened' AND timestamp >= toDateTime('2026-10-01 00:00:00') AND __T__
   GROUP BY person_id`;
 
 (async () => {
@@ -44,6 +46,10 @@ const FIRST_OPEN = `
   if (!PROJECT) PROJECT = String(((await api('/api/projects/')).results || [])[0].id);
   const now = await hogql(`SELECT toString(toTimeZone(now(), 'Asia/Jerusalem'))`);
   console.log(`Traffic check, days since ${SINCE}, hours since ${HOURS_FROM} (Israel time). Now: ${now[0] && now[0][0]}`);
+  const team = await loadTeam(hogql);
+  T = team.not();
+  FIRST_OPEN = FIRST_OPEN.replace('__T__', T);
+  console.log(team.line());
 
   print('לפי יום: dribit.app', ['day', 'visitors IL organic', 'IL paid', 'abroad', 'app_boot IL', 'all $pageview people IL'], await hogql(`
     SELECT toDate(${IL}) AS d,
@@ -53,7 +59,7 @@ const FIRST_OPEN = `
       uniqIf(distinct_id, event = 'app_boot' AND ${CTRY} = 'IL'),
       uniqIf(person_id, event = '$pageview' AND ${CTRY} = 'IL')
     FROM events WHERE timestamp >= toDateTime('${SINCE} 00:00:00') - INTERVAL 3 HOUR
-      AND event IN ('landing_view', 'app_boot', '$pageview') AND toDate(${IL}) >= toDate('${SINCE}')
+      AND event IN ('landing_view', 'app_boot', '$pageview') AND toDate(${IL}) >= toDate('${SINCE}') AND ${T}
     GROUP BY d ORDER BY d`));
 
   print('לפי יום: אפליקציה', ['day', 'app people IL (any open)', 'new app people IL', 'new IL via dribit.app (ref lp_)', 'new abroad', 'lesson started IL people', 'lesson completed IL people'], await hogql(`
@@ -63,7 +69,7 @@ const FIRST_OPEN = `
           uniqIf(person_id, event = 'lesson_started' AND ${CTRY} = 'IL') AS ls,
           uniqIf(person_id, event = 'lesson_completed' AND ${CTRY} = 'IL') AS lc
         FROM events WHERE timestamp >= toDateTime('${SINCE} 00:00:00') - INTERVAL 3 HOUR
-          AND event IN ('app_opened', 'lesson_started', 'lesson_completed') AND toDate(${IL}) >= toDate('${SINCE}')
+          AND event IN ('app_opened', 'lesson_started', 'lesson_completed') AND toDate(${IL}) >= toDate('${SINCE}') AND ${T}
         GROUP BY d) x
     LEFT JOIN
       (SELECT toDate(toTimeZone(t0, 'Asia/Jerusalem')) AS d, countIf(c = 'IL') AS ni,
@@ -78,7 +84,7 @@ const FIRST_OPEN = `
           uniqIf(distinct_id, event = 'landing_view' AND ${CTRY} = 'abroad') AS ab,
           uniqIf(person_id, event = 'app_opened' AND ${CTRY} = 'IL') AS a
         FROM events WHERE timestamp >= toDateTime('${HOURS_FROM} 00:00:00') - INTERVAL 3 HOUR
-          AND event IN ('landing_view', 'app_opened') AND toDate(${IL}) >= toDate('${HOURS_FROM}')
+          AND event IN ('landing_view', 'app_opened') AND toDate(${IL}) >= toDate('${HOURS_FROM}') AND ${T}
         GROUP BY d, h) x
     LEFT JOIN
       (SELECT toDate(toTimeZone(t0, 'Asia/Jerusalem')) AS d, toHour(toTimeZone(t0, 'Asia/Jerusalem')) AS h, countIf(c = 'IL') AS ni
@@ -93,7 +99,7 @@ const FIRST_OPEN = `
 
   print(`ביקורים ב-dribit.app מ-${HOURS_FROM}: מקור והפניה`, ['day', 'country', 'source', 'referrer domain', 'in_app', 'visitors'], await hogql(`
     SELECT toDate(${IL}) AS d, ${CTRY}, toString(properties.source), toString(properties.$referring_domain), toString(properties.in_app), uniq(distinct_id)
-    FROM events WHERE event = 'landing_view' AND timestamp >= toDateTime('${HOURS_FROM} 00:00:00') - INTERVAL 3 HOUR
+    FROM events WHERE event = 'landing_view' AND timestamp >= toDateTime('${HOURS_FROM} 00:00:00') - INTERVAL 3 HOUR AND ${T}
     GROUP BY d, 2, 3, 4, 5 ORDER BY d, 6 DESC`));
   // where the new people stop: everyone whose first app open is after NEW_FROM (Israel time)
   const NEW_FROM = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(process.env.NEW_FROM || '') ? process.env.NEW_FROM : '2026-11-09 19:00';

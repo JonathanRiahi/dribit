@@ -25,6 +25,7 @@ const PH_API = (process.env.POSTHOG_API_HOST || 'https://eu.posthog.com').replac
 const SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.SINCE || '') ? process.env.SINCE : '2026-10-20';
 const CREATE = /^(1|true|yes)$/i.test(process.env.CREATE_DASHBOARD || '');
 let PROJECT = (process.env.POSTHOG_PROJECT_ID || '').trim();
+const { loadTeam } = require('./team');
 
 async function api(pathname, body, method) {
   const r = await fetch(PH_API + pathname, {
@@ -50,7 +51,7 @@ const APP_EVENT = "properties.app_version IS NOT NULL AND properties.app_version
 const COHORT = `multiIf(startsWith(ref0, 'lp_'), 'dribit.app', ref0 = 'share', 'קישור הזמנה מחבר', 'קישור ישיר / אחר')`;
 
 // one row per person: first day, every day they used the app, first lesson day, and the ref of their first open
-const PER_PERSON = `
+let PER_PERSON = `
   SELECT person_id,
     min(d) AS d0,
     groupUniqArray(d) AS days,
@@ -60,7 +61,7 @@ const PER_PERSON = `
   FROM (
     SELECT person_id, event, timestamp, ${DAY} AS d, coalesce(toString(properties.ref), '') AS ref,
       coalesce(toString(person.properties.first_ref), '') AS pref
-    FROM events WHERE ${APP_EVENT})
+    FROM events WHERE ${APP_EVENT} AND __T__)
   GROUP BY person_id`;
 
 const pct = (n, of) => (of ? `${Math.round((100 * n) / of)}%` : '-');
@@ -74,7 +75,10 @@ const pct = (n, of) => (of ? `${Math.round((100 * n) / of)}%` : '-');
   }
   const [[today]] = await hogql(`SELECT toDate(toTimeZone(now(), 'Asia/Jerusalem'))`);
   console.log(`Retention report: new people since ${SINCE}, Israel time, today ${today}.`);
-  console.log('Includes Jonathan, Nehorai and test phones. The friends pilot (paid week from 16.10) is before the default date.');
+  const team = await loadTeam(hogql);
+  PER_PERSON = PER_PERSON.replace('__T__', team.not());
+  console.log(team.line());
+  console.log('Test phones that were never marked still count. The friends pilot (paid week from 16.10) is before the default date.');
 
   const base = `
     SELECT person_id, d0, days, first_lesson, if(ref_person != '' AND ref_person != 'none', ref_person, ref_open) AS ref0
@@ -114,7 +118,7 @@ const pct = (n, of) => (of ? `${Math.round((100 * n) / of)}%` : '-');
     SELECT count(DISTINCT if(event = 'landing_view', distinct_id, NULL)),
       count(DISTINCT if(event = 'landing_cta' AND properties.cta IN ('start_now', 'joined_try', 'footer_try', 'auto_open'), distinct_id, NULL)),
       count(DISTINCT if(event = 'landing_cta' AND properties.cta = 'send_self', distinct_id, NULL))
-    FROM events WHERE event IN ('landing_view', 'landing_cta') AND timestamp >= toDateTime('${SINCE} 00:00:00')`);
+    FROM events WHERE event IN ('landing_view', 'landing_cta') AND timestamp >= toDateTime('${SINCE} 00:00:00') AND ${team.not()}`);
   const fromLp = byCohort.find((r) => r[0] === 'dribit.app');
   if (lp[0]) {
     console.log('\n=== דף הנחיתה (dribit.app) ===');
