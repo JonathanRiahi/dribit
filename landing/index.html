@@ -43,6 +43,9 @@
   } catch (e) { /* the app still opens */ }
   // the app reads ref (first_ref lp_... = came through dribit.app) and lp (this visit, so the app's events join it)
   var to = APP + '?source=landing_auto&ref=' + encodeURIComponent(('lp_' + source).replace(/[^\w-]/g, '_').slice(0, 40)) + '&lp=' + encodeURIComponent(uid);
+  // 0.28.1: dribit.app/?team=1 marks the app on this phone as a team device (and this visit with it, through lp)
+  var team = /[?&]team=([01])(?=&|$)/.exec(q);
+  if (team) to += '&team=' + team[1];
   location.replace(to);
   // if the phone did not move on in 4 seconds, show the page with its button
   setTimeout(function () { document.documentElement.className = document.documentElement.className.replace(/\s*\bgo\b/, ''); }, 4000);

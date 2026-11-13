@@ -27,12 +27,13 @@ async function hogql(query) {
 
 // events the landing page sends (landing/index.html). The app never sends these names.
 const LANDING = `('landing_view','landing_stamp','landing_quiz','landing_cta','landing_form_start','landing_leave','waitlist_signup')`;
-const WHEN = `timestamp >= toDateTime('${SINCE} 00:00:00')`;
+let WHEN = `timestamp >= toDateTime('${SINCE} 00:00:00')`; // + not the team (tools/team.js), added once it is loaded
+const { loadTeam } = require('./team');
 const TT = `(properties.source = 'tiktok' OR properties.in_app = 'tiktok')`;
 const has = (cond) => `max(if(${cond}, 1, 0))`;
 
 // one row per visitor (one browser = one visitor), with each step they reached
-const PER_VISITOR = `
+let PER_VISITOR = `
   SELECT distinct_id,
     ${has(`event = 'landing_view' AND ${TT}`)} AS tt,
     ${has(`event = 'landing_view'`)} AS viewed,
@@ -77,7 +78,12 @@ function table(title, rows) {
     if (!list.length) throw new Error('PostHog listed no project for this key. Add POSTHOG_PROJECT_ID.');
     PROJECT = String(list[0].id);
   }
-  console.log(`Landing report since ${SINCE} (dates in UTC). Includes your own visits and test signups.`);
+  console.log(`Landing report since ${SINCE} (dates in UTC).`);
+  const team = await loadTeam(hogql);
+  const WHEN0 = WHEN;
+  WHEN = `${WHEN0} AND ${team.not()}`;
+  PER_VISITOR = PER_VISITOR.replace(WHEN0, WHEN);
+  console.log(team.line());
   console.log('landing-5 = dribit.app opens the app by itself (from 3.11.2026). landing-4 = one button into the app (from 2.11.2026). landing-3 = one screen + waitlist form (1.11). landing-2.x = the long page.');
 
   const sums = STEPS.map(([k]) => `sum(${k})`).join(', ');
