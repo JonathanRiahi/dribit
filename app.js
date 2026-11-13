@@ -856,6 +856,10 @@
     // v24 (3.11, the soldier test: "תשפר את ממצא 1234"): true/false answers flipped and wrong answers rewritten, the first
     // three lessons lost questions, and 1.4 and 3.3 moved in between the market lessons. A saved session starts over.
     if ((S.contentV || 0) < 24 && v >= 24) S.inProgress = null;
+    // v25 (13.11, Jonathan: "לא הבנתי את השאלה... בכללי השיעור לא כזה ברור"): lesson 7.4 (עבודה מועדפת) was rewritten with
+    // five cards and new questions. A saved session in it, or one holding a question that is gone, starts over.
+    if ((S.contentV || 0) < 25 && v >= 25 && S.inProgress && (S.inProgress.lessonId === '7.4' ||
+        (S.inProgress.steps || []).some(function (x) { return x && x.k === 'q' && !QUESTIONS[x.id]; }))) S.inProgress = null;
     S.contentV = v;
     save();
   }
