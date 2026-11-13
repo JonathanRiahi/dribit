@@ -131,6 +131,19 @@ let FIRST_OPEN = `
       WHERE e.timestamp >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem') - INTERVAL 1 HOUR
       GROUP BY e.person_id)
     GROUP BY how ORDER BY 2 DESC`));
+  // the first screen (events since 0.26.1): how many stayed 3 / 10 / 30 seconds, answered its question (0.29), went on to the lesson
+  print('המסך הראשון מאז 2026-11-10 (ישראל): כמה נשארו עליו', ['day', 'in_app', 'saw it', 'still at 3s', '10s', '30s', 'answered the question', 'went on to the lesson'], await hogql(`
+    SELECT toDate(${IL}) AS d, toString(properties.in_app) AS ia, uniqIf(person_id, event = 'start_screen_shown'),
+      uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 3), uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 10),
+      uniqIf(person_id, event = 'start_screen_still' AND toInt(properties.seconds) = 30), uniqIf(person_id, event = 'start_question_answered'),
+      uniqIf(person_id, event = 'start_screen_tapped')
+    FROM events WHERE event IN ('start_screen_shown', 'start_screen_still', 'start_question_answered', 'start_screen_tapped')
+      AND timestamp >= toDateTime('2026-11-10 00:00:00') AND ${CTRY} = 'IL'
+    GROUP BY d, ia ORDER BY d, ia`));
+  print('שיעור 0.2, פעם ראשונה, מאז 2026-11-03: כמה זמן לוקח לסיים (שניות)', ['finished', 'p25', 'median', 'p75'], await hogql(`
+    SELECT count(), round(quantile(0.25)(toFloat(properties.duration_sec))), round(quantile(0.5)(toFloat(properties.duration_sec))), round(quantile(0.75)(toFloat(properties.duration_sec)))
+    FROM events WHERE event = 'lesson_completed' AND toString(properties.lesson_id) = '0.2' AND toString(properties.first_time) = 'true'
+      AND timestamp >= toDateTime('2026-11-03 00:00:00')`));
   print(`אנשים חדשים מאז ${NEW_FROM} (ישראל): כמה זמן היו באפליקציה`, ['time from first to last event', 'people', 'tapped start'], await hogql(`
     SELECT multiIf(secs < 5, '0-4s', secs < 15, '5-14s', secs < 60, '15-59s', secs < 300, '1-5m', '5m+') AS b, count(), sum(ob)
     FROM (${PER}) WHERE c = 'IL' GROUP BY b ORDER BY b`));
