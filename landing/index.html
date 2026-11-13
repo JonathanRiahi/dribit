@@ -49,6 +49,10 @@
   // 0.30: dribit.app/?go=invest lands straight on that lesson's card (config.deepLinks in the app), for a TikTok about investing
   var go = /[?&]go=([a-z0-9_-]{1,20})(?=&|$)/.exec(q);
   if (go) to += '&go=' + go[1];
+  // 0.31: a friend's invite code (r=) and a group code (g=) go on to the app (friends and groups)
+  if (refIn.length >= 4) to += '&r=' + refIn;
+  var gIn = (p.get('g') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  if (gIn.length >= 4) to += '&g=' + gIn;
   location.replace(to);
   // if the phone did not move on in 4 seconds, show the page with its button
   setTimeout(function () { document.documentElement.className = document.documentElement.className.replace(/\s*\bgo\b/, ''); }, 4000);
