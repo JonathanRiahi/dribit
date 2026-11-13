@@ -2,7 +2,7 @@
 window.DRIBIT_CONFIG = {
   appName: 'דריבית',
   appNameEn: 'Dribit',
-  version: '0.31.0',
+  version: '0.31.1',
   tagline: 'כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.',
 
   // המסך הראשון של מי שעוד לא סיים שיעור (0.29): 'home' = מסך הבית עם המסלול, כמו לכולם. 'button' = המסך של כפתור אחד מ-0.22.
@@ -179,7 +179,7 @@ window.DRIBIT_CONFIG = {
   // למשל 'https://dribit-social.NAME.workers.dev'. כל עוד api ריק, כל זה מוסתר ושום דבר חדש לא יוצא מהטלפון.
   // חבר נספר כשהוא מסיים שיעור ראשון מהקישור האישי (r=). על כל חבר: perFriend (סוללה מלאה, ימי חופש לרצף).
   // החבר מקבל את daysOff.friendGift ואת הצבע ארד. אחרי unlockAllAt חברים כל השיעורים פתוחים. groupSize = גם בשרת.
-  social: { enabled: true, api: '', unlockAllAt: 3, perFriend: { battery: true, daysOff: 1 }, groupSize: 50 },
+  social: { enabled: true, api: 'https://dribit-social.dribit.workers.dev', unlockAllAt: 3, perFriend: { battery: true, daysOff: 1 }, groupSize: 50 },
 
   // התקנה בטלפון: כרטיס ההתקנה מופיע אחרי שיעור ראשון (afterLessons). באייפון הוא מופיע גם במסך הסיום של אותו שיעור (showOnDone),
   // כי באייפון רק במסך הבית ההתקדמות נשמרת בבטחה (היא עוברת לשם לבד, בלי קוד).

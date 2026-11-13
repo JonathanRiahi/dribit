@@ -3985,7 +3985,9 @@
         return { code: g.code, name: socName(g.name, 30) || g.code, size: Math.floor(num0(g.size)), rank: Math.floor(num0(g.rank)), owner: g.owner === true };
       }) : [],
       via: socName(x.via, 24), viaSeen: x.viaSeen === true, from: socCode(x.from), group: socCode(x.group),
-      at: num0(x.at), all: x.all === true, weekXp: Math.floor(num0(x.weekXp))
+      at: num0(x.at), all: x.all === true, weekXp: Math.floor(num0(x.weekXp)),
+      // 0.31.1: people this phone hid from its group tables (Apple 1.2: block an abusive user). Stays on the phone.
+      hidden: Array.isArray(x.hidden) ? x.hidden.filter(function (h) { return typeof h === 'string' && /^[A-Za-z0-9]{6,16}$/.test(h); }).slice(-300) : []
     };
   }
   // every lesson open: 3 friends (sticky: a friend who leaves later takes nothing back)
@@ -4182,17 +4184,21 @@
     if (b.lastWinner) html += '<div class="card winner">' + ICON.trophy + '<span><span class="eyebrow">המנצח של השבוע שעבר</span><b>' + (b.lastWinner.me ? 'את/ה! ' : esc(b.lastWinner.nick)) + '</b> עם ' + fmt(b.lastWinner.xp) + ' נקודות</span></div>';
     var wk = socBoardTab === 'week';
     var people = (b.people || []).slice().sort(function (x, y) { return wk ? y.week - x.week || y.xp - x.xp : y.xp - x.xp || y.week - x.week; });
+    var hid = S.social.hidden, nHid = people.filter(function (p) { return !p.me && hid.indexOf(p.id) >= 0; }).length;
     html += '<div class="seg two board-tabs"><button data-act="board-tab" data-v="week" aria-pressed="' + wk + '">השבוע</button><button data-act="board-tab" data-v="all" aria-pressed="' + !wk + '">כל הזמנים</button></div>' +
       '<ol class="board">' + people.map(function (p, i) {
+        if (!p.me && hid.indexOf(p.id) >= 0) return ''; // hidden on this phone (the place numbers stay true)
         var pts = wk ? p.week : p.xp;
         return '<li class="' + (p.me ? 'me' : '') + '"><span class="medal' + (i < 3 && pts > 0 ? ' m' + (i + 1) : '') + '">' + (i + 1) + '</span>' +
           '<span class="b-name"><b>' + esc(p.nick) + (p.me ? ' (אני)' : '') + '</b>' + (p.streak > 0 ? '<span class="b-streak">' + ICON.flame + p.streak + '</span>' : '') + '</span>' +
           '<span class="b-pts">' + fmt(pts) + '<small>נק׳</small></span>' +
-          (b.owner && !p.me ? '<button class="b-kick" data-act="group-kick" data-id="' + esc(p.id) + '" data-nick="' + esc(p.nick) + '" aria-label="להוציא את ' + esc(p.nick) + ' מהקבוצה">' + ICON.x + '</button>' : '') + '</li>';
+          (!p.me ? '<button class="b-kick" data-act="member-menu" data-id="' + esc(p.id) + '" data-nick="' + esc(p.nick) + '" aria-label="אפשרויות עבור ' + esc(p.nick) + '">' + ICON.dots + '</button>' : '') + '</li>';
       }).join('') + '</ol>';
     if (b.size < 2) html += '<p class="nudge">' + ICON.users + '<span>קבוצה של אחד זה לא תחרות. שולחים את הקישור או את הקוד לחבר׳ה.</span></p>';
     html += '<p class="fine">' + (wk ? 'התחרות השבועית: מי שצובר הכי הרבה נקודות מיום ראשון עד שבת. ביום ראשון בחצות הטבלה מתאפסת, והמנצח מקבל גביע.' : 'כל הנקודות מאז שכל אחד התחיל.') + '</p>' +
-      '<button class="btn text" data-act="group-leave" data-id="' + code + '">לצאת מהקבוצה</button></div>';
+      (nHid ? '<p class="fine center">' + plural(nHid, 'מישהו אחד מוסתר', 'מוסתרים') + ' בטבלה שלך · <button class="link" data-act="soc-unhide">להחזיר</button></p>' : '') +
+      '<button class="btn text" data-act="group-leave" data-id="' + code + '">לצאת מהקבוצה</button>' +
+      '<p class="fine center"><a class="link" href="' + socReportHref('group', code, name) + '" data-act="soc-report" data-v="group">לדווח על הקבוצה</a></p></div>';
     return html;
   }
   function socOpenFriends() {
@@ -4322,6 +4328,22 @@
   function socConfirm(title, text, act, id, extra) {
     openSheet('<h3>' + title + '</h3><p class="lead">' + text + '</p><div class="row"><button class="btn bad" data-act="' + act + '" data-id="' + esc(id) + '"' + (extra || '') + '>כן</button>' +
       '<button class="btn ghost" data-act="close-sheet">ביטול</button></div>');
+  }
+  // 0.31.1 (Apple guideline 1.2): every nickname and group name can be reported, and anyone can be hidden on this phone.
+  // The report is an email the person sends themselves to the public support address, with the group code and the nickname.
+  var SOC_REPORT_TO = 'dribit.app@gmail.com';
+  function socReportHref(kind, code, name) {
+    var subj = 'דיווח: ' + (kind === 'group' ? 'שם קבוצה' : 'כינוי') + ' בדריבית';
+    var body = 'מה לא בסדר (אפשר לכתוב כאן):\n\n\n---\nקבוצה: ' + code + (kind === 'group' ? '\nשם הקבוצה: ' + name : '\nכינוי: ' + name) + '\nגרסה: ' + CFG.version;
+    return 'mailto:' + SOC_REPORT_TO + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
+  }
+  function socMemberSheet(code, user, nick) {
+    var b = socBoards[code];
+    openSheet('<h3>' + esc(nick) + '</h3><p class="lead">כינוי פוגע או משהו לא בסדר? אפשר לדווח לנו, וגם להסתיר אותו מהטבלה אצלך.</p>' +
+      '<a class="btn ghost" href="' + socReportHref('nick', code, nick) + '" data-act="soc-report" data-v="nick">' + ICON.chat + 'לדווח על הכינוי</a>' +
+      '<button class="btn ghost" data-act="soc-hide" data-id="' + esc(user) + '">להסתיר מהטבלה שלי</button>' +
+      (b && b.owner ? '<button class="btn bad" data-act="group-kick" data-id="' + esc(user) + '" data-nick="' + esc(nick) + '">להוציא מהקבוצה</button>' : '') +
+      '<button class="btn text" data-act="close-sheet">סגירה</button>');
   }
   function socLeave(code) {
     socCall('/v1/groups/' + code + '/leave', {}).then(function () {
@@ -5462,6 +5484,10 @@
       case 'group-leave-go': socLeave(id); break;
       case 'group-kick': socConfirm('להוציא את ' + esc(el.getAttribute('data-nick') || '') + '?', 'הוא או היא כבר לא יראו את הטבלה של הקבוצה.', 'group-kick-go', id); break;
       case 'group-kick-go': socKick(socGroup, id); break;
+      case 'member-menu': socMemberSheet(socGroup, id, el.getAttribute('data-nick') || ''); break;
+      case 'soc-hide': if (S.social.hidden.indexOf(id) < 0) S.social.hidden.push(id); save(); track('group_member_hidden', {}); closeSheet(); render(); toast(ICON.check + '<b>מוסתר אצלך</b>', 'info', 1800); break;
+      case 'soc-unhide': S.social.hidden = []; save(); render(); break;
+      case 'soc-report': track('group_report_clicked', { kind: el.getAttribute('data-v') }); flush(); break; // no preventDefault: the mail opens
       case 'board-tab': socBoardTab = el.getAttribute('data-v') === 'all' ? 'all' : 'week'; render(); break;
       case 'soc-nick': socFormSheet('nick'); break;
       case 'soc-nick-go': socSteps(function () { closeSheet(); render(); toast(ICON.check + '<b>הכינוי נשמר</b>', 'info', 1800); }); break;

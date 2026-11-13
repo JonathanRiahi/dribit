@@ -63,8 +63,16 @@ jobs:
         if: steps.secrets.outputs.ok == 'true'
         working-directory: server
         run: |
-          $WRANGLER deploy 2>&1 | tee deploy.log
+          # 0.31.1: the first deploy of a new Worker can fail to turn on its workers.dev address ("This Worker does
+          # not exist", code 10007) because Cloudflare has not finished creating it. Try again, and fail loudly.
+          set -o pipefail
+          for i in 1 2 3; do
+            if $WRANGLER deploy 2>&1 | tee deploy.log; then break; fi
+            if [ "$i" = 3 ]; then echo "::error::wrangler deploy failed 3 times, see above"; exit 1; fi
+            echo "Deploy failed, trying again in 15 seconds"; sleep 15
+          done
           URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
           echo "### Server address" >> "$GITHUB_STEP_SUMMARY"
           echo "${URL:-not found in the log, see the deploy step}" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "$URL" ]; then curl -fsS "$URL/" && echo; fi
+          # a brand-new workers.dev address can answer 404 for a minute or two after the first deploy
+          if [ -n "$URL" ]; then curl -fsS --retry 8 --retry-delay 15 --retry-all-errors "$URL/" && echo || echo "::warning::$URL does not answer yet. A new address can take a few minutes; open it in a browser later."; fi
