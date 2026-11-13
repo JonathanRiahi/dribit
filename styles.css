@@ -412,7 +412,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .rules li:last-child { border-bottom: 0; }
 .rules b { font-family: var(--font-display); font-weight: 600; color: var(--gold-ink); font-variant-numeric: tabular-nums; }
 .ladder { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-.ladder li { background: none; border: 0; padding: 0; margin: 0; display: flex; justify-content: space-between; border-radius: var(--r-sm); background: var(--surface-2); padding: 6px 10px; font-size: 14px; color: var(--ink-2); }
+.ladder li { display: flex; justify-content: space-between; border-radius: var(--r-sm); background: var(--surface-2); padding: 6px 10px; font-size: 14px; color: var(--ink-2); }
 .ladder li span { font-variant-numeric: tabular-nums; color: var(--ink-3); }
 .ladder li.past { background: var(--gold-soft); color: var(--gold-ink); }
 .ladder li.me { background: var(--gold); color: #2A1E00; }
@@ -1656,16 +1656,16 @@ img { -webkit-user-drag: none; }
 /* ---------- 0.31: friends and groups ---------- */
 .friends .eyebrow { color: var(--brand); }
 .ref-card h2 { margin-top: -6px; }
-.ladder { position: relative; padding-top: 4px; width: 100%; align-self: stretch; }
-.ladder > .bar { position: absolute; top: 21px; right: 16.6%; left: 16.6%; height: 6px; margin: 0; }
-.ladder ol { position: relative; list-style: none; margin: 0; padding: 0; width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.ladder li { background: none; border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 13px; font-weight: 700; color: var(--ink-2); line-height: 1.25; }
-.ladder li > b { min-width: 44px; height: 38px; padding: 0 8px; border-radius: 999px; display: grid; place-items: center; background: var(--surface); border: 2px solid var(--line); color: var(--ink-2); font-size: 12.5px; }
-.ladder li.got > b { background: var(--gold); border-color: var(--gold-deep); color: #2A1E00; }
-.ladder li > b svg { width: 18px; height: 18px; }
-.ladder .lad-ic { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); }
-.ladder .lad-ic svg { width: 15px; height: 15px; }
-.ladder li.got span:last-child { color: var(--ink); }
+.soc-ladder { position: relative; padding-top: 4px; width: 100%; align-self: stretch; }
+.soc-ladder > .bar { position: absolute; top: 21px; right: 16.6%; left: 16.6%; height: 6px; margin: 0; }
+.soc-ladder ol { position: relative; list-style: none; margin: 0; padding: 0; width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.soc-ladder li { background: none; border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 13px; font-weight: 700; color: var(--ink-2); line-height: 1.25; }
+.soc-ladder li > b { min-width: 44px; height: 38px; padding: 0 8px; border-radius: 999px; display: grid; place-items: center; background: var(--surface); border: 2px solid var(--line); color: var(--ink-2); font-size: 12.5px; }
+.soc-ladder li.got > b { background: var(--gold); border-color: var(--gold-deep); color: #2A1E00; }
+.soc-ladder li > b svg { width: 18px; height: 18px; }
+.soc-ladder .lad-ic { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); }
+.soc-ladder .lad-ic svg { width: 15px; height: 15px; }
+.soc-ladder li.got span:last-child { color: var(--ink); }
 .ref-card .names { display: flex; gap: 6px; align-items: center; color: var(--ink-2); }
 .ref-card .names svg { width: 16px; height: 16px; flex: none; }
 .ref-card .btn svg, .group .btn svg, .soc-gift .btn svg { width: 20px; height: 20px; margin-inline-end: 6px; vertical-align: -4px; }

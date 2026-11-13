@@ -4035,7 +4035,7 @@
     steps.push({ n: SOC_ALL, html: '<span class="lad-ic">' + ICON.unlock + '</span><span>כל השיעורים פתוחים</span>' });
     if (s5) steps.push({ n: 5, html: skinSw(s5.id, '', 26) + '<span>צבע ' + esc(skinName(s5.id)) + '</span>' });
     var top = steps[steps.length - 1].n;
-    return '<div class="ladder"><span class="bar gold"><i style="width:' + fillPct(Math.min(1, f / top)) + '%"></i></span><ol>' + steps.map(function (s) {
+    return '<div class="soc-ladder"><span class="bar gold"><i style="width:' + fillPct(Math.min(1, f / top)) + '%"></i></span><ol>' + steps.map(function (s) {
       var got = f >= s.n || (s.n === SOC_ALL && socAll());
       return '<li class="' + (got ? 'got' : '') + '"><b>' + (got ? ICON.check : plural(s.n, 'חבר 1', 'חברים')) + '</b>' + s.html + '</li>';
     }).join('') + '</ol></div>';
