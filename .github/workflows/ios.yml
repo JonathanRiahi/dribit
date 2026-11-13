@@ -52,6 +52,10 @@ jobs:
             || { grep -n -E "error:|error generated|fatal" build.log | head -60; echo "----- end of log -----"; tail -n 40 build.log; exit 1; }
           echo "Built. Warnings in our own files:"
           grep -E "Dribit/.*warning:" build.log | sed 's/.*Dribit\//Dribit\//' | sort -u | head -40 || true
+          # iPhone only: an app that is also built for the iPad is refused at upload unless it supports every orientation
+          FAMILY=$(/usr/libexec/PlistBuddy -c "Print :UIDeviceFamily" build/Build/Products/Debug-iphonesimulator/Dribit.app/Info.plist | grep -E '^ *[0-9]+$' | tr -d ' \n')
+          [ "$FAMILY" = "1" ] || { echo "::error::The app is built for more than the iPhone (UIDeviceFamily: $FAMILY). Set TARGETED_DEVICE_FAMILY on the target in ios/project.yml"; exit 1; }
+          echo "Built for the iPhone only"
 
       # The same app, pointed at this checkout served from the build machine (http://localhost:8765) instead of the live
       # site: a change to the web app is tried inside the iPhone app before it is live.
