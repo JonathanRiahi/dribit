@@ -1,0 +1,32 @@
+# Person check: what one anonymous app user did (how they arrived, home-screen install, reminders, lessons).
+# Use the id from a feedback email ("מזהה ב-PostHog"). No endpoints, keys or free text in the log.
+name: Person check
+
+on:
+  workflow_dispatch:
+    inputs:
+      distinct_id:
+        description: 'The id from the feedback email (מזהה ב-PostHog)'
+        type: string
+        required: true
+  push:
+    branches: ['claude/project-thread-48nk5w']
+    paths: ['tools/person-check.js', '.github/workflows/person-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/person-check.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          DISTINCT_ID: ${{ inputs.distinct_id || '226f1d73c7c492b12db9946a' }}
