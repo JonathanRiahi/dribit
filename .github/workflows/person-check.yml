@@ -9,9 +9,6 @@ on:
         description: 'The id from the feedback email (מזהה ב-PostHog)'
         type: string
         required: true
-  push:
-    branches: ['claude/project-thread-48nk5w']
-    paths: ['tools/person-check.js', '.github/workflows/person-check.yml']
 
 permissions:
   contents: read
@@ -29,4 +26,4 @@ jobs:
         env:
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
-          DISTINCT_ID: ${{ inputs.distinct_id || '226f1d73c7c492b12db9946a' }}
+          DISTINCT_ID: ${{ inputs.distinct_id }}
