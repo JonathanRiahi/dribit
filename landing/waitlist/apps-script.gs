@@ -26,11 +26,11 @@ var SCRIPT_VERSION = 'sheet-5'; // מופיע בכתובת ?count=1, כך רוא
 var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף', 'שם'];
 var FEEDBACK_NAME = 'משובים';
 var FB_HEADERS = ['תאריך', 'דירוג', 'משוב', 'איפה', 'שיעור', 'סטטוס', 'גרסה', 'מזהה'];
-var FB_WHERE = { lesson: 'בסוף שיעור', profile: 'בפרופיל', about: 'במסך אודות', home: 'במסך הבית' };
+var FB_WHERE = { lesson: 'בסוף שיעור', profile: 'בפרופיל', about: 'במסך אודות', home: 'במסך הבית', thanks: 'בהודעת תודה' };
 var COL = { at: 1, code: 2, contact: 3, type: 4, device: 5, status: 6, source: 7, ref: 8, refs: 9, consent: 10, stations: 11, v: 12, name: 13 };
 
 var DEVICE_HE = { android: 'אנדרואיד', iphone: 'אייפון' };
-var STATUS_HE = { sadir: 'בשירות סדיר', pre: 'לפני שחרור', post: 'אחרי שחרור', none: 'לא בצבא' };
+var STATUS_HE = { sadir: 'בשירות סדיר', pre: 'לפני שחרור', post: 'אחרי שחרור', none: 'לא בצבא', civ: 'אזרח' };
 
 function doPost(e) {
   var lock = LockService.getScriptLock();

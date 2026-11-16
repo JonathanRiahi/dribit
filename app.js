@@ -3680,12 +3680,13 @@
   var askTimer = null, lastTouchAt = 0, askOpenedAt = 0;
   function maybeAsk() {
     clearTimeout(askTimer);
-    if (openAsked || view !== 'home' || sheetOpen || tour || tourDue('home') || !doneCount() || !S.status || !(socAskDue() || toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
+    if (openAsked || view !== 'home' || sheetOpen || tour || tourDue('home') || !doneCount() || !S.status || !(thanksDue() || socAskDue() || toolsIntroDue() || skinsIntroDue() || installAskState() || notifAskState())) return;
     askTimer = setTimeout(function tick() {
       var quiet = Date.now() - lastTouchAt;
       if (quiet < 700) { askTimer = setTimeout(tick, 700 - quiet); return; }
       if (openAsked || view !== 'home' || sheetOpen || tour || tourDue('home') || document.visibilityState === 'hidden') return;
-      if (socAskDue()) { openAsked = true; socInviteSheet(S.social.group, null, 'link'); } // 0.31: the group they were invited to comes first
+      if (thanksDue()) thanksSheet(thanksDue());
+      else if (socAskDue()) { openAsked = true; socInviteSheet(S.social.group, null, 'link'); } // 0.31: the group they were invited to comes first
       else if (isStandalone() && notifAskState()) notifAskSheet(); // 0.21: in the home-screen app notifications come first
       else if (toolsIntroDue()) { openAsked = true; toolsIntro(); } else if (skinsIntroDue()) { openAsked = true; skinsIntro(); }
       else if (installAskState()) installAskSheet(); else if (notifAskState()) notifAskSheet();
@@ -4316,6 +4317,31 @@
     socCall('/v1/groups/' + code).then(function (j) { show(j.group); }, function (e) {
       if (e.code === 'no_group') { S.social.group = null; save(); toast('<b>הקבוצה לא נמצאה</b><span>אולי היא נסגרה. אפשר לבקש קוד חדש.</span>', 'info', 3400); }
     });
+  }
+  // 0.31.2: a personal thank-you to someone who sent feedback (config.thanks, by their uid), once, at the next open
+  function thanksDue() {
+    var list = Array.isArray(CFG.thanks) ? CFG.thanks : [];
+    var seen = S.thanksSeen || {};
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (t && t.id && Array.isArray(t.uids) && t.uids.indexOf(S.uid) >= 0 && !seen[t.id]) return t;
+    }
+    return null;
+  }
+  function thanksSheet(t) {
+    openAsked = true;
+    S.thanksSeen = S.thanksSeen || {};
+    S.thanksSeen[t.id] = dayKey();
+    save();
+    track('thanks_shown', { thanks_id: t.id });
+    var lid = t.lesson && BY_ID[t.lesson] ? t.lesson : '';
+    openSheet('<div class="ask-ic">' + ICON.chat + '</div>' +
+      '<h3>' + esc(t.title) + '</h3>' +
+      '<p class="lead">' + esc(t.text) + '</p>' +
+      (t.ask ? '<p class="lead"><b>' + esc(t.ask) + '</b></p>' : '') +
+      (lid ? '<button class="btn gold" data-act="thanks-go" data-v="lesson" data-id="' + esc(lid) + '" data-tid="' + esc(t.id) + '">לראות את השיעור המעודכן</button>' : '') +
+      '<button class="btn ghost" data-act="thanks-go" data-v="write" data-tid="' + esc(t.id) + '">' + ICON.chat + 'לכתוב לנו</button>' +
+      '<button class="btn text" data-act="thanks-go" data-v="ok" data-tid="' + esc(t.id) + '">הכול טוב, תודה</button>');
   }
   function socAskDue() { return socOn() && !!S.social.group && doneCount() > 0 && !!S.status; }
   function socShareSheet(code) {
@@ -5472,6 +5498,14 @@
         break; // no preventDefault: the link opens
       }
       case 'close-sheet': closeSheet(); break;
+      case 'thanks-go': {
+        var tv = el.getAttribute('data-v');
+        track('thanks_tapped', { thanks_id: el.getAttribute('data-tid'), choice: tv });
+        if (tv === 'write') feedbackSheet('thanks', id);
+        else if (tv === 'lesson' && id) { closeSheet(); previewSheet(id); }
+        else closeSheet();
+        break;
+      }
       // 0.31 friends and groups
       case 'group-open': socOpenGroup(id, el.getAttribute('data-from') || 'friends'); break;
       case 'group-create': socFormSheet('create'); track('group_create_opened', {}); break;
