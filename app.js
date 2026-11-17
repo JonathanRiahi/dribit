@@ -329,7 +329,7 @@
     s.tour = {};
     TOUR_IDS.forEach(function (k) { s.tour[k] = tr[k] === true; });
     s.energy = { n: typeof en.n === 'number' && isFinite(en.n) ? Math.max(0, Math.min(enCap, Math.floor(en.n))) : enCap,
-      at: num0(en.at) <= Date.now() + 864e5 ? num0(en.at) : 0, seen: en.seen === true };
+      at: num0(en.at) <= Date.now() + 864e5 ? num0(en.at) : 0, seen: en.seen === true, shareDay: isDayKey(en.shareDay) ? en.shareDay : null };
   }
   // S.skins also arrives in transfer codes: an unknown color becomes forest, seen keeps known ids only
   function cleanSkins(k) {
@@ -538,6 +538,23 @@
   }
   // a new lesson can start now (resuming a started lesson never asks)
   function enCanStart() { return enFree() || enNow() > 0; }
+  // 0.36 (Jonathan 17.11: "שאם הוא ישלח לחבר הוא יקבל עוד בטרייה"): sending the link to a friend fills the battery at once,
+  // once a day. Offered only when it helps (not free, not full) and not used today.
+  function enShareReady() { return enOn() && !!EN.shareRefill && !enFree() && enNow() < enMax() && S.energy.shareDay !== dayKey(); }
+  // called with the invite reward (share sheet finished or WhatsApp opened); true when the battery was filled
+  function enShareRefill(method) {
+    if (!enShareReady()) return false;
+    var before = enNow();
+    S.energy.n = enMax(); S.energy.at = Date.now(); S.energy.shareDay = dayKey();
+    save();
+    track('energy_refill', { source: 'share', method: method, before: before });
+    return true;
+  }
+  // the battery's main button while it is empty or low: send to a friend, get a full battery
+  function enShareBtn(from) {
+    if (!enShareReady()) return '';
+    return '<button class="btn gold" data-act="invite" data-from="' + from + '">' + ICON.share + 'לשלוח לחבר ולקבל סוללה מלאה</button>';
+  }
   // the lesson just finished uses a bar; returns what happened, for the done screen and the data
   function enSpend() {
     if (!enOn()) return null;
@@ -585,14 +602,14 @@
   }
   // what to do while the battery is empty: practice is free (and the daily check, if one is waiting)
   function enMeanwhile(from) {
-    var b = '';
-    if (doneCount()) b += '<button class="btn gold" data-act="practice" data-from="' + from + '">' + ICON.dumbbell + 'לתרגל בינתיים (בלי סוללה)</button>';
+    var b = enShareBtn(from);
+    if (doneCount()) b += '<button class="btn ' + (b ? 'ghost' : 'gold') + '" data-act="practice" data-from="' + from + '">' + ICON.dumbbell + 'לתרגל בינתיים (בלי סוללה)</button>';
     var t = checkToday();
     if (t && t.state === 'open') b += '<button class="btn ghost" data-act="dcheck" data-id="' + esc(t.check.id) + '" data-from="' + from + '">' + ICON.shieldCheck + 'הבדיקה של היום (' + checkMins(t.check) + ')</button>';
     return b;
   }
   function energyEmptySheet(from, lessonId) {
-    track('energy_empty', { from: from || null, lesson_id: lessonId || null, next_in_min: Math.ceil(enNextMs() / 60000), lessons_done: doneCount() });
+    track('energy_empty', { from: from || null, lesson_id: lessonId || null, next_in_min: Math.ceil(enNextMs() / 60000), lessons_done: doneCount(), share_ready: enShareReady() });
     openSheet('<div class="energy-hero empty">' + batteryIcon(0, enMax()) + '</div>' +
       '<h3>הסוללה ריקה</h3>' +
       '<p class="lead">עבדת יפה. ככה בונים הרגל: קצת כל יום, והידע נשאר בראש יותר מאשר בחרישה של ערב אחד.</p>' +
@@ -616,17 +633,20 @@
         '<li><span>פס חוזר לבד</span><b>כל ' + hrs + '</b></li>' +
         '<li><span>טעויות</span><b>חינם</b></li>' +
         '<li><span>תרגול, תיקון טעויות' + (MISSIONS_ON ? ', משימות' : '') + ' וכלים</span><b>חינם</b></li>' +
+        (EN.shareRefill ? '<li><span>שולחים את ' + esc(CFG.appName) + ' לחבר</span><b>סוללה מלאה, פעם ביום</b></li>' : '') +
+        (SOC.perFriend && SOC.perFriend.battery && socOn() ? '<li><span>חבר שמסיים שיעור ראשון מהקישור שלך</span><b>סוללה מלאה</b></li>' : '') +
       '</ul>' +
       '<p class="fine">למה סוללה? כי כסף לומדים כמו כושר: קצת כל יום עדיף על הכל ביום אחד. שיעור שכבר התחלת תמיד אפשר לסיים.</p>' +
-      (!free && n === 0 ? enMeanwhile('energy_sheet') : '') +
-      '<button class="btn" data-act="close-sheet">הבנתי</button>', 'energy-sheet');
+      (!free && n === 0 ? enMeanwhile('energy_sheet') : enShareBtn('energy_sheet')) +
+      '<button class="btn' + (!free && enShareReady() ? ' text' : '') + '" data-act="close-sheet">הבנתי</button>', 'energy-sheet');
   }
   // the home card while the battery is empty (only when a new lesson is waiting, never over a lesson to resume)
   function energyHomeCard() {
     if (!enOn() || enCanStart() || !currentLesson() && !doneCount()) return '';
     return '<div class="card energy-card"><div class="rc-head"><span class="rc-ic">' + batteryIcon(0, enMax()) + '</span><div>' +
-      '<b>הסוללה ריקה</b><span>השיעור הבא בעוד ' + enTimer('next') + '. תרגול לא צורך סוללה.</span></div></div>' +
-      (doneCount() ? '<div class="row"><button class="btn gold" data-act="practice" data-from="energy_home">לתרגל בינתיים</button>' +
+      '<b>הסוללה ריקה</b><span>' + (enShareReady() ? 'שולחים לחבר ומקבלים סוללה מלאה עכשיו, או מחכים: השיעור הבא בעוד ' + enTimer('next') + '.'
+        : 'השיעור הבא בעוד ' + enTimer('next') + '. תרגול לא צורך סוללה.') + '</span></div></div>' + enShareBtn('energy_home') +
+      (doneCount() ? '<div class="row"><button class="btn ' + (enShareReady() ? 'ghost' : 'gold') + '" data-act="practice" data-from="energy_home">לתרגל בינתיים</button>' +
         '<button class="btn text" data-act="explain" data-what="energy">איך זה עובד</button></div>' : '') + '</div>';
   }
   // the done screen's battery line, and a one-time "new" note the first time the battery counts
@@ -648,7 +668,7 @@
       (s.enIntro ? '<b><i class="chip-new">חדש</i>סוללה: ' + n + ' מתוך ' + max + '</b><span>מעכשיו כל שיעור צורך פס אחד, ופס חוזר לבד כל ' + enWords(enRefillMs()) + '. תרגול וטעויות חינם.</span>'
         : n === 0 ? '<b>הסוללה התרוקנה</b><span>פס חדש בעוד ' + enTimer('next') + '. בינתיים אפשר לתרגל בלי סוללה.</span>'
         : '<b>סוללה: ' + n + ' מתוך ' + max + '</b><span>' + (n < max ? 'פס חדש בעוד ' + enTimer('next') + '.' : 'מלאה.') + '</span>') +
-      '</span></div>';
+      '</span></div>' + (n <= 1 ? enShareBtn('energy_done') : '');
   }
   // one ticker for every countdown on screen; when a bar comes back, the screen redraws (never inside a lesson)
   var enLast = null;
@@ -4048,10 +4068,26 @@
   // called when the share sheet finished or the WhatsApp link opened (never on cancel). It rewards sharing the link,
   // not a friend joining: the app cannot know that.
   function grantInviteOff(method) {
+    // 0.36: sending the link also fills the battery (once a day); it gets its own toast and the screen redraws
+    if (enShareRefill(method)) {
+      var off = grantInviteOff2(method, true);
+      toast(batteryIcon(enMax(), enMax()) + '<b>הסוללה מלאה!</b><span>תודה ששלחת לחבר' + (off ? ', וקיבלת גם יום חופש לרצף' : '') + '. יאללה לשיעור הבא.</span>', 'info', 4000);
+      if (document.querySelector('#sheet .energy-sheet')) closeSheet();
+      if (view === 'done' && root) {
+        [].forEach.call(root.querySelectorAll('.energy-done, [data-from="energy_done"]'), function (e) { e.remove(); });
+        var note = root.querySelector('.invite-note'); if (note) note.outerHTML = inviteNote();
+      } else if (view !== 'lesson' && !sheetOpen && inApp()) render();
+      return;
+    }
+    grantInviteOff2(method, false);
+  }
+  // the day off for sharing; quiet = no toast and no redraw (the battery refill above speaks for both). true = given
+  function grantInviteOff2(method, quiet) {
     var o = inviteOffState();
     if (!o.on) {
+      if (quiet) return false;
       if (method === 'native') toast(ICON.check + '<b>תודה!</b><span>ללמוד ביחד מחזיק יותר</span>', 'info', 2600);
-      return;
+      return false;
     }
     var reason = o.wait ? 'weekly_cap' : o.full ? 'max_held' : 'ok';
     if (reason === 'ok') {
@@ -4061,6 +4097,7 @@
       track('day_off_earned', { source: 'invite', added: DO.invite, held: S.daysOff, at_cap: false });
     }
     track('invite_reward', { given: reason === 'ok', reason: reason, method: method, held: S.daysOff });
+    if (quiet) return reason === 'ok';
     toast(ICON.dayoff + (reason === 'ok'
       ? '<b>נוסף לך יום חופש לרצף</b><span>על שיתוף הקישור. יש לך עכשיו ' + S.daysOff + '.</span>'
       : reason === 'weekly_cap'
@@ -4069,6 +4106,7 @@
     // the done screen is not redrawn (its count-up would start again): only its invite note changes
     if ((view === 'profile' || view === 'home') && !sheetOpen) render();
     else if (view === 'done' && root) { var note = root.querySelector('.invite-note'); if (note) note.outerHTML = inviteNote(); }
+    return reason === 'ok';
   }
   function inviteNote() {
     var io = inviteOffState();
