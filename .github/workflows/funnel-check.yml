@@ -1,0 +1,40 @@
+# Funnel check: where new people drop off (first screen -> lesson 1 -> finished -> came back). Counts only.
+# Actions > Funnel check > Run workflow. Same POSTHOG_API_KEY / POSTHOG_PROJECT_ID secrets as the other reports.
+name: Funnel check
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'New people from (YYYY-MM-DD HH:MM, Israel). Empty: 2026-11-10 00:00'
+        type: string
+        required: false
+        default: ''
+      long_from:
+        description: 'Weekly history from (YYYY-MM-DD). Empty: 2026-10-27'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches: ['claude/project-thread-w2nt43']
+    paths: ['tools/funnel-check.js', '.github/workflows/funnel-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/funnel-check.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          TEAM_IDS: ${{ secrets.TEAM_IDS }}
+          FROM: ${{ inputs.from }}
+          LONG_FROM: ${{ inputs.long_from }}
