@@ -4410,7 +4410,7 @@
     // refer-a-friend
     html += '<div class="card ref-card"><div class="eyebrow">חבר מביא חבר</div>' +
       '<h2>' + (o.friends ? 'הבאת ' + plural(o.friends, 'חבר אחד', 'חברים') : 'מביאים חבר, ושניכם מקבלים') + '</h2>' + socLadder() +
-      '<p class="fine">על כל חבר שמסיים שיעור ראשון: לך סוללה מלאה ויום חופש לרצף. ' + (DO.enabled && DO.friendGift ? 'לחבר: ' + daysOffText(DO.friendGift).replace(' אחד', '') + (friendSkin(1) ? ' והצבע ' + esc(skinName(friendSkin(1).id)) : '') + '.' : '') + '</p>' +
+      '<p class="fine">על כל חבר שמסיים שיעור ראשון: לך ' + (SOC.perFriend && SOC.perFriend.battery && enOn() ? 'סוללה מלאה ויום חופש לרצף. ' : 'יום חופש לרצף. ') + (DO.enabled && DO.friendGift ? 'לחבר: ' + daysOffText(DO.friendGift).replace(' אחד', '') + (friendSkin(1) ? ' והצבע ' + esc(skinName(friendSkin(1).id)) : '') + '.' : '') + '</p>' +
       socNamesLine(o) +
       '<button class="btn gold" data-act="invite" data-from="friends">' + ICON.share + 'להזמין חבר</button>' +
       (o.token ? '' : socErr ? '<p class="fine warn">' + esc(socErrText(socErr)) + '</p>' : '') + '</div>';
