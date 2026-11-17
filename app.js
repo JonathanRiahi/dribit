@@ -1391,7 +1391,7 @@
   function renderPath() {
     var cur = currentLesson();
     var r = levelInfo(S.xp);
-    var html = homeCards(), nsk = r.last ? null : skinsAtLevel(r.n + 1)[0];
+    var html = inAppBar() + homeCards(), nsk = r.last ? null : skinsAtLevel(r.n + 1)[0];
     // 0.29: the level strip waits for the first finished lesson. On 3.11 "שלב 1 מתוך 11" and "עוד 100 נקודות ליום חופש"
     // were the first things a new person read; without the strip the first thing on the screen is the path
     var fresh = !doneCount();
@@ -1864,7 +1864,7 @@
   // The code box in the profile stays as a fallback.
   var carryTimer = null, carried = '', manifestJson = null, manifestUrl = '';
   function carrySoon() {
-    if (!IS_IOS || IN_FRAME || isStandalone()) return;
+    if (!(IS_IOS || IN_APP_BROWSER) || IN_FRAME || isStandalone()) return;
     clearTimeout(carryTimer);
     carryTimer = setTimeout(carryProgress, 400);
   }
@@ -1873,8 +1873,9 @@
     var code = exportCode();
     if (code === carried) return;
     carried = code;
-    try { history.replaceState(history.state, '', '#i=' + code); } catch (e) { /* ignore */ }
-    carryManifest(code);
+    // 0.33: inside Instagram or TikTok the address carries #x= instead, for "open in the browser" (the browser takes it in)
+    try { history.replaceState(history.state, '', (IN_APP_BROWSER ? '#x=' : '#i=') + code); } catch (e) { /* ignore */ }
+    if (!IN_APP_BROWSER) carryManifest(code);
   }
   function carryManifest(code) {
     var link = document.querySelector('link[rel="manifest"]');
@@ -1897,6 +1898,46 @@
   // itself (iPhone never, Android only when Chrome offers it), so the button shows one picture: an arrow at the button to
   // press, and the one item to pick there.
   var IN_APP_BROWSER = /Instagram|FBAN|FBAV|FB_IAB|musical_ly|BytedanceWebview|TikTok|Line\//i.test(navigator.userAgent);
+  // ---------- 0.33: out of Instagram's (or TikTok's) built-in browser ----------
+  // 17.11: of 7 people from Instagram 2 started a lesson, and the 3 who stayed in its built-in browser started none. In
+  // there progress is lost once the app closes, and neither the home-screen icon nor reminders work. A line on home and
+  // the ask after a lesson open the same address in the phone's browser, with the progress (#x= / ?x=, taken in by boot).
+  var IAB_NAME = { instagram: 'אינסטגרם', facebook: 'פייסבוק', tiktok: 'טיקטוק' }[IN_APP] || 'אפליקציה אחרת';
+  var inAppBarSeen = false, hiddenAt = 0;
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') hiddenAt = Date.now(); });
+  function inAppBar() {
+    if (!IN_APP_BROWSER || IS_NATIVE || IN_FRAME) return '';
+    if (!inAppBarSeen) { inAppBarSeen = true; track('inapp_prompt_shown', { placement: 'home', in_app: IN_APP, lessons_done: doneCount() }); }
+    return '<button class="inapp-bar" data-act="open-browser" data-from="home">' + ICON.ext +
+      '<span><b>עדיף בדפדפן.</b> בתוך ' + IAB_NAME + ' ההתקדמות עלולה ללכת לאיבוד</span>' + ICON.chevron + '</button>';
+  }
+  // this page's address for the browser: without the carry it has now, with the progress when there is any
+  function browserUrl(inQuery) {
+    var u;
+    try { u = new URL(location.href); } catch (e) { return location.href; }
+    u.hash = ''; u.searchParams.delete('x'); u.searchParams.set('source', 'inapp_exit');
+    var code = S.onboarded && hasProgress() ? exportCode() : '';
+    if (code) { if (inQuery) u.searchParams.set('x', code); else u.hash = 'x=' + code; }
+    return u.href;
+  }
+  function openInBrowser(from) {
+    track('inapp_open_tapped', { from: from, in_app: IN_APP, platform: IS_IOS ? 'ios' : IS_ANDROID ? 'android' : 'other', lessons_done: doneCount(), carried: S.onboarded && hasProgress() });
+    flush();
+    closeSheet(true);
+    var t0 = Date.now();
+    try {
+      if (IS_ANDROID) {
+        // Chrome by name; an intent address can't keep a #, so the progress goes in ?x=
+        var u = new URL(browserUrl(true));
+        location.href = 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=https;package=com.android.chrome;end';
+      } else if (IS_IOS) location.href = 'x-safari-' + browserUrl(false); // iOS 17+: opens the address in Safari
+    } catch (e) { /* the steps below */ }
+    // still here a moment later (the app blocked it, or an older phone): the steps by hand. The address already carries
+    // the progress (carryProgress), so "open in the browser" from the app's menu brings it along too.
+    setTimeout(function () {
+      if (hiddenAt < t0 && document.visibilityState === 'visible' && !sheetOpen) { track('inapp_open_steps', { from: from, in_app: IN_APP }); pointerSheet(); }
+    }, IS_ANDROID || IS_IOS ? 1500 : 0);
+  }
   function pointerSheet() {
     var ios = IS_IOS && !IN_APP_BROWSER;
     var body = IN_APP_BROWSER
@@ -1938,7 +1979,9 @@
     var obj;
     try { obj = JSON.parse(unb64url(m[1])); } catch (e) { return { ok: false, reason: 'bad_json' }; }
     if (!isObj(obj) || obj.v !== 3) return { ok: false, reason: 'bad_fields' };
-    if (!CFG.statuses.some(function (st) { return st.id === obj.status; })) return { ok: false, reason: 'bad_fields' };
+    // 0.33: status null too (lesson 1 done, the status question still waiting): the move out of Instagram can come
+    // from lesson 1's done screen, and the browser then asks the question
+    if (obj.status !== null && !CFG.statuses.some(function (st) { return st.id === obj.status; })) return { ok: false, reason: 'bad_fields' };
     if (typeof obj.uid !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(obj.uid)) return { ok: false, reason: 'bad_fields' };
     var nums = ['goalXp', 'xp', 'streak', 'bestStreak', 'answered', 'correct'], i;
     for (i = 0; i < nums.length; i++) { var x = obj[nums[i]]; if (typeof x !== 'number' || !isFinite(x) || x < 0) return { ok: false, reason: 'bad_fields' }; }
@@ -2821,9 +2864,74 @@
       var chal = socOn() && !!S.social.ref && s.mode === 'lesson' && s.firstTry > 0 && !!l; // 0.31: "tries to beat me"
       html += '<button class="btn text invite-link" data-act="invite" data-from="' + (chal ? 'challenge' : 'done') + '" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + (chal ? 'לאתגר חבר' : 'להזמין חבר') + '</button>';
     }
-    html += '<button class="btn" data-act="home">המשך</button></div>';
+    // 0.33: up to config.chain.upTo lessons, the main button goes straight on to the next lesson (like Duolingo)
+    if (chainNext(s)) {
+      if (!s.chainShown) { s.chainShown = true; track('done_next_shown', { lesson_id: l.id, lessons_done: doneCount(), status_set: !!S.status }); }
+      html += '<button class="btn gold done-next" data-act="done-next">' + ICON.play + 'לשיעור הבא</button>' +
+        '<button class="btn text" data-act="done-home">חזרה למסלול</button></div>';
+    } else html += '<button class="btn" data-act="done-home">המשך</button></div>';
     return html;
   }
+  // ---------- 0.33: from the done screen straight to the next lesson ----------
+  // The 17.11 data: of those who finished 3+ lessons 4 of 6 came back, of those who finished one, 1 of 9. So the first
+  // lessons lead on to the next one. After lesson 1 the status question comes in between (it picks lesson 2).
+  var CHAIN = CFG.chain || { upTo: 0 }, chainPending = false;
+  function chainNext(s) {
+    if (!s || s.mode !== 'lesson' || !s.firstTime || !(CHAIN.upTo > 0) || doneCount() >= CHAIN.upTo || !enCanStart()) return false;
+    if (!S.status) return true;
+    var nx = currentLesson();
+    return !!nx && nx.id !== s.lesson.id && shown(nx);
+  }
+  function chainGo(from) {
+    session = null;
+    if (!S.status) { chainPending = true; setView('home'); return; } // the status question, then the next lesson
+    chainStart(from);
+  }
+  function chainStart(from) {
+    var nx = currentLesson();
+    if (!nx || !shown(nx) || !enCanStart()) { setView('home'); return; }
+    startFrom = from; startLesson(nx.id); startFrom = null;
+  }
+  // ---------- 0.33: the reminder ask when leaving the done screen ----------
+  // On 17.11 only 6 of 13 who finished lesson 1 had seen the notifications popup: over home it waited behind the tour and
+  // the tools and colors intros (one popup per open), and on iPhone in Safari there is nothing to ask before installing.
+  // Now the button that leaves the done screen asks first, once a day, while reminders are off: notifications where they
+  // work, "add to the home screen" on iPhone in Safari, and "open in the browser" inside Instagram or TikTok.
+  var DONE_ASK_KEY = 'dribit.doneAsk.v1', doneThen = null;
+  function doneAskState() {
+    if (!session || session.mode !== 'lesson' || IN_FRAME) return null;
+    try { if (localStorage.getItem(DONE_ASK_KEY) === dayKey()) return null; } catch (e) { return null; }
+    if (IN_APP_BROWSER && !IS_NATIVE) return 'browser';
+    if (pushBusy || notifRefused()) return null;
+    var st = pushState();
+    if (st === 'off') return 'off';
+    if (st === 'install' && canInstall() && !S.installHidden && !S.giftPending) return 'install';
+    return null;
+  }
+  function doneAsk(then) {
+    var st = doneAskState();
+    doneThen = null;
+    if (!st) { then(); return; }
+    doneThen = then;
+    openAsked = true; // no second popup over home in this open
+    try { localStorage.setItem(DONE_ASK_KEY, dayKey()); } catch (e) { /* ignore */ }
+    var skip = '<button class="btn text" data-act="done-ask-skip" data-v="' + st + '">' + (st === 'browser' ? 'להמשיך כאן' : 'לא עכשיו') + '</button>';
+    if (st === 'browser') {
+      track('inapp_prompt_shown', { placement: 'done', in_app: IN_APP, lessons_done: doneCount() });
+      openSheet('<div class="ask-ic">' + ICON.ext + '</div><h3>לשמור את ההתקדמות</h3>' +
+        '<p class="lead">פתחת את ' + esc(CFG.appName) + ' בתוך ' + IAB_NAME + '. בדפדפן ההתקדמות נשמרת, ומשם אפשר להוסיף את האפליקציה למסך הבית ולקבל תזכורת יומית.</p>' +
+        '<button class="btn gold" data-act="open-browser" data-from="done_ask">' + ICON.ext + 'לפתוח בדפדפן</button>' + skip);
+      return;
+    }
+    track('push_popup_shown', { state: st, placement: 'done', n: askCount('notif'), lessons_done: doneCount() });
+    openSheet('<div class="ask-ic">' + ICON.bell + '</div>' + (st === 'install'
+      ? '<h3>תזכורת יומית באייפון</h3><p class="lead">באייפון התראות עובדות רק מהאפליקציה שבמסך הבית. מוסיפים אותה פעם אחת, וההתקדמות עוברת לשם לבד.</p>' +
+        '<button class="btn gold" data-act="install" data-placement="done_ask">' + ICON.addHome + 'איך מוסיפים</button>'
+      : '<h3>להדליק תזכורת יומית?</h3><p class="lead">הודעה קצרה אחת בערב, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר.</p>' +
+        (S.share || IS_NATIVE ? '' : '<p class="fine">התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.</p>') +
+        '<button class="btn gold" data-act="done-ask-on">' + ICON.bell + 'להדליק תזכורת</button>') + skip);
+  }
+  function doneAskGo() { var t = doneThen; doneThen = null; if (t) t(); }
   // 0.17 (30.10, "קודם כל ליצור הוק"): the done screen names the next lesson, so there is something to come back for.
   // Only when a next lesson exists and it is not the one just finished.
   function nextUpCard(l) {
@@ -3314,12 +3422,14 @@
   }
   // withShare: the profile switch also turns usage-data sharing on (the sender finds subscriptions there), but only
   // once the reminder is actually on
-  function enableReminder(from, withShare) {
-    if (IS_NATIVE) { nativeReminderOn(from); return; }
+  // after (0.33): called once the answer is in (on, refused or failed), so the done screen can move on
+  function enableReminder(from, withShare, after) {
+    var fin = function () { if (after) { var a = after; after = null; a(); } };
+    if (IS_NATIVE) { nativeReminderOn(from, fin); return; }
     var st = pushState();
     if (st === 'install') { pointerSheet(); return; }
-    if (st === 'denied') { toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות הדפדפן', '', 2600); return; }
-    if (st !== 'off' || pushBusy) return;
+    if (st === 'denied') { toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות הדפדפן', '', 2600); fin(); return; }
+    if (st !== 'off' || pushBusy) { fin(); return; }
     pushBusy = true;
     clearTimeout(askTimer);
     track('push_asked', { from: from });
@@ -3335,16 +3445,19 @@
       if (nb) nb.outerHTML = '<p class="nudge">' + ICON.check + '<span>התראות דלוקות</span></p>';
       toast(ICON.bell + '<b>סגור.</b> תזכורת כל ערב, החל מ-' + hourLabel(), 'info', 2600);
       reloadAfterPush();
+      fin();
     }).catch(function (e) {
       pushBusy = false;
       reloadAfterPush();
       if (e && e.quiet) {
         render();
         if (e.quiet === 'denied') toast(ICON.bell + '<b>ההתראות חסומות.</b> אפשר לאפשר אותן בהגדרות', '', 2600);
+        fin();
         return;
       }
       track('push_failed', { from: from, error: String((e && e.name) || e).slice(0, 60) });
       toast(ICON.bell + '<b>לא הצלחתי להפעיל תזכורת</b> בדפדפן הזה', '', 2600);
+      fin();
     });
   }
   // a new version that arrived while the reminder was being turned on loads once the answer has been on screen a moment
@@ -3401,8 +3514,9 @@
     if (!IS_NATIVE || !S.reminder || !S.reminder.on) return;
     nativeCall('notifications.schedule', { items: nativeReminderItems() }).catch(function () { /* ignore */ });
   }
-  function nativeReminderOn(from) {
-    if (pushBusy || pushState() === 'on' || pushState() === 'unsupported') return;
+  function nativeReminderOn(from, fin) {
+    fin = fin || function () { /* nothing waits */ };
+    if (pushBusy || pushState() === 'on' || pushState() === 'unsupported') { fin(); return; }
     pushBusy = true;
     clearTimeout(askTimer);
     track('push_asked', { from: from, native: true });
@@ -3413,6 +3527,7 @@
         track('push_denied', { from: from, permission: nativePerm, native: true });
         render();
         toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות האייפון', '', 2600);
+        fin();
         return;
       }
       S.reminder = { on: true, native: true, hour: RCFG.hour, since: dayKey() };
@@ -3426,10 +3541,12 @@
       var nb = document.querySelector('#sheet [data-act="popup-reminder-on"]');
       if (nb) nb.outerHTML = '<p class="nudge">' + ICON.check + '<span>התראות דלוקות</span></p>';
       toast(ICON.bell + '<b>סגור.</b> תזכורת כל ערב, החל מ-' + hourLabel(), 'info', 2600);
+      fin();
     }).catch(function (e) {
       pushBusy = false;
       track('push_failed', { from: from, native: true, error: String((e && e.message) || e).slice(0, 60) });
       toast(ICON.bell + '<b>לא הצלחתי להפעיל תזכורת</b>', '', 2600);
+      fin();
     });
   }
   // a tap on a reminder brought the person in (asked once per tap: the phone hands it over and forgets it)
@@ -5565,6 +5682,31 @@
         setView('home');
         break;
       case 'home': session = null; setView('home'); break;
+      case 'done-home': doneAsk(function () { session = null; setView('home'); }); break;
+      case 'done-next': {
+        sfx.tap();
+        var dnId = session && session.lesson ? session.lesson.id : null;
+        track('done_next_tapped', { lesson_id: dnId, lessons_done: doneCount(), status_set: !!S.status });
+        doneAsk(function () { chainGo('done_next'); });
+        break;
+      }
+      case 'done-ask-on': {
+        var dBtn = el; dBtn.disabled = true;
+        enableReminder('done', true, function () { doneAskGo(); });
+        break;
+      }
+      case 'done-ask-skip': {
+        var dv = el.getAttribute('data-v');
+        if (dv === 'browser') track('inapp_prompt_later', { placement: 'done', in_app: IN_APP });
+        else {
+          // like "לא עכשיו" on the popup: the home reminder card waits a week (turning the reminder on clears it)
+          S.reminderNo = { count: ((S.reminderNo && S.reminderNo.count) || 0) + 1, day: dayKey() }; save();
+          track('push_declined', { count: S.reminderNo.count, from: 'done', state: dv });
+        }
+        doneAskGo();
+        break;
+      }
+      case 'open-browser': openInBrowser(el.getAttribute('data-from') || 'home'); break;
       case 'mission': if (MISSIONS_ON) missionSheet(id); break;
       case 'dcheck': checkSheet(id, el.getAttribute('data-from')); break;
       case 'dcheck-done': checkDoneNow(id); break;
@@ -5609,6 +5751,8 @@
       case 'pick-status': {
         sfx.tap();
         setStatus(el.getAttribute('data-v'), 'after_first_lesson');
+        // 0.33: after "לשיעור הבא" on lesson 1's done screen, the lesson the status picked starts right away
+        if (chainPending) { chainPending = false; chainStart('after_status'); break; }
         setView('home');
         break;
       }
@@ -5989,6 +6133,18 @@
     if (S.inProgress && !(S.onboarded && restoreSession(S.inProgress))) { S.inProgress = null; save(); }
     // 0.19: progress carried from Safari in the home-screen icon's address (#i=, see carryProgress). Taken in only by the
     // installed app with nothing in it yet; anywhere else (a shared link, Safari itself) it is just removed from the address.
+    // 0.33: progress from Instagram's or TikTok's built-in browser (#x= or ?x=, see openInBrowser): taken in by a browser
+    // with nothing in it yet; never inside such an app (there the address keeps it for the move out)
+    var exitIn = /^#x=(.+)$/.exec(location.hash || '') || /[?&]x=([^&#]+)/.exec(location.search || ''), exitCode = '';
+    if (exitIn && !IN_APP_BROWSER) {
+      try {
+        var restX = (location.search || '').replace(/^\?/, '').split('&').filter(function (x) { return x && !/^x=/.test(x); }).join('&');
+        history.replaceState(history.state, '', location.pathname + (restX ? '?' + restX : ''));
+      } catch (e) { /* ignore */ }
+      if (!hasProgress()) { try { exitCode = decodeURIComponent(exitIn[1]); } catch (e) { exitCode = ''; } }
+      else track('progress_import_skipped', { source: 'in_app_browser', lessons_done: doneCount() });
+      if (exitCode && !parseCode(exitCode).ok) { track('progress_imported', { ok: false, reason: parseCode(exitCode).reason, source: 'in_app_browser' }); exitCode = ''; }
+    }
     var carryIn = /^#i=(.+)$/.exec(location.hash || ''), carryCode = '';
     if (carryIn) {
       try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) { /* ignore */ }
@@ -5999,13 +6155,14 @@
     // ask (it is where notifications can be turned on).
     if (OPEN_SOURCE === 'push') openAsked = true;
     // existing users meet days off once, over home; one sheet per open, so no toast that day (none can apply on update day)
-    var showIntro = DO.enabled && !carryCode && S.onboarded && S.status && doneCount() && !S.offIntroSeen;
+    var showIntro = DO.enabled && !carryCode && !exitCode && S.onboarded && S.status && doneCount() && !S.offIntroSeen;
     if (showIntro) offToast = null;
     render();
     if (carryCode) importProgress(carryCode, 'install');
+    else if (exitCode) importProgress(exitCode, 'in_app_browser');
     carrySoon();
     // the lesson card of a ?go= link comes first: no popup over it in this open
-    if (JUMP && view === 'home' && !sheetOpen && !carryCode) { openAsked = true; previewSheet(JUMP); }
+    if (JUMP && view === 'home' && !sheetOpen && !carryCode && !exitCode) { openAsked = true; previewSheet(JUMP); }
     else if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
     else if (OPEN_SOURCE !== 'push') maybeAsk();
     registerSW();
