@@ -1903,7 +1903,7 @@
   // there progress is lost once the app closes, and neither the home-screen icon nor reminders work. A line on home and
   // the ask after a lesson open the same address in the phone's browser, with the progress (#x= / ?x=, taken in by boot).
   var IAB_NAME = { instagram: 'אינסטגרם', facebook: 'פייסבוק', tiktok: 'טיקטוק' }[IN_APP] || 'אפליקציה אחרת';
-  var inAppBarSeen = false, hiddenAt = 0;
+  var inAppBarSeen = false, hiddenAt = 0, META_IAB = IN_APP === 'instagram' || IN_APP === 'facebook';
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') hiddenAt = Date.now(); });
   function inAppBar() {
     if (!IN_APP_BROWSER || IS_NATIVE || IN_FRAME) return '';
@@ -1926,8 +1926,9 @@
     closeSheet(true);
     var t0 = Date.now();
     try {
-      if (IS_ANDROID) {
-        // Chrome by name; an intent address can't keep a #, so the progress goes in ?x=
+      if (IS_ANDROID && META_IAB) {
+        // Chrome by name; an intent address can't keep a #, so the progress goes in ?x= (only in Instagram and Facebook,
+        // whose browser hands intent addresses to the phone; another app's could show an error page instead of the app)
         var u = new URL(browserUrl(true));
         location.href = 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=https;package=com.android.chrome;end';
       } else if (IS_IOS) location.href = 'x-safari-' + browserUrl(false); // iOS 17+: opens the address in Safari
@@ -1935,8 +1936,18 @@
     // still here a moment later (the app blocked it, or an older phone): the steps by hand. The address already carries
     // the progress (carryProgress), so "open in the browser" from the app's menu brings it along too.
     setTimeout(function () {
-      if (hiddenAt < t0 && document.visibilityState === 'visible' && !sheetOpen) { track('inapp_open_steps', { from: from, in_app: IN_APP }); pointerSheet(); }
-    }, IS_ANDROID || IS_IOS ? 1500 : 0);
+      var stayed = hiddenAt < t0 && document.visibilityState === 'visible';
+      if (from === 'auto') { if (stayed) track('inapp_auto_stayed', { in_app: IN_APP }); return; } // the line on home stays
+      if (stayed && !sheetOpen) { track('inapp_open_steps', { from: from, in_app: IN_APP }); pointerSheet(); }
+    }, (IS_ANDROID && META_IAB) || IS_IOS ? 1500 : 0);
+  }
+  // 0.33.1 (Jonathan, 17.11: "אם אני אלחץ על הלינק באינסטגרם הוא ישר יפתח את זה בספארי"): a link opened inside Instagram,
+  // TikTok or Facebook moves to the phone's browser by itself, once per visit, with the progress. If the app blocks it,
+  // nothing shows; the "עדיף בדפדפן" line on home and the ask after a lesson are still there.
+  function autoEscape() {
+    if (!IN_APP_BROWSER || IS_NATIVE || IN_FRAME || !(IS_IOS || (IS_ANDROID && META_IAB))) return;
+    try { if (sessionStorage.getItem('dribit.escaped')) return; sessionStorage.setItem('dribit.escaped', '1'); } catch (e) { return; }
+    openInBrowser('auto');
   }
   function pointerSheet() {
     var ios = IS_IOS && !IN_APP_BROWSER;
@@ -6161,6 +6172,7 @@
     if (carryCode) importProgress(carryCode, 'install');
     else if (exitCode) importProgress(exitCode, 'in_app_browser');
     carrySoon();
+    autoEscape();
     // the lesson card of a ?go= link comes first: no popup over it in this open
     if (JUMP && view === 'home' && !sheetOpen && !carryCode && !exitCode) { openAsked = true; previewSheet(JUMP); }
     else if (showIntro && view === 'home' && !sheetOpen) { openAsked = true; daysOffIntro(); }
