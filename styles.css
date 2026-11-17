@@ -1743,3 +1743,16 @@ img { -webkit-user-drag: none; }
 }
 :root[data-theme="dark"] .medal.m2 { background: #8A949A; color: #101417; }
 :root[data-theme="dark"] .invite-wait, :root[data-theme="dark"] .winner, :root[data-theme="dark"] .gift-list li.big { background: var(--surface-2); }
+/* 0.33: inside Instagram's or TikTok's built-in browser, a quiet line on home that opens the phone's browser */
+.inapp-bar {
+  width: 100%; cursor: pointer; text-align: right; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px;
+  border-radius: var(--r-md); padding: 10px 14px;
+  background: var(--surface); color: var(--ink-2); border: 1.5px solid var(--line);
+  font-size: 14px; line-height: 1.35;
+}
+.inapp-bar b { color: var(--ink); }
+.inapp-bar:active { transform: translateY(2px); }
+.inapp-bar svg { width: 20px; height: 20px; flex: none; color: var(--brand); }
+.inapp-bar span { flex: 1; }
+.btn.done-next { margin-bottom: 4px; }
