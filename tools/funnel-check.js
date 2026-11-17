@@ -72,7 +72,8 @@ const how = (src, ref) => (ref === 'lp_tiktok' ? 'link inside TikTok' : /^lp_.*g
     FROM events e INNER JOIN (SELECT * FROM (${FIRST}) WHERE t0 >= toDateTime('${from}:00', 'Asia/Jerusalem')) n ON e.person_id = n.person_id
     WHERE e.timestamp >= toDateTime('${from}:00', 'Asia/Jerusalem') - INTERVAL 1 HOUR
       AND e.event NOT IN ('reminder_sent', 'push_unsubscribed')
-    GROUP BY e.person_id, n.t0, n.src, n.ref, n.c, n.inapp`);
+    GROUP BY e.person_id, n.t0, n.src, n.ref, n.c, n.inapp
+    LIMIT 10000`); // HogQL returns only 100 rows without a LIMIT
   const K = ['d0', 't0', 'src', 'ref', 'c', 'inapp', 'shown', 'ls', 'sv', 'qa', 'lc', 'ndone', 'nstarted', 'days', 'status', 'push', 'inst',
     'pushPop', 'instPop', 'tour', 'lastLesson', 'lastStep', 'lastKind', 'stepCount', 'lastEvent', 'secsDay0', 'firstDur'];
   const obj = (r) => { const o = {}; K.forEach((k, i) => { o[k] = r[i]; }); o.ok = (k) => Number(o[k]) === 1; o.how = how(o.src, o.ref); return o; };
