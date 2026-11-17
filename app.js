@@ -3,6 +3,8 @@
    נתוני שימוש אנונימיים נשלחים ל-PostHog כשיש מפתח ב-config.js. */
 (function () {
   'use strict';
+  // 0.32: the page is on its way to another address (index.html: progress moving to dribit.app), so the app does not start here
+  if (window.DRIBIT_MOVING) return;
 
   var CFG = window.DRIBIT_CONFIG;
   var P = CFG.points;

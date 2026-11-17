@@ -2,7 +2,7 @@
 window.DRIBIT_CONFIG = {
   appName: 'דריבית',
   appNameEn: 'Dribit',
-  version: '0.31.2',
+  version: '0.32.0',
   tagline: 'כמה דקות ביום. הידע מצטבר כמו ריבית דריבית.',
 
   // המסך הראשון של מי שעוד לא סיים שיעור (0.29): 'home' = מסך הבית עם המסלול, כמו לכולם. 'button' = המסך של כפתור אחד מ-0.22.
@@ -172,7 +172,8 @@ window.DRIBIT_CONFIG = {
   // הזמנת חברים: פס בפרופיל (מתחת ל"השבוע שלי") וכפתור במסך הסיום, אחרי afterLessons שיעורים. url = הקישור שנשלח (ריק = כתובת האפליקציה).
   // image = לצרף תמונת רצף כשהטלפון יודע לשתף קבצים. הקישור מקבל ref=share: כך רואים במדידה מי הגיע מהזמנה,
   // ומי שפותח ממנו בפעם הראשונה מקבל את המתנה של daysOff.friendGift. אין בקישור שום מזהה של השולח.
-  invite: { enabled: true, url: 'https://jonathanriahi.github.io/dribit/', image: true, afterLessons: 2 },
+  // 0.32 (17.11): הקישור הוא dribit.app/app/, כדי שחבר שפותח אותו יראה dribit.app בשורת הכתובת ולא github.io.
+  invite: { enabled: true, url: 'https://dribit.app/app/', image: true, afterLessons: 2 },
 
   // 0.31 חברים וקבוצות (יהונתן, 13.11): לשונית "חברים" עם חבר מביא חבר, וקבוצות עם קוד וטבלה שבועית.
   // צריך את השרת הקטן שבתיקייה server/ (Cloudflare, בחינם). api = הכתובת שהפעולה "Server deploy" מדפיסה,
