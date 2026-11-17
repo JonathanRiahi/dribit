@@ -1,0 +1,74 @@
+# 0.32: deploys landing/domain/worker.js, the Cloudflare Worker that serves https://dribit.app (the landing page at
+# dribit.app/ and, since 0.32, the app at dribit.app/app/). Uses the same two repository secrets as "Server deploy"
+# (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID). Runs on every change to landing/domain/ on main, or by hand (Run workflow).
+# It first asks Cloudflare which Worker dribit.app is connected to and deploys under that name, so it never creates a
+# second Worker or touches the domain settings. If it cannot find one, it stops before deploying anything.
+# To undo: Cloudflare > Workers & Pages > the Worker > Deployments > the previous one > Rollback.
+name: Domain deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['landing/domain/worker.js', 'landing/domain/wrangler.toml', '.github/workflows/domain.yml']
+
+concurrency: domain-deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER: npx --yes wrangler@4.40.0
+    steps:
+      - name: Check the secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not set (see server/README.md). Nothing was deployed."
+            exit 1
+          fi
+
+      - name: Find the Worker that serves dribit.app
+        id: find
+        run: |
+          set -o pipefail
+          curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains" > domains.json \
+            || { echo "::error::Could not read the Workers custom domains (does the token have Workers Scripts read?). Nothing was deployed."; exit 1; }
+          NAME=$(node -e 'const r=JSON.parse(require("fs").readFileSync("domains.json","utf8"));const d=(r.result||[]).find(x=>x.hostname==="dribit.app");process.stdout.write(d?d.service:"")')
+          if [ -z "$NAME" ]; then echo "::error::No Worker is connected to dribit.app in this Cloudflare account. Nothing was deployed."; exit 1; fi
+          echo "dribit.app is served by the Worker: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy the Worker
+        working-directory: landing/domain
+        run: |
+          set -o pipefail
+          for i in 1 2 3; do
+            if $WRANGLER deploy --name "${{ steps.find.outputs.name }}" 2>&1 | tee deploy.log; then break; fi
+            if [ "$i" = 3 ]; then echo "::error::wrangler deploy failed 3 times, see above"; exit 1; fi
+            echo "Deploy failed, trying again in 15 seconds"; sleep 15
+          done
+
+      - name: Check dribit.app
+        run: |
+          ok=0
+          for i in 1 2 3 4 5 6 7 8; do
+            app=$(curl -fsS "https://dribit.app/app/?source=deploy_check" || true)
+            land=$(curl -fsS "https://dribit.app/?stay=1" || true)
+            if echo "$app" | grep -q 'id="app"' && echo "$land" | grep -q 'startBtn'; then ok=1; break; fi
+            echo "not ready yet, waiting 15 seconds"; sleep 15
+          done
+          {
+            echo "### dribit.app"
+            if [ "$ok" = 1 ]; then echo "The landing page (dribit.app) and the app (dribit.app/app/) both answer."; else echo "dribit.app/app/ or dribit.app did not answer as expected, see the log."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$ok" = 1 ] || { echo "::error::dribit.app/app/ or dribit.app did not answer as expected"; exit 1; }

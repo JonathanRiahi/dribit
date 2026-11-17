@@ -3,6 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<script>
+// 0.32 (Jonathan, 17.11: dribit.app showed jonathanriahi.github.io in the address bar): the app is also served at
+// https://dribit.app/app/ (the Cloudflare Worker in landing/domain/), and dribit.app opens it there. A phone keeps
+// progress separately for every address, so the first open at dribit.app takes this phone's progress from the github.io
+// address, once: a quick trip to landing/move.html there and back, with the progress after the # (never sent to a server).
+// Installed apps (home screen, Android app, iPhone app) stay at github.io and never move.
+(function () {
+  var MOVE = 'https://jonathanriahi.github.io/dribit/landing/move.html', HOME = 'https://dribit.app/app/';
+  var KEY = 'dribit.progress.v1', DONE = 'dribit.moved.v1', ASKED = 'dribit.moving';
+  var KEYS = [KEY, 'dribit.notifNo.v1', 'dribit.asks.v1'];
+  var host = location.hostname, hash = location.hash || '', installed = true;
+  try { installed = !!(window.DribitNative || navigator.standalone || window.matchMedia('(display-mode: standalone)').matches || window.self !== window.top); } catch (e) { /* treat as installed: stay */ }
+  function go(url) { window.DRIBIT_MOVING = true; location.replace(url); }
+  try {
+    if (host === 'jonathanriahi.github.io') {
+      // this phone's browser already moved to dribit.app: a browser tab here (an old link, a reminder tap) goes on there,
+      // so the progress never splits in two
+      if (!installed && localStorage.getItem('dribit.movedTo') && !/^#i=/.test(hash)) go(HOME + location.search);
+      return;
+    }
+    if (!/(^|\.)dribit\.app$/.test(host)) return;
+    var asked = sessionStorage.getItem(ASKED), m = /^#move=([A-Za-z0-9_-]*)$/.exec(hash);
+    if (m) {
+      try { history.replaceState(history.state, '', location.href.split('#')[0]); } catch (e) { /* ignore */ }
+      if (!asked) return; // only the answer this tab asked for
+      sessionStorage.removeItem(ASKED);
+      var how = 'none', uid = null;
+      if (m[1] && m[1] !== '0' && !localStorage.getItem(KEY)) {
+        try {
+          var o = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))));
+          var st = JSON.parse(o[KEY]);
+          if (st && typeof st === 'object') {
+            KEYS.forEach(function (k) { if (typeof o[k] === 'string') localStorage.setItem(k, o[k]); });
+            how = 'progress'; uid = typeof st.uid === 'string' ? st.uid : null;
+          }
+        } catch (e) { how = 'broken'; }
+      }
+      localStorage.setItem(DONE, how + ' ' + new Date().toISOString());
+      if (uid) {
+        var body = JSON.stringify({ api_key: 'phc_tsse5UQex6pJhPK4yZkLjXLTXykftLFo8BXibrXa3Bqm', batch: [{ event: 'progress_moved', timestamp: new Date().toISOString(),
+          properties: { distinct_id: uid, from: 'github.io', to: 'dribit.app', $current_url: location.href.split('#')[0] } }] });
+        try { navigator.sendBeacon('https://eu.i.posthog.com/batch/', new Blob([body], { type: 'text/plain' })); } catch (e) { /* ignore */ }
+      }
+      return;
+    }
+    if (installed || /^#i=/.test(hash) || localStorage.getItem(KEY) || localStorage.getItem(DONE)) return;
+    if (asked) { localStorage.setItem(DONE, 'noanswer ' + new Date().toISOString()); return; } // back without an answer: no second trip
+    sessionStorage.setItem(ASKED, '1');
+    go(MOVE + '#back=' + encodeURIComponent(location.href.split('#')[0]));
+  } catch (e) { /* storage blocked: the app opens here as it is */ }
+})();
+</script>
 <!-- 0.24.1: the iPhone home-screen icon, first in the page and downloaded at once (it showed only after a wait).
      Safari fetches it when "Add to Home Screen" opens; the early download puts it in the phone's cache by then. -->
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=logo2">
@@ -51,7 +103,7 @@
 // under the same anonymous id as the visit. landing_view → app_boot → app_opened shows where people drop off.
 (function () {
   var m = /[?&]lp=([A-Za-z0-9-]{8,64})/.exec(location.search);
-  if (!m) return;
+  if (!m || window.DRIBIT_MOVING) return;
   try { if (sessionStorage.getItem('dribit.boot') === m[1]) return; sessionStorage.setItem('dribit.boot', m[1]); } catch (e) { /* ignore */ }
   var body = JSON.stringify({ api_key: 'phc_tsse5UQex6pJhPK4yZkLjXLTXykftLFo8BXibrXa3Bqm', batch: [{ event: 'app_boot', timestamp: new Date().toISOString(),
     properties: { distinct_id: m[1], landing_version: 'landing-5', $current_url: location.href.split('#')[0] } }] });

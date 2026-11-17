@@ -12,7 +12,8 @@
   var q = location.search;
   if (/[?&]stay=1/.test(q) || window.LANDING_PREVIEW) return;
   document.documentElement.className += ' go';
-  var APP = 'https://jonathanriahi.github.io/dribit/';
+  // 0.32 (17.11): at dribit.app the app opens at dribit.app/app/ (the Worker shows it there), so the address stays dribit.app
+  var APP = /(^|\.)dribit\.app$/.test(location.hostname) ? 'https://dribit.app/app/' : 'https://jonathanriahi.github.io/dribit/';
   // the public PostHog key, the same one as in config.js (analytics.posthogKey); a public key, made for browsers
   var KEY = 'phc_tsse5UQex6pJhPK4yZkLjXLTXykftLFo8BXibrXa3Bqm', HOST = 'https://eu.i.posthog.com';
   var p = new URLSearchParams(q), ua = navigator.userAgent || '';
@@ -281,6 +282,8 @@ html.go body::after { content: 'דריבית'; position: fixed; left: 0; right: 
   function refFor(src) { return ('lp_' + (src || 'direct')).replace(/[^\w-]/g, '_').slice(0, 40); }
   document.querySelectorAll('[data-app]').forEach(function (a) {
     var u = new URL(a.getAttribute('href'), location.href);
+    // 0.32: at dribit.app the buttons open the app at dribit.app/app/ too
+    if (/(^|\.)dribit\.app$/.test(location.hostname)) u = new URL(u.pathname.replace(/^\/dribit\//, '/app/') + u.search, 'https://dribit.app');
     u.searchParams.set('ref', refFor(source));
     a.href = u.href;
   });

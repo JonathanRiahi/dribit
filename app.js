@@ -3,6 +3,8 @@
    נתוני שימוש אנונימיים נשלחים ל-PostHog כשיש מפתח ב-config.js. */
 (function () {
   'use strict';
+  // 0.32: the page is on its way to another address (index.html: progress moving to dribit.app), so the app does not start here
+  if (window.DRIBIT_MOVING) return;
 
   var CFG = window.DRIBIT_CONFIG;
   var P = CFG.points;
@@ -3534,10 +3536,15 @@
   }
   var tour = null, tourTimer = null;
   function tourActive() { return !!tour; }
-  // the screen on show has a tour that was not seen yet (only after lesson 1 and the status question, never in a lesson)
+  // the screen on show has a tour that was not seen yet (never in a lesson). Home and practice: only after lesson 1 and the
+  // status question (home before it is for starting the first lesson; practice has nothing to show yet).
+  // 0.32 (Jonathan, 17.11: "לא עשיתי שיעור ראשון ואני עובר לפרופיל, אמור להיות טטוריאל"): profile and tools explain
+  // themselves on the first visit even before lesson 1.
+  var TOUR_EARLY = { profile: true, tools: true };
   function tourDue(v) {
     v = v || view;
-    return TOUR_IDS.indexOf(v) >= 0 && S.onboarded && !!S.status && doneCount() > 0 && !!S.tour && S.tour[v] === false &&
+    var ready = TOUR_EARLY[v] ? inApp() : (S.onboarded && !!S.status && doneCount() > 0);
+    return TOUR_IDS.indexOf(v) >= 0 && ready && !!S.tour && S.tour[v] === false &&
       (v !== 'tools' || toolsTab()) && !(v === 'home' && S.inProgress);
   }
   // called after each render of a main screen: a running tour follows the new page; a due one starts once the page is still

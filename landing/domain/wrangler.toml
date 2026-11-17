@@ -1,0 +1,6 @@
+# The Worker that serves https://dribit.app (worker.js). Deployed by .github/workflows/domain.yml, which looks up the
+# Worker that dribit.app is connected to in Cloudflare and deploys under that name (--name), so the name below is only
+# the default. No routes here on purpose: the custom domains dribit.app and www.dribit.app stay as they were set up.
+name = "dribit-app"
+main = "worker.js"
+compatibility_date = "2025-01-01"
