@@ -1756,3 +1756,60 @@ img { -webkit-user-drag: none; }
 .inapp-bar svg { width: 20px; height: 20px; flex: none; color: var(--brand); }
 .inapp-bar span { flex: 1; }
 .btn.done-next { margin-bottom: 4px; }
+
+/* ---------- 0.34: contact (צור קשר) ---------- */
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.page-head h1 { font-size: 28px; }
+.help-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 12px 6px 14px; flex: none;
+  border: 2px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-2);
+  font-family: var(--font-display); font-weight: 600; font-size: 15px; cursor: pointer; box-shadow: 0 2px 0 var(--line);
+}
+.help-btn svg { width: 20px; height: 20px; color: var(--brand); }
+.help-btn:active { transform: translateY(2px); box-shadow: none; }
+.contact-card .ct-head { display: flex; align-items: center; gap: 12px; }
+.contact-card .ct-head p { margin-top: 2px; }
+.ct-ic { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; flex: none; background: var(--brand-soft); color: var(--brand); }
+.ct-ic svg { width: 22px; height: 22px; }
+.ct-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ct-btns:has(> :only-child) { grid-template-columns: 1fr; }
+.ct-btns .btn { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 16.5px; padding-inline: 8px; white-space: nowrap; text-decoration: none; }
+.ct-btns .btn svg { margin: 0; vertical-align: 0; }
+@media (max-width: 359px) { .ct-btns { grid-template-columns: 1fr; } }
+.btn.wa { --b: #178C45; --b-deep: #0F6631; --b-ink: #fff; --b-img: none; text-decoration: none; text-align: center; }
+.contact-card > .link { align-self: flex-start; font-size: 15px; min-height: 32px; }
+.ct-list { display: flex; flex-direction: column; gap: 10px; }
+.ct-row {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: right; cursor: pointer; text-decoration: none; color: var(--ink);
+  border: 2px solid var(--line); border-radius: var(--r-md); background: var(--surface); padding: 12px 14px;
+  box-shadow: 0 3px 0 var(--line); font: inherit;
+}
+.ct-row:active { transform: translateY(3px); box-shadow: none; }
+.ct-row .t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.ct-row .t b { font-size: 17px; }
+.ct-row .t > span { font-size: 14px; color: var(--ink-3); }
+.ct-row > svg { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
+.ct-row.wa .ct-ic { background: #178C45; color: #fff; }
+.ct-row.mail .ct-ic { background: var(--q-blue-soft); color: var(--q-blue-ink); }
+.faq-list { display: flex; flex-direction: column; gap: 8px; margin-top: -6px; }
+details.faq { border: 2px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+details.faq summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; font-weight: 700; font-size: 15.5px; }
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary svg { width: 16px; height: 16px; color: var(--ink-3); flex: none; transform: rotate(-90deg); transition: transform .15s; }
+details.faq[open] summary svg { transform: rotate(90deg); }
+details.faq p { padding: 0 14px 12px; color: var(--ink-2); font-size: 15px; line-height: 1.55; }
+.ct-more { align-self: center; font-size: 15px; }
+.ct-topics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: -6px; }
+.ct-topics .chip-btn { padding: 7px 14px; font-weight: 700; }
+.ct-topics .chip-btn[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); box-shadow: 0 3px 0 var(--brand); }
+.ct-label { font-weight: 700; font-size: 15.5px; margin-bottom: -6px; }
+.ct-label small { font-weight: 400; color: var(--ink-3); font-size: 13px; }
+.ct-input {
+  width: 100%; border: 2px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 16px; padding: 12px; text-align: left;
+}
+.ct-input::placeholder { text-align: right; direction: rtl; }
+.ct-input:focus { outline: none; border-color: var(--brand); }
+.ct-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding-top: 4px; }
+.ct-ok { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-bg); color: var(--ok); }
+.ct-ok svg { width: 34px; height: 34px; }
