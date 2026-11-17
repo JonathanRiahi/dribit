@@ -64,6 +64,9 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
     bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 2L4 13.5h6.5L9.5 22 20 9.5h-6.6z"/></svg>',
+    whatsapp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.3-.4.8-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.8 7.2l8.2 6 8.2-6"/></svg>',
+    help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M9.4 9.4a2.7 2.7 0 015.2 1c0 1.8-2.6 2.3-2.6 4"/><circle cx="12" cy="17.4" r=".9" fill="currentColor" stroke="none"/></svg>',
     chat: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3.5h16A2.5 2.5 0 0122.5 6v10a2.5 2.5 0 01-2.5 2.5H9.5L4 22.5v-4A2.5 2.5 0 011.5 16V6A2.5 2.5 0 014 3.5z"/></svg>',
     share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5L12 3l4.5 4.5"/><path d="M5 11v8a2 2 0 002 2h10a2 2 0 002-2v-8"/></svg>',
     addHome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg>',
@@ -1849,8 +1852,8 @@
       '<div class="eyebrow">מי בדק את התוכן</div><p class="lead">' + reviewed + '</p>' +
       '<div class="eyebrow">איך ' + name + ' מרוויחה</div><p class="lead">' + earn + '</p>' + paras(a.earnLater) +
       '<p class="fine">' + esc(a.privacy) + ' גרסה ' + esc(CFG.version) + '.</p>' +
-      '<button class="btn ghost" data-act="feedback" data-ctx="about">לכתוב לנו</button>' +
-      (wa ? '<p class="fine center"><a class="link" href="https://wa.me/' + esc(wa) + '?text=' + encodeURIComponent('היי, לגבי ' + CFG.appName + ' ' + CFG.version + ':') + '" target="_blank" rel="noopener">או בוואטסאפ' + (contactName() ? ', ל' + esc(contactName()) : '') + '</a></p>' : '') +
+      (CT.enabled ? '<button class="btn ghost" data-act="contact" data-from="about">' + ICON.chat + 'צור קשר</button>' : '<button class="btn ghost" data-act="feedback" data-ctx="about">לכתוב לנו</button>') +
+      (wa && !CT.enabled ? '<p class="fine center"><a class="link" href="https://wa.me/' + esc(wa) + '?text=' + encodeURIComponent('היי, לגבי ' + CFG.appName + ' ' + CFG.version + ':') + '" target="_blank" rel="noopener">או בוואטסאפ' + (contactName() ? ', ל' + esc(contactName()) : '') + '</a></p>' : '') +
       '<button class="btn" data-act="close-sheet">הבנתי</button>', 'tall');
   }
 
@@ -2132,6 +2135,122 @@
       '<textarea id="fb-text" rows="4" maxlength="1500" placeholder="למשל: השאלה על דמי ניהול לא הייתה ברורה"></textarea>' + note +
       '<button class="btn" data-act="feedback-send" data-ctx="' + esc(ctx || '') + '" data-id="' + esc(lessonId || '') + '">שליחה</button>' +
       '<button class="btn text" data-act="close-sheet">ביטול</button>', 'tall');
+  }
+
+  // ---------- Contact (0.34) ----------
+  // Jonathan (17.11): "תעשה צור קשר ואם יש תשפר אותו". Until now contact was a "לכתוב לנו" button inside "מי אנחנו" and the
+  // feedback faces. Now one sheet, reached from a card on the profile, the help button at its top and "מי אנחנו": WhatsApp,
+  // a message written here (sent like feedback, by email to both of us, with a topic and how to reply), the public support
+  // mailbox, and a few short answers. PostHog gets only the topic and whether a reply address was left, never the text.
+  var CT = CFG.contact || {};
+  var ctTopic = '', ctFrom = '', ctDraft = '', ctReply = '';
+  function contactTopics() { return CT.topics && CT.topics.length ? CT.topics : [{ id: 'other', label: 'הודעה', hint: '' }]; }
+  function contactWaHref() {
+    var wa = waNumber();
+    return wa ? 'https://wa.me/' + wa + '?text=' + encodeURIComponent('היי ' + CFG.appName + ', ') : '';
+  }
+  function contactMailHref() {
+    return CT.email ? 'mailto:' + CT.email + '?subject=' + encodeURIComponent(CFG.appName + ' ' + CFG.version) : '';
+  }
+  function contactCard() {
+    if (!CT.enabled) return '';
+    var wa = contactWaHref();
+    return '<div class="card contact-card"><div class="ct-head"><span class="ct-ic">' + ICON.chat + '</span><div><h2>צור קשר</h2>' +
+      '<p class="fine">שאלה, תקלה או רעיון? אנחנו קוראים כל הודעה.</p></div></div>' +
+      '<div class="ct-btns">' +
+        (wa ? '<a class="btn wa" href="' + esc(wa) + '" target="_blank" rel="noopener" data-act="contact-out" data-ch="whatsapp" data-from="profile_card">' + ICON.whatsapp + 'וואטסאפ</a>' : '') +
+        '<button class="btn ghost" data-act="contact-form" data-from="profile_card">' + ICON.mail + 'לכתוב הודעה</button>' +
+      '</div>' +
+      '<button class="link" data-act="contact" data-from="profile_card">עוד דרכים ושאלות נפוצות</button>' +
+      (PILOT ? '' : '<button class="link" data-act="feedback" data-ctx="profile">לדרג את ' + esc(CFG.appName) + '</button>') +
+      '</div>';
+  }
+  function contactRow(tag, attrs, cls, icon, title, sub) {
+    return '<' + tag + ' class="ct-row ' + cls + '" ' + attrs + '><span class="ct-ic">' + icon + '</span>' +
+      '<span class="t"><b>' + title + '</b><span>' + sub + '</span></span>' + ICON.chevron + '</' + tag + '>';
+  }
+  function contactSheet(from) {
+    if (from) { ctFrom = from; track('contact_opened', { from: from, lessons_done: doneCount() }); } // not again on "חזרה" from the form
+    var wa = contactWaHref(), mail = contactMailHref();
+    var rows = (wa ? contactRow('a', 'href="' + esc(wa) + '" target="_blank" rel="noopener" data-act="contact-out" data-ch="whatsapp"', 'wa', ICON.whatsapp, 'וואטסאפ', 'הכי מהיר. נפתח צ׳אט איתנו') : '') +
+      contactRow('button', 'data-act="contact-form"', 'msg', ICON.chat, 'לכתוב הודעה מכאן', 'בלי לצאת מהאפליקציה') +
+      (mail ? contactRow('a', 'href="' + esc(mail) + '" data-act="contact-out" data-ch="email"', 'mail', ICON.mail, 'מייל', ltr(esc(CT.email))) : '');
+    var faq = (CT.faq || []).map(function (f) {
+      return '<details class="faq"><summary>' + esc(f.q) + ICON.chevron + '</summary><p>' + esc(f.a) + '</p></details>';
+    }).join('');
+    openSheet('<h3>צור קשר</h3><p class="lead">' + esc(CT.lead || '') + '</p>' +
+      '<div class="ct-list">' + rows + '</div>' +
+      (faq ? '<div class="eyebrow">שאלות נפוצות</div><div class="faq-list">' + faq + '</div>' +
+        (CT.faqUrl ? '<a class="link ct-more" href="' + esc(CT.faqUrl) + '" target="_blank" rel="noopener">לכל השאלות הנפוצות</a>' : '') : '') +
+      '<button class="btn" data-act="close-sheet">סגירה</button>', 'tall');
+  }
+  function contactForm(topic) {
+    var ts = contactTopics();
+    ctTopic = topic || ctTopic || '';
+    var cur = ts.filter(function (t) { return t.id === ctTopic; })[0];
+    openSheet('<h3>לכתוב לנו</h3>' +
+      '<div class="eyebrow" id="ct-topic-l">על מה?</div>' +
+      '<div class="ct-topics" role="group" aria-labelledby="ct-topic-l">' + ts.map(function (t) {
+        return '<button class="chip-btn" data-act="contact-topic" data-v="' + esc(t.id) + '" aria-pressed="' + (t.id === ctTopic) + '">' + esc(t.label) + '</button>';
+      }).join('') + '</div>' +
+      '<textarea id="ct-text" rows="5" maxlength="1200" aria-label="ההודעה" placeholder="' + esc(cur && cur.hint || 'מה רצית לכתוב לנו?') + '">' + esc(ctDraft) + '</textarea>' +
+      '<label class="ct-label" for="ct-reply">איך לחזור אליך? <small>לא חובה</small></label>' +
+      '<input id="ct-reply" class="ct-input" type="text" dir="ltr" autocomplete="email" inputmode="email" maxlength="80" placeholder="טלפון או אימייל" value="' + esc(ctReply) + '">' +
+      '<p class="fine" id="ct-note">רוצים תשובה? משאירים טלפון או אימייל. הפרטים משמשים רק כדי לענות לך.</p>' +
+      '<button class="btn" data-act="contact-send">שליחה</button>' +
+      '<button class="btn text" data-act="contact">חזרה</button>', 'tall');
+  }
+  // what kind of device sent it, so a bug report can be checked on the same kind of phone
+  function contactDevice() {
+    if (IS_NATIVE) return 'אפליקציה מהחנות (' + (NATIVE.platform || '') + ' ' + (NATIVE.appVersion || '') + ')';
+    return (IS_IOS ? 'אייפון' : IS_ANDROID ? 'אנדרואיד' : 'מחשב') + (isStandalone() ? ', מותקנת' : IN_APP_BROWSER ? ', בתוך אינסטגרם/טיקטוק' : ', בדפדפן');
+  }
+  // a reply address is a phone (9+ digits) or an email; '' is fine (it is optional)
+  function contactReplyOk(v) {
+    if (!v) return true;
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return true;
+    var d = v.replace(/[\s\-+().]/g, '');
+    return /^\d{9,15}$/.test(d);
+  }
+  function contactSend() {
+    var ta = document.getElementById('ct-text'), rp = document.getElementById('ct-reply');
+    var text = ta ? ta.value.trim() : '', reply = rp ? rp.value.trim() : '';
+    ctDraft = ta ? ta.value : ctDraft; ctReply = reply;
+    var shake = function (n) { if (!n) return; n.classList.add('shake'); setTimeout(function () { n.classList.remove('shake'); }, 400); };
+    if (!text) { shake(ta); if (ta) ta.focus(); return; }
+    if (!contactReplyOk(reply)) {
+      shake(rp);
+      var note = document.getElementById('ct-note');
+      if (note) { note.textContent = 'נראה שחסר משהו בטלפון או באימייל. אפשר גם להשאיר ריק.'; note.classList.add('bad'); }
+      return;
+    }
+    var t = contactTopics().filter(function (x) { return x.id === ctTopic; })[0];
+    var label = t ? t.label : 'הודעה';
+    var body = 'פנייה מ"צור קשר" · ' + label + '\n' + text + '\n\n' +
+      (reply ? 'לחזור אל: ' + reply : 'לא השאיר/ה פרטים לחזרה') + '\n' +
+      'מכשיר: ' + contactDevice() + ' · שיעורים שסיימו: ' + doneCount();
+    fbMessage = 'היי ' + CFG.appName + ', ' + (t ? label + ': ' : '') + text;
+    var topicId = ctTopic || 'none', from = ctFrom;
+    openSheet('<h3>שולחים…</h3><p class="lead">רגע אחד.</p>');
+    mailFeedback({ kind: 'feedback', rating: 0, text: body, context: 'contact', lesson: '', status: S.status || '', v: CFG.version, uid: S.share ? S.uid : '' }).then(function (ok) {
+      track('contact_sent', { topic: topicId, has_reply: !!reply, from: from, channel: ok ? 'email' : 'failed' });
+      flush();
+      if (ok) {
+        ctDraft = ''; ctTopic = '';
+        openSheet('<div class="ct-done"><span class="ct-ok">' + ICON.check + '</span><h3>ההודעה הגיעה</h3>' +
+          (reply ? '<p class="lead">תודה! נחזור אליך תוך יום או יומיים.</p><p class="fine">לפי הפרטים שהשארת: ' + ltr(esc(reply)) + '</p>'
+            : '<p class="lead">תודה! אנחנו קוראים כל הודעה. רוצים תשובה? כתבו לנו גם בוואטסאפ.</p>') + '</div>' +
+          '<button class="btn" data-act="close-sheet">סגירה</button>');
+        sfx.pair();
+        return;
+      }
+      var wa2 = waNumber();
+      openSheet('<h3>זה לא נשלח</h3><p class="lead">' + (navigator.onLine === false ? 'אין כרגע חיבור לאינטרנט. ' : '') +
+        (wa2 ? 'אפשר לשלוח את אותה הודעה בוואטסאפ, או לנסות שוב.' : 'אפשר לנסות שוב, או להעתיק את ההודעה ולשלוח לנו במייל.') + '</p>' +
+        (wa2 ? '<button class="btn wa" data-act="fb-wa">' + ICON.whatsapp + 'לשלוח בוואטסאפ</button>' : '') +
+        '<button class="btn ghost" data-act="contact-form">לנסות שוב</button>' +
+        '<button class="btn text" data-act="fb-copy">להעתיק את ההודעה</button>');
+    });
   }
 
   // level_up goes out when the level changes (0.12; before, when the sheet drew, so a quick exit lost it)
@@ -3215,7 +3334,8 @@
     var goals = CFG.goals.map(function (g) {
       return '<button data-act="goal" data-xp="' + g.xp + '" aria-pressed="' + (S.goalXp === g.xp) + '">' + g.label + '<small>' + g.xp + ' נק׳ · ' + g.note + '</small></button>';
     }).join('');
-    var html = '<div class="page"><h1>ההתקדמות שלי</h1>' +
+    var html = '<div class="page"><div class="page-head"><h1>ההתקדמות שלי</h1>' +
+        (CT.enabled ? '<button class="help-btn" data-act="contact" data-from="profile_top" aria-label="צור קשר">' + ICON.help + '<span>עזרה</span></button>' : '') + '</div>' +
       '<button class="card rank-card" data-act="explain" data-what="points">' +
         '<span class="rank-badge big">' + ICON.coins + '</span>' +
         '<span class="rank-txt"><span class="eyebrow">השלב שלך</span><b>' + esc(levelLabel(r)) + '</b>' +
@@ -3238,7 +3358,8 @@
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
       (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
-      (PILOT ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
+      contactCard() +
+      (PILOT || CT.enabled ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
         (CFG.about ? '<button class="btn ghost" data-act="about" data-from="profile">' + esc(CFG.about.title) + '</button>' : '') +
         '<div class="toggle-row"><span id="share-l">שיתוף נתוני שימוש אנונימיים</span><button class="switch" role="switch" aria-labelledby="share-l" aria-checked="' + S.share + '" data-act="share"></button></div>' +
@@ -5814,6 +5935,33 @@
         else enableReminder('profile', true);
         break;
       case 'feedback': feedbackSheet(el.getAttribute('data-ctx'), id); break;
+      case 'contact': {
+        var ctOpen = document.getElementById('ct-text');
+        if (ctOpen) { ctDraft = ctOpen.value; var ctRp = document.getElementById('ct-reply'); if (ctRp) ctReply = ctRp.value.trim(); }
+        contactSheet(el.getAttribute('data-from'));
+        break;
+      }
+      case 'contact-form':
+        if (el.getAttribute('data-from')) { ctFrom = el.getAttribute('data-from'); track('contact_opened', { from: ctFrom, lessons_done: doneCount(), direct: 'form' }); }
+        track('contact_channel', { channel: 'form', from: ctFrom });
+        contactForm();
+        break;
+      case 'contact-out': {
+        // the link itself opens WhatsApp or the mail app; this only counts it
+        if (el.getAttribute('data-from')) ctFrom = el.getAttribute('data-from');
+        track('contact_channel', { channel: el.getAttribute('data-ch'), from: ctFrom });
+        flush();
+        break;
+      }
+      case 'contact-topic': {
+        ctTopic = el.getAttribute('data-v');
+        sfx.tap();
+        document.querySelectorAll('.ct-topics .chip-btn').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === ctTopic)); });
+        var ctT = contactTopics().filter(function (x) { return x.id === ctTopic; })[0], ctTa = document.getElementById('ct-text');
+        if (ctTa && ctT && ctT.hint) ctTa.setAttribute('placeholder', ctT.hint);
+        break;
+      }
+      case 'contact-send': contactSend(); break;
       case 'fb-rate': {
         fbRating = +el.getAttribute('data-v');
         sfx.tap();
