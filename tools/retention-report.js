@@ -47,7 +47,8 @@ async function hogql(query) {
 
 const DAY = "toDate(toTimeZone(timestamp, 'Asia/Jerusalem'))";
 // events the app sends carry app_version; the service worker's carry platform 'sw' (a push arriving is not a visit)
-const APP_EVENT = "properties.app_version IS NOT NULL AND properties.app_version != '' AND coalesce(properties.platform, '') != 'sw'";
+// platform 'sender' = the reminder sender's records (reminder_sent and the like), not something the person did
+const APP_EVENT = "properties.app_version IS NOT NULL AND properties.app_version != '' AND coalesce(properties.platform, '') NOT IN ('sw', 'sender')";
 const COHORT = `multiIf(startsWith(ref0, 'lp_'), 'dribit.app', ref0 = 'share', 'קישור הזמנה מחבר', 'קישור ישיר / אחר')`;
 
 // one row per person: first day, every day they used the app, first lesson day, and the ref of their first open

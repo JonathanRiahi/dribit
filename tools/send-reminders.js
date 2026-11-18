@@ -11,6 +11,11 @@
    At most one reminder a day per person: reminder_sent is recorded before the pushes go out (if PostHog does not take it,
    nothing is sent and the run fails), and the run does not end until PostHog shows it, so the next run, which the
    workflow's concurrency group holds until this one ends, skips those people. Queries skip PostHog's result cache.
+   The same batch also records a reminder_index event (under the sender's own id, dribit-reminders) that lists everyone
+   the run reminds, and the next run skips anyone found in either record. PostHog stores events by distinct id, and one
+   person's record can show up many minutes late: on 18.11.2026 one of 10 records came more than 7 minutes after the
+   others, so the run warned that a run right after it could remind that person again. The index sits elsewhere in
+   PostHog, so the run can end as soon as either record is complete.
    Needs: POSTHOG_API_KEY (a PostHog personal API key with query:read) and VAPID_PRIVATE_KEY (the pair of
    reminders.vapidPublicKey in config.js). Without them the run fails once a day (the first run in the window) with the
    reason, so the red mark in Actions shows reminders are not going out. Optional: POSTHOG_PROJECT_ID, DRY_RUN=1 (count only),
@@ -59,10 +64,12 @@ const CUSTOM_MESSAGE = (process.env.MESSAGE || '').replace(/[\u0000-\u001f\u007f
 // the test goes to someone who just used the app; everyone includes people who already did today's lesson
 const NOW_MESSAGE = CUSTOM_MESSAGE || (ONLY_LATEST ? 'השיעור של היום מחכה לך. כמה דקות וזה מאחוריך.' : 'יש לך כמה דקות? השיעור הבא בדריבית מחכה לך.');
 const API_KEY = (process.env.POSTHOG_API_KEY || '').trim();
-// this run's id on its daily reminder_sent events, to wait until PostHog shows them
+// this run's id on its daily reminder_sent and reminder_index events, to wait until PostHog shows them
 const RUN = crypto.randomUUID();
 const POLL_MS = +(process.env.POLL_MS || 10000);
-const POLL_TRIES = 24; // about 4 minutes; timeout-minutes in the workflow leaves room for it
+const POLL_TRIES = 36; // about 6 minutes; timeout-minutes in the workflow leaves room for it
+// people per reminder_index event, so no single event grows large
+const INDEX_CHUNK = 200;
 const VAPID_PRIVATE = (process.env.VAPID_PRIVATE_KEY || '').trim();
 
 // one message per weekday (0 = Sunday), so a week of reminders does not repeat itself
@@ -183,8 +190,10 @@ async function main() {
   const today = `toDate(toTimeZone(timestamp, 'Asia/Jerusalem')) = toDate('${t.date}') AND timestamp > now() - INTERVAL 2 DAY`;
   const ids = async (where) => new Set((await hogql(`SELECT distinct_id FROM events WHERE ${where} AND ${today} LIMIT 10000`)).map((r) => r[0]));
   const active = await ids("event IN ('lesson_completed', 'practice_completed', 'repair_completed')");
-  // only the daily reminder counts (it has message, the weekday text); test and everyone sends do not
+  // only the daily reminder counts (it has message, the weekday text); test and everyone sends do not. Earlier runs'
+  // reminder_index events list the same people, and count too, in case a person's own record is late in PostHog
   const reminded = await ids("event = 'reminder_sent' AND properties.message IS NOT NULL");
+  (await indexed(today)).forEach((uid) => reminded.add(uid));
   const targets = all.filter((s) => !active.has(s.uid) && !reminded.has(s.uid));
   const counts = { subscriptions: all.length, skipped_active: all.filter((s) => active.has(s.uid)).length, skipped_reminded: 0, sent: 0, gone: 0, failed: 0 };
   counts.skipped_reminded = all.length - counts.skipped_active - targets.length;
@@ -196,6 +205,12 @@ async function main() {
   const payload = JSON.stringify({ title: 'דריבית', body: MESSAGES[which], url: './?source=push', tag: 'daily-' + t.date });
   const events = [];
   const sentRecord = (s) => ({ event: 'reminder_sent', distinct_id: s.uid, properties: { weekday: t.weekday, message: which, push_service: host(s.endpoint), run: RUN } });
+  // the same people again, a few hundred per event, under the sender's own id (a comma would break the list; app ids have none)
+  const listed = targets.map((s) => String(s.uid || '')).filter((uid) => uid && !uid.includes(','));
+  const indexRecords = [];
+  for (let i = 0; i < listed.length; i += INDEX_CHUNK) {
+    indexRecords.push({ event: 'reminder_index', distinct_id: 'dribit-reminders', properties: { run: RUN, uids: listed.slice(i, i + INDEX_CHUNK).join(','), $process_person_profile: false } });
+  }
   const send = async (s, body, onSent) => {
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body, { TTL: 6 * 3600, urgency: 'normal' });
@@ -214,19 +229,24 @@ async function main() {
   const inBatches = async (list, fn) => { for (let i = 0; i < list.length; i += 10) await Promise.all(list.slice(i, i + 10).map(fn)); };
   if (DRY) {
     console.log(`Would send "${MESSAGES[which]}" to ${targets.length} of ${all.length} subscriptions.`);
-    await shown(); // checks that the wait query works, without waiting
+    await shown(); // checks that the wait queries work, without waiting
   } else if (targets.length) {
-    await capture(targets.map(sentRecord), true);
+    await capture(targets.map(sentRecord).concat(indexRecords), true);
     await inBatches(targets, (s) => send(s, payload, () => { counts.sent++; }));
   }
   events.push({ event: 'reminder_run', distinct_id: 'dribit-reminders', properties: Object.assign({ dry_run: DRY, weekday: t.weekday, run: RUN, $process_person_profile: false }, counts) });
   if (!DRY) await capture(events);
-  // hold the concurrency group until PostHog shows this run's reminder_sent, so the next run skips these people
+  // hold the concurrency group until PostHog shows this run's reminder_sent records, or all of its reminder_index events,
+  // so the next run skips these people
   if (!DRY && targets.length) {
     for (let i = 0; ; i++) {
       const n = await shown();
-      if (n >= targets.length) { console.log(`PostHog shows the ${n} reminder record${n === 1 ? '' : 's'} of this run.`); break; }
-      if (i >= POLL_TRIES) { console.log(`::warning::PostHog shows only ${n} of ${targets.length} reminder records after ${Math.round(POLL_TRIES * POLL_MS / 1000)} s; a run right after this one could remind them again.`); break; }
+      if (n.records >= targets.length) { console.log(`PostHog shows the ${n.records} reminder record${n.records === 1 ? '' : 's'} of this run.`); break; }
+      if (indexRecords.length && n.index >= indexRecords.length) {
+        console.log(`PostHog shows this run's reminder list${n.records < targets.length ? ` (and ${n.records} of ${targets.length} personal records so far)` : ''}.`);
+        break;
+      }
+      if (i >= POLL_TRIES) { console.log(`::warning::PostHog shows only ${n.records} of ${targets.length} reminder records and ${n.index} of ${indexRecords.length} reminder lists after ${Math.round(POLL_TRIES * POLL_MS / 1000)} s; a run right after this one could remind them again.`); break; }
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
   }
@@ -310,10 +330,30 @@ async function diagnose(all, t) {
   console.log(JSON.stringify({ diagnose: true, subscriptions: all.length, used_today_without_reminders: others.size }));
 }
 
-// how many of this run's daily reminder_sent events PostHog shows
+// how many of this run's daily reminder_sent events, and of its reminder_index events, PostHog shows. A failed index count
+// counts as 0, so the run waits for the personal records as before.
 async function shown() {
-  const r = await hogql(`SELECT count() FROM events WHERE event = 'reminder_sent' AND properties.run = '${RUN}' AND timestamp > now() - INTERVAL 1 HOUR`);
-  return +((r[0] || [])[0] || 0);
+  const count = async (event) => {
+    const r = await hogql(`SELECT count() FROM events WHERE event = '${event}' AND properties.run = '${RUN}' AND timestamp > now() - INTERVAL 1 HOUR`);
+    return +((r[0] || [])[0] || 0);
+  };
+  const records = await count('reminder_sent');
+  let index = 0;
+  try { index = await count('reminder_index'); } catch (e) { console.log(`::warning::Could not count this run's reminder lists (${String((e && e.message) || e).slice(0, 200)}).`); }
+  return { records, index };
+}
+
+// everyone that today's earlier daily runs listed in reminder_index. If the query fails, the run warns and goes on with the
+// personal reminder_sent records alone, as before the index existed.
+async function indexed(today) {
+  const set = new Set();
+  try {
+    const rows = await hogql(`SELECT properties.uids FROM events WHERE event = 'reminder_index' AND distinct_id = 'dribit-reminders' AND ${today} LIMIT 10000`);
+    rows.forEach((r) => String((r && r[0]) || '').split(',').forEach((uid) => { uid = uid.trim(); if (uid) set.add(uid); }));
+  } catch (e) {
+    console.log(`::warning::Could not read today's reminder lists (${String((e && e.message) || e).slice(0, 200)}); only the personal records decide who was already reminded.`);
+  }
+  return set;
 }
 
 // the test send: one message to whoever used the app last (their newest event in the last 7 days, not counting this script's own)
