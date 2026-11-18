@@ -15,7 +15,8 @@
    the run reminds, and the next run skips anyone found in either record. PostHog stores events by distinct id, and one
    person's record can show up many minutes late: on 18.11.2026 one of 10 records came more than 7 minutes after the
    others, so the run warned that a run right after it could remind that person again. The index sits elsewhere in
-   PostHog, so the run can end as soon as either record is complete.
+   PostHog, so the run can end as soon as either record is complete. Because of that, a run that cannot read the index
+   sends nothing and fails (the next run tries again).
    Needs: POSTHOG_API_KEY (a PostHog personal API key with query:read) and VAPID_PRIVATE_KEY (the pair of
    reminders.vapidPublicKey in config.js). Without them the run fails once a day (the first run in the window) with the
    reason, so the red mark in Actions shows reminders are not going out. Optional: POSTHOG_PROJECT_ID, DRY_RUN=1 (count only),
@@ -96,14 +97,23 @@ const host = (url) => { try { return new URL(url).hostname; } catch (e) { return
 const two = (n) => (n < 10 ? '0' : '') + n;
 
 let PROJECT = (process.env.POSTHOG_PROJECT_ID || '').trim();
+// reads only; a network error, 429 (too many queries) or 5xx is tried again twice, a 4xx (a bad query or key) is not
 async function api(pathname, body) {
-  const r = await fetch(PH_API + pathname, {
-    method: body ? 'POST' : 'GET',
-    headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if (!r.ok) throw new Error(`PostHog ${pathname} answered ${r.status}: ${(await r.text()).replace(/\s+/g, ' ').slice(0, 200)}`);
-  return r.json();
+  for (let i = 0; ; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 2000 * i));
+    let r;
+    try {
+      r = await fetch(PH_API + pathname, {
+        method: body ? 'POST' : 'GET',
+        headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      });
+    } catch (e) { if (i < 2) continue; throw e; }
+    if (r.ok) return r.json();
+    const text = (await r.text()).replace(/\s+/g, ' ').slice(0, 200);
+    if ((r.status === 429 || r.status >= 500) && i < 2) continue;
+    throw new Error(`PostHog ${pathname} answered ${r.status}: ${text}`);
+  }
 }
 async function projectId() {
   if (PROJECT) return PROJECT;
@@ -191,7 +201,8 @@ async function main() {
   const ids = async (where) => new Set((await hogql(`SELECT distinct_id FROM events WHERE ${where} AND ${today} LIMIT 10000`)).map((r) => r[0]));
   const active = await ids("event IN ('lesson_completed', 'practice_completed', 'repair_completed')");
   // only the daily reminder counts (it has message, the weekday text); test and everyone sends do not. Earlier runs'
-  // reminder_index events list the same people, and count too, in case a person's own record is late in PostHog
+  // reminder_index events list the same people, and count too, in case a person's own record is late in PostHog (if the
+  // lists cannot be read, the run stops here, before recording or sending)
   const reminded = await ids("event = 'reminder_sent' AND properties.message IS NOT NULL");
   (await indexed(today)).forEach((uid) => reminded.add(uid));
   const targets = all.filter((s) => !active.has(s.uid) && !reminded.has(s.uid));
@@ -246,7 +257,7 @@ async function main() {
         console.log(`PostHog shows this run's reminder list${n.records < targets.length ? ` (and ${n.records} of ${targets.length} personal records so far)` : ''}.`);
         break;
       }
-      if (i >= POLL_TRIES) { console.log(`::warning::PostHog shows only ${n.records} of ${targets.length} reminder records and ${n.index} of ${indexRecords.length} reminder lists after ${Math.round(POLL_TRIES * POLL_MS / 1000)} s; a run right after this one could remind them again.`); break; }
+      if (i >= POLL_TRIES) { console.log(`::warning::PostHog shows only ${n.records} of ${targets.length} reminder records and ${n.index} of ${indexRecords.length} reminder lists after about ${Math.round(POLL_TRIES * POLL_MS / 1000)} s; a run right after this one could remind them again.`); break; }
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
   }
@@ -330,29 +341,26 @@ async function diagnose(all, t) {
   console.log(JSON.stringify({ diagnose: true, subscriptions: all.length, used_today_without_reminders: others.size }));
 }
 
-// how many of this run's daily reminder_sent events, and of its reminder_index events, PostHog shows. A failed index count
-// counts as 0, so the run waits for the personal records as before.
+// how many of this run's daily reminder_sent events, and of its reminder_index events, PostHog shows (one query per try)
 async function shown() {
-  const count = async (event) => {
-    const r = await hogql(`SELECT count() FROM events WHERE event = '${event}' AND properties.run = '${RUN}' AND timestamp > now() - INTERVAL 1 HOUR`);
-    return +((r[0] || [])[0] || 0);
-  };
-  const records = await count('reminder_sent');
-  let index = 0;
-  try { index = await count('reminder_index'); } catch (e) { console.log(`::warning::Could not count this run's reminder lists (${String((e && e.message) || e).slice(0, 200)}).`); }
-  return { records, index };
+  const r = await hogql("SELECT countIf(event = 'reminder_sent'), countIf(event = 'reminder_index') FROM events " +
+    `WHERE event IN ('reminder_sent', 'reminder_index') AND properties.run = '${RUN}' AND timestamp > now() - INTERVAL 1 HOUR`);
+  const row = r[0] || [];
+  return { records: +(row[0] || 0), index: +(row[1] || 0) };
 }
 
-// everyone that today's earlier daily runs listed in reminder_index. If the query fails, the run warns and goes on with the
-// personal reminder_sent records alone, as before the index existed.
+// everyone that today's earlier daily runs listed in reminder_index. An earlier run may have ended on these lists while
+// someone's own reminder_sent was still late, so a run that cannot read them must not send: it stops before recording or
+// sending anything (red in Actions), and the next run tries again.
 async function indexed(today) {
-  const set = new Set();
+  let rows;
   try {
-    const rows = await hogql(`SELECT properties.uids FROM events WHERE event = 'reminder_index' AND distinct_id = 'dribit-reminders' AND ${today} LIMIT 10000`);
-    rows.forEach((r) => String((r && r[0]) || '').split(',').forEach((uid) => { uid = uid.trim(); if (uid) set.add(uid); }));
+    rows = await hogql(`SELECT properties.uids FROM events WHERE event = 'reminder_index' AND distinct_id = 'dribit-reminders' AND ${today} LIMIT 10000`);
   } catch (e) {
-    console.log(`::warning::Could not read today's reminder lists (${String((e && e.message) || e).slice(0, 200)}); only the personal records decide who was already reminded.`);
+    throw new Error(`Could not read today's reminder lists from PostHog (${String((e && e.message) || e).slice(0, 200)}), so nothing was sent. The next run tries again.`);
   }
+  const set = new Set();
+  rows.forEach((r) => String((r && r[0]) || '').split(',').forEach((uid) => { uid = uid.trim(); if (uid) set.add(uid); }));
   return set;
 }
 
