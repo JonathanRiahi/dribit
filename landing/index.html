@@ -33,13 +33,14 @@
   };
   // landing-6 (19.11, Jonathan: the TikTok bio has one link, for iPhone and Android alike): every iPhone visitor at
   // dribit.app goes to the App Store page, also one who opened the web app before (Jonathan: hardly anyone has real
-  // progress there); Android, computers and everyone else open the web app as before. Links with an app job stay on the
-  // web: a friend or group code (r=, g=), a lesson (go=), team=, and ?web=1 (to open the web app on an iPhone on purpose).
+  // progress there), and also links with a friend or group code (r=, g=) or a lesson (go=) (Jonathan: "כולם יעברו לאפ
+  // סטור"). Android, computers and everyone else open the web app as before. Only team= and ?web=1 (to open the web
+  // app on an iPhone on purpose) stay on the web.
   var IOS_APP = 'https://apps.apple.com/il/app/id6834375114';
   var toStore = false;
   try {
     toStore = /(^|\.)dribit\.app$/.test(location.hostname) && /iPhone|iPod/.test(ua) &&
-      !/[?&](web|team|go|r|g)=/.test(q) && !window.DribitNative && !navigator.standalone;
+      !/[?&](web|team)=/.test(q) && !window.DribitNative && !navigator.standalone;
   } catch (e) { toStore = false; }
   props.to = toStore ? 'app_store' : 'web';
   var now = new Date().toISOString(), cta = {};
