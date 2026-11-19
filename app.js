@@ -513,7 +513,7 @@
   function enRefillMs() { return Math.max(1, EN.refillMinutes || 180) * 60000; }
   // free for now: the first day in the app, or before the first freeLessons lessons are done
   function enFree() {
-    if (!enOn()) return true;
+    if (!enOn() || S.team) return true; // 0.37.1: a team device never waits for the battery
     return (EN.freeFirstDay && S.firstDay === dayKey()) || doneCount() < (EN.freeLessons || 0);
   }
   // the bars now, and the stored state moved up to now (keeps the time already charged toward the next bar)
@@ -1040,7 +1040,7 @@
     verTaps = [];
     setTeam(!S.team, 'version_taps');
     render();
-    toast(S.team ? ICON.check + '<b>מכשיר צוות</b><span>לא נספר בנתונים, וכל השיעורים פתוחים</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
+    toast(S.team ? ICON.check + '<b>מכשיר צוות</b><span>לא נספר בנתונים, והכול פתוח: שיעורים, כלים, צבעים, תיק מסחר וסוללה</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
   }
 
   // ---------- Sound and effects ----------
@@ -1772,7 +1772,8 @@
     var C = CFG.partner && CFG.partner.profile;
     if (!C) return null;
     var ls = (C.orLessons || []).map(function (id) { return BY_ID[id]; }).filter(shown);
-    var open = S.xp >= (C.minXp || 0) || ls.some(function (l) { return isDone(l.id); });
+    // 0.37.1: a team device (Jonathan 19.11: "לחשבון אדמין הכל פתוח") sees the offers without the points
+    var open = S.team || S.xp >= (C.minXp || 0) || ls.some(function (l) { return isDone(l.id); });
     return { open: open, lessons: ls, toGo: Math.max(0, (C.minXp || 0) - S.xp), level: levelIndex(C.minXp || 0) + 1 };
   }
   function accountCard() {
@@ -4835,7 +4836,7 @@
     if (!toolsOn()) return [];
     var n = levelIndex(S.xp) + 1, ids = [];
     return TOOLS.list.filter(function (t) { var ok = toolShows(t) && ids.indexOf(t.id) < 0; if (ok) ids.push(t.id); return ok; })
-      .map(function (t, k) { var lv = toolLevelOf(t); return { id: t.id, level: lv, open: lv <= n, k: k }; })
+      .map(function (t, k) { var lv = toolLevelOf(t); return { id: t.id, level: lv, open: S.team || lv <= n, k: k }; })
       .sort(function (a, b) { return a.level - b.level || a.k - b.k; });
   }
   function toolsTab() { return toolList().length > 0; }
@@ -4880,7 +4881,7 @@
     var n = levelIndex(S.xp) + 1, ids = [], src = SKINS.list.some(function (x) { return x && x.id === 'forest'; }) ? SKINS.list : [{ id: 'forest', level: 1 }].concat(SKINS.list);
     var out = src.filter(function (x) { var ok = !!x && SKIN_IDS.indexOf(x.id) >= 0 && ids.indexOf(x.id) < 0 && skinLevelOf(x) <= CFG.levels.length; if (ok) ids.push(x.id); return ok; })
       .filter(function (x) { return !x.friends || socOn() || friendSkinOpen(x.friends); }) // 0.31: friends' colors need the friends server
-      .map(function (x) { var lv = skinLevelOf(x); return x.friends ? { id: x.id, level: 0, friends: Math.floor(x.friends), open: friendSkinOpen(x.friends) } : { id: x.id, level: lv, open: lv <= n }; })
+      .map(function (x) { var lv = skinLevelOf(x); return x.friends ? { id: x.id, level: 0, friends: Math.floor(x.friends), open: S.team || friendSkinOpen(x.friends) } : { id: x.id, level: lv, open: S.team || lv <= n }; })
       .sort(function (a, b) { return (a.friends ? 100 + a.friends : a.level) - (b.friends ? 100 + b.friends : b.level); });
     return out.length > 1 ? out : [];
   }
@@ -6294,7 +6295,7 @@
         history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
       } catch (e) { /* ignore */ }
       if (teamChanged || teamOn) setTimeout(function () {
-        toast(teamOn ? ICON.check + '<b>מכשיר צוות</b><span>לא נספר בנתונים, וכל השיעורים פתוחים</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
+        toast(teamOn ? ICON.check + '<b>מכשיר צוות</b><span>לא נספר בנתונים, והכול פתוח: שיעורים, כלים, צבעים, תיק מסחר וסוללה</span>' : '<b>הסימון בוטל</b><span>המכשיר נספר שוב בנתונים</span>', 'info', 3500);
       }, 600);
     }
     checkStreakBreak();
