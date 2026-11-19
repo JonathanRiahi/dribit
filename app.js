@@ -1819,7 +1819,7 @@
     if (!t) return '';
     if (teaserSeen[l.id] !== s) { teaserSeen[l.id] = s; track('partner_teaser_viewed', { lesson_id: l.id, place: 'done_teaser', partners: t.ps.length, lessons_done: doneCount() }); }
     var names = t.ps.map(function (p) { return p.name; });
-    var who = names.length > 1 ? names.slice(0, -1).join(', ') + ' ו' + names[names.length - 1] : names[0];
+    var who = heAnd(names);
     return '<div class="card done-teaser"><div class="eyebrow">' + esc(t.C.eyebrow || CFG.partner.doneEyebrow) + '</div>' +
       '<b>' + esc(t.C.title) + '</b><p>' + fillIn(t.C.text, { partners: who }) + '</p>' +
       '<button class="btn ghost" data-act="teaser" data-id="' + esc(l.id) + '">' + ICON.coins + '<span>' + esc(t.C.cta) + '</span></button></div>';
@@ -1849,6 +1849,12 @@
   }
 
   // "who we are and how we earn" (config.about): from the bottom of the path, the profile and "important to know"
+  // "א, ב וג": Hebrew "and" sticks to the word, with a hyphen before a Latin name or a number ("ו-IBI")
+  function heAnd(names) {
+    if (names.length < 2) return names.join('');
+    var last = String(names[names.length - 1]);
+    return names.slice(0, -1).join(', ') + (/^[^\u0590-\u05FF]/.test(last) ? ' ו-\u2060' : ' ו') + last;
+  }
   function fillIn(tpl, vars) { return esc(tpl || '').replace(/\{(\w+)\}/g, function (m, k) { return k in vars ? esc(vars[k]) : m; }); }
   function aboutSheet(from) {
     var a = CFG.about;
@@ -1864,7 +1870,7 @@
     var earn = !live.length ? esc(a.earnNow)
       : live.length === 1 ? fillIn(live[0].about || a.earnPartner, { partner: names[0] })
       : a.earnReferrals && live.every(function (p) { return p.friendReferral && !p.contractSigned; })
-        ? fillIn(a.earnReferrals, { partners: names.slice(0, -1).join(', ') + ' ו' + names[names.length - 1] })
+        ? fillIn(a.earnReferrals, { partners: heAnd(names) })
       : fillIn(a.earnPartners || a.earnPartner, { partners: names.join(', '), partner: names.join(', ') });
     var wa = waNumber();
     openSheet('<h3>' + esc(a.title) + '</h3>' +
