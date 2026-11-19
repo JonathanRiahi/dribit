@@ -20,7 +20,6 @@
   var id = function () { return crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }); };
   var uid = null;
   try { uid = localStorage.getItem('dribit.landing.uid'); } catch (e) { /* private mode */ }
-  var hadUid = !!uid;
   if (!uid || !/^[A-Za-z0-9-]{8,64}$/.test(uid)) { uid = 'lp-' + id(); try { localStorage.setItem('dribit.landing.uid', uid); } catch (e) { /* ignore */ } }
   var inApp = /musical_ly|BytedanceWebview|TikTok|trill/i.test(ua) ? 'tiktok' : /Instagram/i.test(ua) ? 'instagram' : /FBAN|FBAV/i.test(ua) ? 'facebook' : '';
   var refIn = (p.get('r') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
@@ -32,17 +31,15 @@
     platform: /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : 'other', paid: paid, referrer: document.referrer || null,
     utm_campaign: p.get('utm_campaign') || null, utm_content: p.get('utm_content') || null, screen_h: window.innerHeight, $set_once: { first_source: source }
   };
-  // landing-6 (19.11, Jonathan: the TikTok bio has one link, for iPhone and Android alike): a first-time iPhone visitor
-  // at dribit.app goes to the App Store page; Android, computers and everyone else open the web app as before.
-  // Only a phone that never opened dribit.app before (no landing id, no progress here), so nobody's web progress is
-  // left behind (the App Store app keeps its own). Links with an app job stay on the web: a friend or group code
-  // (r=, g=), a lesson (go=), team=, and ?web=1 (to open the web app on an iPhone on purpose).
+  // landing-6 (19.11, Jonathan: the TikTok bio has one link, for iPhone and Android alike): every iPhone visitor at
+  // dribit.app goes to the App Store page, also one who opened the web app before (Jonathan: hardly anyone has real
+  // progress there); Android, computers and everyone else open the web app as before. Links with an app job stay on the
+  // web: a friend or group code (r=, g=), a lesson (go=), team=, and ?web=1 (to open the web app on an iPhone on purpose).
   var IOS_APP = 'https://apps.apple.com/il/app/id6834375114';
   var toStore = false;
   try {
-    toStore = /(^|\.)dribit\.app$/.test(location.hostname) && /iPhone|iPod/.test(ua) && !hadUid &&
-      !/[?&](web|team|go|r|g)=/.test(q) && !window.DribitNative && !navigator.standalone &&
-      !localStorage.getItem('dribit.progress.v1') && !localStorage.getItem('dribit.moved.v1');
+    toStore = /(^|\.)dribit\.app$/.test(location.hostname) && /iPhone|iPod/.test(ua) &&
+      !/[?&](web|team|go|r|g)=/.test(q) && !window.DribitNative && !navigator.standalone;
   } catch (e) { toStore = false; }
   props.to = toStore ? 'app_store' : 'web';
   var now = new Date().toISOString(), cta = {};
