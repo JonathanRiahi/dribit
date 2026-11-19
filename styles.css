@@ -1530,13 +1530,15 @@ img { -webkit-user-drag: none; }
 .explain-card.has-pic > h2 { text-align: center; }
 .explain-card.has-pic > .lead-line { text-align: center; }
 
-/* a word from the glossary: dotted underline, a tap shows what it means */
+/* a word from the glossary: a soft green marker, a tap shows what it means.
+   0.37.2: no underline (a red dotted line under it looked like a spelling mistake) */
 .term {
-  display: inline; border: 0; padding: 0; margin: 0; background: none; font: inherit; color: inherit; cursor: help;
-  text-decoration: underline dotted; text-decoration-color: var(--u, var(--brand)); text-decoration-thickness: 2px; text-underline-offset: 4px;
-  border-radius: 4px;
+  display: inline; border: 0; padding: 0 3px; margin: 0; font: inherit; font-weight: 700; color: var(--brand); cursor: help;
+  text-decoration: none; background: color-mix(in srgb, var(--brand) 11%, transparent);
+  border-radius: 6px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  -webkit-tap-highlight-color: transparent;
 }
-.term:active { background: color-mix(in srgb, var(--u, var(--brand)) 14%, transparent); }
+.term:active { background: color-mix(in srgb, var(--brand) 22%, transparent); }
 .term-sheet .term-eyebrow { display: inline-flex; align-items: center; gap: 5px; color: var(--brand); }
 .term-sheet .term-eyebrow svg { width: 15px; height: 15px; }
 .term-sheet .lead { font-size: 18px; line-height: 1.65; }
