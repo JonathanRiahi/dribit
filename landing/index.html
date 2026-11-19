@@ -20,6 +20,7 @@
   var id = function () { return crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }); };
   var uid = null;
   try { uid = localStorage.getItem('dribit.landing.uid'); } catch (e) { /* private mode */ }
+  var hadUid = !!uid;
   if (!uid || !/^[A-Za-z0-9-]{8,64}$/.test(uid)) { uid = 'lp-' + id(); try { localStorage.setItem('dribit.landing.uid', uid); } catch (e) { /* ignore */ } }
   var inApp = /musical_ly|BytedanceWebview|TikTok|trill/i.test(ua) ? 'tiktok' : /Instagram/i.test(ua) ? 'instagram' : /FBAN|FBAV/i.test(ua) ? 'facebook' : '';
   var refIn = (p.get('r') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
@@ -27,13 +28,26 @@
   var source = (p.get('source') || p.get('utm_source') || (refIn.length >= 4 ? 'friend' : '') || inApp || rh || 'direct').replace(/[^\w.-]/g, '_').slice(0, 40);
   var paid = /[?&](ttclid|utm_)/.test(q);
   var props = {
-    distinct_id: uid, $current_url: location.href.split('#')[0], source: source, in_app: inApp || null, landing_version: 'landing-5',
+    distinct_id: uid, $current_url: location.href.split('#')[0], source: source, in_app: inApp || null, landing_version: 'landing-6',
     platform: /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : 'other', paid: paid, referrer: document.referrer || null,
     utm_campaign: p.get('utm_campaign') || null, utm_content: p.get('utm_content') || null, screen_h: window.innerHeight, $set_once: { first_source: source }
   };
+  // landing-6 (19.11, Jonathan: the TikTok bio has one link, for iPhone and Android alike): a first-time iPhone visitor
+  // at dribit.app goes to the App Store page; Android, computers and everyone else open the web app as before.
+  // Only a phone that never opened dribit.app before (no landing id, no progress here), so nobody's web progress is
+  // left behind (the App Store app keeps its own). Links with an app job stay on the web: a friend or group code
+  // (r=, g=), a lesson (go=), team=, and ?web=1 (to open the web app on an iPhone on purpose).
+  var IOS_APP = 'https://apps.apple.com/il/app/id6834375114';
+  var toStore = false;
+  try {
+    toStore = /(^|\.)dribit\.app$/.test(location.hostname) && /iPhone|iPod/.test(ua) && !hadUid &&
+      !/[?&](web|team|go|r|g)=/.test(q) && !window.DribitNative && !navigator.standalone &&
+      !localStorage.getItem('dribit.progress.v1') && !localStorage.getItem('dribit.moved.v1');
+  } catch (e) { toStore = false; }
+  props.to = toStore ? 'app_store' : 'web';
   var now = new Date().toISOString(), cta = {};
   for (var k in props) if (k !== '$set_once') cta[k] = props[k];
-  cta.cta = 'auto_open'; cta.seconds = 0;
+  cta.cta = toStore ? 'app_store' : 'auto_open'; cta.seconds = 0;
   var body = JSON.stringify({ api_key: KEY, batch: [
     { uuid: id(), event: 'landing_view', properties: props, timestamp: now },
     { uuid: id(), event: 'landing_cta', properties: cta, timestamp: now }
@@ -42,6 +56,8 @@
     if (!(navigator.sendBeacon && navigator.sendBeacon(HOST + '/batch/', new Blob([body], { type: 'text/plain' }))))
       fetch(HOST + '/batch/', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: body, keepalive: true }).catch(function () {});
   } catch (e) { /* the app still opens */ }
+  var show = function () { document.documentElement.className = document.documentElement.className.replace(/\s*\bgo\b/, ''); };
+  if (toStore) { setTimeout(show, 4000); location.replace(IOS_APP); return; }
   // the app reads ref (first_ref lp_... = came through dribit.app) and lp (this visit, so the app's events join it)
   var to = APP + '?source=landing_auto&ref=' + encodeURIComponent(('lp_' + source).replace(/[^\w-]/g, '_').slice(0, 40)) + '&lp=' + encodeURIComponent(uid);
   // 0.28.1: dribit.app/?team=1 marks the app on this phone as a team device (and this visit with it, through lp)
@@ -56,7 +72,7 @@
   if (gIn.length >= 4) to += '&g=' + gIn;
   location.replace(to);
   // if the phone did not move on in 4 seconds, show the page with its button
-  setTimeout(function () { document.documentElement.className = document.documentElement.className.replace(/\s*\bgo\b/, ''); }, 4000);
+  setTimeout(show, 4000);
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -69,6 +85,8 @@
 <meta property="og:description" content="פיקדון, מענק, משכורת ראשונה: מה עושים עם הכסף מהצבא. בחינם, בלי הרשמה.">
 <meta property="og:image" content="https://jonathanriahi.github.io/dribit/landing/media/og.jpg?v=logo2">
 <meta property="og:url" content="https://dribit.app/">
+<!-- landing-6: Safari on iPhone shows the App Store bar on this page (seen only with ?stay=1 or when the move takes long) -->
+<meta name="apple-itunes-app" content="app-id=6834375114">
 <meta property="og:site_name" content="דריבית">
 <link rel="canonical" href="https://dribit.app/">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"דריבית","alternateName":["Dribit","dribit.app","דריבית אפליקציה"],"url":"https://dribit.app/","inLanguage":"he","description":"חינוך פיננסי לחיילים: פיקדון, מענק שחרור ומשכורת ראשונה, כמה דקות ביום ובחינם."}</script>
