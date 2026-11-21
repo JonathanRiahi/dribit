@@ -1342,7 +1342,9 @@
 
   function unitImg(u) { return CFG.images && CFG.images.units && CFG.images.units[u.id]; }
 
-  function canInstall() { return !isStandalone() && !IN_FRAME; }
+  // 0.38 (Jonathan, 21.11: "להוסיף למסך הבית... רק לאנדרואיד ולא לאייפון"): iPhones get the App Store app
+  // (dribit.app sends them there), so on iPhone no card, popup or profile row asks to add the site to the home screen
+  function canInstall() { return !isStandalone() && !IN_FRAME && !IS_IOS; }
   var INSTALL = CFG.install || { afterLessons: 1, showOnDone: true };
   // the install card: outside the installed app, after the first finished lesson, until "not now"
   function installCard(placement) {
@@ -3076,7 +3078,7 @@
     if (st === 'browser') {
       track('inapp_prompt_shown', { placement: 'done', in_app: IN_APP, lessons_done: doneCount() });
       openSheet('<div class="ask-ic">' + ICON.ext + '</div><h3>לשמור את ההתקדמות</h3>' +
-        '<p class="lead">פתחת את ' + esc(CFG.appName) + ' בתוך ' + IAB_NAME + '. בדפדפן ההתקדמות נשמרת, ומשם אפשר להוסיף את האפליקציה למסך הבית ולקבל תזכורת יומית.</p>' +
+        '<p class="lead">פתחת את ' + esc(CFG.appName) + ' בתוך ' + IAB_NAME + '. בדפדפן ההתקדמות נשמרת' + (IS_IOS ? '.' : ', ומשם אפשר להוסיף את האפליקציה למסך הבית ולקבל תזכורת יומית.') + '</p>' +
         '<button class="btn gold" data-act="open-browser" data-from="done_ask">' + ICON.ext + 'לפתוח בדפדפן</button>' + skip);
       return;
     }
@@ -3528,12 +3530,13 @@
   function pushSupported() {
     return !!(RCFG.enabled && RCFG.vapidPublicKey && !IN_FRAME && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
   }
-  // 'on' | 'off' | 'install' (iPhone outside the installed app) | 'denied' (blocked in the browser) | 'unsupported'
+  // 'on' | 'off' | 'denied' (blocked in the browser) | 'unsupported' (also iPhone outside the installed app: 0.38, no
+  // "add to the home screen" on iPhone, so no reminder ask that leads there). 'install' is no longer returned.
   function pushState() {
     if (S.reminder && S.reminder.on) return 'on';
     if (IS_NATIVE) return !RCFG.enabled || !(RCFG.messages || []).length ? 'unsupported' : nativePerm === 'denied' ? 'denied' : 'off';
     if (!RCFG.enabled || !RCFG.vapidPublicKey || IN_FRAME) return 'unsupported';
-    if (IS_IOS && !isStandalone()) return 'install';
+    if (IS_IOS && !isStandalone()) return 'unsupported';
     if (!pushSupported()) return 'unsupported';
     if (Notification.permission === 'denied') return 'denied';
     return 'off';
@@ -4169,7 +4172,6 @@
     if (grid) lines.splice(1, 0, 'השבוע שלי: ' + grid + (grid.indexOf('\u26F1') >= 0 ? ' (\u26F1\uFE0F יום חופש לרצף)' : ''));
     if (gift) lines.push(gift);
     else if (DO.enabled && DO.friendGift) lines.push('מתחילים מהקישור? מקבלים ' + DO.friendGift + ' ימי חופש לרצף אחרי השיעור הראשון.');
-    lines.push('באייפון: פותחים את הקישור בספארי, עושים את השיעור הראשון, ורק אז מוסיפים למסך הבית.');
     lines.push('בואו ללמוד ביחד:');
     return lines.join('\n');
   }
