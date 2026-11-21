@@ -1345,6 +1345,9 @@
   // 0.38 (Jonathan, 21.11: "להוסיף למסך הבית... רק לאנדרואיד ולא לאייפון"): iPhones get the App Store app
   // (dribit.app sends them there), so on iPhone no card, popup or profile row asks to add the site to the home screen
   function canInstall() { return !isStandalone() && !IN_FRAME && !IS_IOS; }
+  // 0.38 (Jonathan, 21.11: "שזה רק לבינתיים עד שבאמת נהיה בגוגל פליי. כי אנשים מנפנפים את זה"): on Android every install
+  // ask says the home-screen icon is only until the app is on Google Play
+  var PLAY_SOON = IS_ANDROID ? ' זה רק לבינתיים, עד שנעלה לגוגל פליי.' : '';
   var INSTALL = CFG.install || { afterLessons: 1, showOnDone: true };
   // the install card: outside the installed app, after the first finished lesson, until "not now"
   function installCard(placement) {
@@ -1352,6 +1355,7 @@
     var text = placement === 'done'
       ? 'סיימת שיעור ראשון. עכשיו הזמן: אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.'
       : 'אייקון במסך הבית, נפתח במסך מלא ועובד גם בלי קליטה.';
+    text += PLAY_SOON;
     // iPhone: Safari keeps a site's data separate from the home-screen app, and can clear it after days without a visit
     if (IS_IOS) text += ' באייפון ההתקדמות נשמרת בבטחה רק במסך הבית, ומה שעשית בספארי עובר לשם לבד.';
     return '<div class="card install-card"><div class="rc-head"><span class="rc-ic">' + ICON.phone + '</span><div>' +
@@ -3386,7 +3390,7 @@
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
-      (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
+      (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.' + PLAY_SOON + '</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
       contactCard() +
       (PILOT || CT.enabled ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
@@ -3992,7 +3996,7 @@
     openSheet((welcome ? '<div class="eyebrow">לפני שמתחילים</div>' : '<div class="ask-ic">' + ICON.addHome + '</div>') +
       '<h3>להוסיף את ' + name + ' למסך הבית</h3>' +
       '<p class="lead">' + (IS_IOS ? 'רק שם ההתקדמות נשמרת בבטחה, ורק משם מגיעה התזכורת היומית ששומרת על הרצף.'
-        : 'נפתחת מהאייקון, במסך מלא, וגם בלי קליטה.') + '</p>' +
+        : 'נפתחת מהאייקון, במסך מלא, וגם בלי קליטה.' + PLAY_SOON) + '</p>' +
       '<button class="btn gold" data-act="install-popup-go' + tag + '>' + ICON.addHome + 'להוסיף למסך הבית</button>' +
       (notif ? '<button class="btn ghost" data-act="popup-reminder-on" data-from="install_popup">' + ICON.bell + 'להדליק התראות</button>' : '') +
       '<button class="btn text" data-act="install-popup-later' + tag + '>' + (welcome ? 'להמשיך בדפדפן' : 'אחר כך') + '</button>', 'ask-install' + (welcome ? ' ask-welcome' : ''));
