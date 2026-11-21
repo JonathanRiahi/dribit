@@ -12,6 +12,10 @@ on:
 
 concurrency: server-deploy
 
+# 0.39 (security check): the job only reads the code; Cloudflare is reached with its own token
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

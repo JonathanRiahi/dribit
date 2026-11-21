@@ -49,6 +49,11 @@ export default {
     const res = await fetch(new Request(target, request), { redirect: 'follow' });
     const out = new Response(res.body, res);
     out.headers.delete('x-github-request-id');
+    // 0.39 (security check): no other site may show dribit.app inside a frame (a fake page over the real buttons),
+    // the browser never guesses a file's type, and other sites see only "dribit.app" as where a click came from
+    out.headers.set('X-Frame-Options', 'SAMEORIGIN');
+    out.headers.set('X-Content-Type-Options', 'nosniff');
+    out.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     return out;
   },
 };
