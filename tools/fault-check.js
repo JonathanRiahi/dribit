@@ -29,10 +29,14 @@ const print = (title, head, rows) => {
   console.log('  ' + head.join(' | '));
   for (const r of rows) console.log('  ' + r.map((x) => (x === null || x === undefined || x === '' ? '-' : String(x))).join(' | '));
 };
+const ONLY = (process.env.ONLY || '').split(',').map((x) => x.trim()).filter(Boolean);
+const wanted = (title) => !ONLY.length || ONLY.includes(String(parseInt(title, 10)));
 async function section(title, head, query) {
+  if (!wanted(title)) return;
   try { print(title, head, await hogql(query)); } catch (e) { console.log(`\n=== ${title} === FAILED: ${String(e.message || e).slice(0, 300)}`); }
 }
 async function block(title, fn) {
+  if (!wanted(title)) return;
   try { await fn(); } catch (e) { console.log(`\n=== ${title} === FAILED: ${String(e.message || e).slice(0, 300)}`); }
 }
 const IL = (x) => `toTimeZone(${x || 'timestamp'}, 'Asia/Jerusalem')`;

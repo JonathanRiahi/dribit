@@ -15,6 +15,11 @@ on:
         type: string
         required: false
         default: ''
+      only:
+        description: 'Only these section numbers, comma separated (empty: all)'
+        type: string
+        required: false
+        default: ''
   push:
     branches: ['claude/project-thread-c3o95e']
     paths: ['tools/fault-check.js', '.github/workflows/fault-check.yml']
@@ -38,3 +43,4 @@ jobs:
           TEAM_IDS: ${{ secrets.TEAM_IDS }}
           SINCE: ${{ inputs.since }}
           NEW_FROM: ${{ inputs.new_from }}
+          ONLY: ${{ inputs.only }}
