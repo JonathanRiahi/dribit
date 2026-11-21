@@ -9,3 +9,15 @@ workers_dev = true
 binding = "DB"
 database_name = "dribit-social"
 database_id = "00000000-0000-0000-0000-000000000000"
+
+# 0.39 (security check): Cloudflare's rate limiter, free on every plan (worker.js tooFast). namespace_id is any number
+# unique in this Cloudflare account; period is 10 or 60 seconds.
+[[ratelimits]]
+name = "RL_NET"
+namespace_id = "3901"
+simple = { limit = 300, period = 60 }
+
+[[ratelimits]]
+name = "RL_USER"
+namespace_id = "3902"
+simple = { limit = 30, period = 60 }

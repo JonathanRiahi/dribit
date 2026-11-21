@@ -30,3 +30,8 @@ npx wrangler@4.40.0 d1 execute dribit-social --local --file=schema.sql
 npx wrangler@4.40.0 dev --local
 node test.mjs
 ```
+
+## הגנה מהצפה (0.39, בדיקת אבטחה 21.11)
+
+- מגביל הקצב של Cloudflare (`[[ratelimits]]` ב-wrangler.toml, בחינם): עד 300 בקשות בדקה מאותה רשת, ועד 30 בדקה מאותו אדם. מעבר לזה התשובה 429 `too_fast`, לפני שנוגעים במסד הנתונים, והאפליקציה מציגה "נסו שוב עוד רגע".
+- `IP_SALT` (רשות, סוד ב-Cloudflare): מלח סודי למפתח שבו נספרות ההרשמות מכל רשת, כדי שאי אפשר יהיה לנחש ממנו כתובת. Cloudflare > Workers & Pages > dribit-social > Settings > Variables and Secrets > Add > Secret, שם `IP_SALT`, ערך: רצף אקראי ארוך.
