@@ -1342,7 +1342,16 @@
 
   function unitImg(u) { return CFG.images && CFG.images.units && CFG.images.units[u.id]; }
 
-  function canInstall() { return !isStandalone() && !IN_FRAME; }
+  // 0.38 (Jonathan, 21.11: "להוסיף למסך הבית... רק לאנדרואיד ולא לאייפון"): iPhones get the App Store app
+  // (dribit.app sends them there), so on iPhone no card, popup or profile row asks to add the site to the home screen
+  function canInstall() { return !isStandalone() && !IN_FRAME && !IS_IOS; }
+  // 0.38 (Jonathan, 21.11: "שזה רק לבינתיים עד שבאמת נהיה בגוגל פליי. כי אנשים מנפנפים את זה"): on Android every install
+  // ask says the home-screen icon is only until the app is on Google Play. Then (Jonathan, same day: "אנשים מספימים לא
+  // עכשיו, אנשים יתעלמו מזה"): its own gold box right above the buttons, not a sentence at the end of the grey text
+  function playNote() {
+    return IS_ANDROID ? '<p class="play-note"><b>עוד אין אותנו בגוגל פליי.</b> עד שנעלה לשם, זו הדרך היחידה להתקין את ' +
+      esc(CFG.appName) + ' בטלפון.</p>' : '';
+  }
   var INSTALL = CFG.install || { afterLessons: 1, showOnDone: true };
   // the install card: outside the installed app, after the first finished lesson, until "not now"
   function installCard(placement) {
@@ -1353,7 +1362,7 @@
     // iPhone: Safari keeps a site's data separate from the home-screen app, and can clear it after days without a visit
     if (IS_IOS) text += ' באייפון ההתקדמות נשמרת בבטחה רק במסך הבית, ומה שעשית בספארי עובר לשם לבד.';
     return '<div class="card install-card"><div class="rc-head"><span class="rc-ic">' + ICON.phone + '</span><div>' +
-      '<b>להתקין את ' + esc(CFG.appName) + ' בטלפון</b><span>' + text + '</span></div></div>' +
+      '<b>להתקין את ' + esc(CFG.appName) + ' בטלפון</b><span>' + text + '</span></div></div>' + playNote() +
       '<div class="row"><button class="btn" data-act="install" data-placement="' + placement + '">להתקנה</button>' +
       '<button class="btn text" data-act="install-hide" data-placement="' + placement + '">לא עכשיו</button></div></div>';
   }
@@ -3076,7 +3085,7 @@
     if (st === 'browser') {
       track('inapp_prompt_shown', { placement: 'done', in_app: IN_APP, lessons_done: doneCount() });
       openSheet('<div class="ask-ic">' + ICON.ext + '</div><h3>לשמור את ההתקדמות</h3>' +
-        '<p class="lead">פתחת את ' + esc(CFG.appName) + ' בתוך ' + IAB_NAME + '. בדפדפן ההתקדמות נשמרת, ומשם אפשר להוסיף את האפליקציה למסך הבית ולקבל תזכורת יומית.</p>' +
+        '<p class="lead">פתחת את ' + esc(CFG.appName) + ' בתוך ' + IAB_NAME + '. בדפדפן ההתקדמות נשמרת' + (IS_IOS ? '.' : ', ומשם אפשר להוסיף את האפליקציה למסך הבית ולקבל תזכורת יומית.') + '</p>' +
         '<button class="btn gold" data-act="open-browser" data-from="done_ask">' + ICON.ext + 'לפתוח בדפדפן</button>' + skip);
       return;
     }
@@ -3384,7 +3393,7 @@
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
       reminderRow() +
-      (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p><button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
+      (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p>' + playNote() + '<button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
       contactCard() +
       (PILOT || CT.enabled ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
       '<div class="card"><h2>על ' + esc(CFG.appName) + '</h2><p>' + esc(CFG.disclaimer) + '. לפני החלטה על הכסף שלך כדאי לבדוק מול גורם מוסמך. ' + esc(CFG.examplesNote) + '</p>' +
@@ -3528,12 +3537,13 @@
   function pushSupported() {
     return !!(RCFG.enabled && RCFG.vapidPublicKey && !IN_FRAME && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
   }
-  // 'on' | 'off' | 'install' (iPhone outside the installed app) | 'denied' (blocked in the browser) | 'unsupported'
+  // 'on' | 'off' | 'denied' (blocked in the browser) | 'unsupported' (also iPhone outside the installed app: 0.38, no
+  // "add to the home screen" on iPhone, so no reminder ask that leads there). 'install' is no longer returned.
   function pushState() {
     if (S.reminder && S.reminder.on) return 'on';
     if (IS_NATIVE) return !RCFG.enabled || !(RCFG.messages || []).length ? 'unsupported' : nativePerm === 'denied' ? 'denied' : 'off';
     if (!RCFG.enabled || !RCFG.vapidPublicKey || IN_FRAME) return 'unsupported';
-    if (IS_IOS && !isStandalone()) return 'install';
+    if (IS_IOS && !isStandalone()) return 'unsupported';
     if (!pushSupported()) return 'unsupported';
     if (Notification.permission === 'denied') return 'denied';
     return 'off';
@@ -3989,7 +3999,7 @@
     openSheet((welcome ? '<div class="eyebrow">לפני שמתחילים</div>' : '<div class="ask-ic">' + ICON.addHome + '</div>') +
       '<h3>להוסיף את ' + name + ' למסך הבית</h3>' +
       '<p class="lead">' + (IS_IOS ? 'רק שם ההתקדמות נשמרת בבטחה, ורק משם מגיעה התזכורת היומית ששומרת על הרצף.'
-        : 'נפתחת מהאייקון, במסך מלא, וגם בלי קליטה.') + '</p>' +
+        : 'נפתחת מהאייקון, במסך מלא, וגם בלי קליטה.') + '</p>' + playNote() +
       '<button class="btn gold" data-act="install-popup-go' + tag + '>' + ICON.addHome + 'להוסיף למסך הבית</button>' +
       (notif ? '<button class="btn ghost" data-act="popup-reminder-on" data-from="install_popup">' + ICON.bell + 'להדליק התראות</button>' : '') +
       '<button class="btn text" data-act="install-popup-later' + tag + '>' + (welcome ? 'להמשיך בדפדפן' : 'אחר כך') + '</button>', 'ask-install' + (welcome ? ' ask-welcome' : ''));
@@ -4169,7 +4179,6 @@
     if (grid) lines.splice(1, 0, 'השבוע שלי: ' + grid + (grid.indexOf('\u26F1') >= 0 ? ' (\u26F1\uFE0F יום חופש לרצף)' : ''));
     if (gift) lines.push(gift);
     else if (DO.enabled && DO.friendGift) lines.push('מתחילים מהקישור? מקבלים ' + DO.friendGift + ' ימי חופש לרצף אחרי השיעור הראשון.');
-    lines.push('באייפון: פותחים את הקישור בספארי, עושים את השיעור הראשון, ורק אז מוסיפים למסך הבית.');
     lines.push('בואו ללמוד ביחד:');
     return lines.join('\n');
   }
