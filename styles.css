@@ -251,6 +251,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .nudge { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: var(--r-md); background: var(--brand-soft); color: var(--brand); font-weight: 700; font-size: 15px; }
 .nudge svg { width: 20px; height: 20px; flex: none; }
 .nudge.warn { background: var(--gold-soft); color: var(--gold-ink); }
+/* 0.38: Android install asks, until the app is on Google Play */
+.play-note { margin: 12px 0; padding: 12px 14px; border-radius: 14px; background: var(--gold-soft); color: var(--gold-ink); border: 2px solid var(--gold); font-size: 15px; line-height: 1.5; text-align: start; }
+.play-note b { display: block; font-size: 16px; }
 .nudge.warn svg { color: var(--flame); }
 .bar { display: block; height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 999px; background: var(--brand); transition: width .5s ease; }
