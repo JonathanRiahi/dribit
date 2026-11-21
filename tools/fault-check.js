@@ -344,4 +344,43 @@ const q90 = (xs) => { if (!xs.length) return null; const s = xs.slice().sort((a,
   await section('14b. dribit.app: מאפיינים של landing_cta (לאן נשלחו)', ['to / target / store', 'platform', 'people'], `
     SELECT concat(${P('to')}, ' / ', ${P('target')}, ' / ', ${P('store')}, ' / ', ${P('auto')}), ${P('platform')}, uniq(distinct_id) FROM events
     WHERE timestamp >= toDateTime('${NEW_FROM}:00', 'Asia/Jerusalem') - INTERVAL 3 DAY AND ${T} AND event = 'landing_cta' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30`);
+
+  // ---------- 7e. what a lesson_rated event really carries ----------
+  await section('7e. דירוג שיעורים: אילו מאפיינים יש על האירוע, והערך בשתי דרכי קריאה', ['rating (JSON read)', 'rating (plain read)', 'app_version', 'events'], `
+    SELECT JSONExtractString(properties, 'rating'), ${P('rating')}, ${P('app_version')}, count() FROM events WHERE ${W} AND event = 'lesson_rated' GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT 40`);
+
+  // ---------- 15. the live addresses: do they answer, how fast, and which version ----------
+  await block('15. הכתובות החיות: סטטוס, גודל, זמן, גרסה', async () => {
+    const get = async (u, opt) => {
+      const t0 = Date.now();
+      try {
+        const r = await fetch(u, Object.assign({ redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1' } }, opt || {}));
+        const text = await r.text();
+        return { status: r.status, ms: Date.now() - t0, bytes: text.length, text, final: r.url, cache: r.headers.get('cache-control') || '-' };
+      } catch (e) { return { status: 'FAILED ' + String(e.message).slice(0, 60), ms: Date.now() - t0, bytes: 0, text: '', final: '', cache: '-' }; }
+    };
+    const rows = [];
+    const ver = (t) => { const m = /VERSION\s*=\s*['"]([^'"]+)['"]/.exec(t); return m ? m[1] : '-'; };
+    const cfgVer = (t) => { const m = /version:\s*['"]([^'"]+)['"]/.exec(t); return m ? m[1] : '-'; };
+    for (const base of ['https://dribit.app/app/', 'https://jonathanriahi.github.io/dribit/']) {
+      for (const f of ['', 'sw.js', 'config.js', 'app.js', 'styles.css', 'data/lessons.json', 'manifest.webmanifest']) {
+        const r = await get(base + f);
+        rows.push([base + f, r.status, r.bytes, r.ms, f === 'sw.js' ? ver(r.text) : f === 'config.js' ? cfgVer(r.text) : '-', r.cache]);
+      }
+    }
+    for (const u of ['https://dribit.app/', 'https://dribit.app/app/?web=1', 'https://dribit.app/privacy', 'https://dribit.app/.well-known/apple-app-site-association', 'https://apps.apple.com/il/app/id6834375114', 'https://dribit-social.dribit.workers.dev/']) {
+      const r = await get(u);
+      rows.push([u, r.status, r.bytes, r.ms, r.final && r.final !== u ? 'ends at ' + r.final.slice(0, 70) : '-', r.cache]);
+    }
+    print('15. הכתובות החיות: סטטוס, גודל, זמן, גרסה', ['address', 'status', 'bytes', 'ms', 'version / where it ends', 'cache'], rows);
+    const st = await get('https://dribit-social.dribit.workers.dev/v1/stats');
+    let j = {}; try { j = JSON.parse(st.text); } catch (e) { /* not JSON */ }
+    print('15b. שרת החברים והקבוצות: סך הכל (בלי הצוות)', Object.keys(j).length ? Object.keys(j) : ['status'], [Object.keys(j).length ? Object.values(j) : [st.status]]);
+    // the partner links from config.js: do they still open (status only, the page is not read)
+    const cfg = require('fs').readFileSync(require('path').join(__dirname, '..', 'config.js'), 'utf8');
+    const links = [...new Set((cfg.match(/url:\s*'(https:\/\/[^']+)'/g) || []).map((x) => x.replace(/^url:\s*'/, '').replace(/'$/, '')))].filter((u) => !/dribit\.app/.test(u));
+    const lrows = [];
+    for (const u of links) { const r = await get(u); lrows.push([new URL(u).hostname, r.status, r.bytes, r.ms, r.final ? new URL(r.final).hostname : '-']); }
+    print('15c. קישורי השותפים וקישורים חיצוניים מ-config.js: האם נפתחים', ['host', 'status', 'bytes', 'ms', 'ends at host'], lrows);
+  });
 })().catch((e) => { console.error(String((e && e.message) || e)); process.exit(1); });
