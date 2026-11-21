@@ -54,7 +54,7 @@ const D = (x) => `toDate(${IL(x)})`;
 
   await section('מי הם: מכשיר ואפליקציה', ['App Store app?', 'platform', 'people'], `
     SELECT nat, plat, count() FROM (
-      SELECT e.person_id, argMin(if(toString(e.properties.native) != '', 'app', 'web'), e.timestamp) AS nat,
+      SELECT e.person_id, argMin(if(toString(e.properties.native) IN ('ios', 'android'), 'App Store / Play app', 'web'), e.timestamp) AS nat,
         argMin(toString(e.properties.platform), e.timestamp) AS plat
       FROM ${EV} WHERE ${W} AND e.event = 'app_opened' GROUP BY e.person_id)
     GROUP BY nat, plat ORDER BY count() DESC LIMIT 100`);
@@ -147,7 +147,7 @@ const D = (x) => `toDate(${IL(x)})`;
 
   // steps in the most started lessons
   await section('צעד אחרי צעד (פעם ראשונה): כמה אנשים ראו כל צעד', ['lesson', 'steps', 'people per step (step 1, 2, 3 ...)'], `
-    SELECT l, max(sc), arrayStringConcat(arrayMap(i -> toString(countIf(mx >= i)), range(0, toUInt32(max(sc)))), ' ') FROM (
+    SELECT l, max(sc), arrayStringConcat(arrayMap(i -> toString(countIf(mx >= i)), range(0, toInt(max(sc)))), ' ') FROM (
       SELECT e.person_id, toString(e.properties.lesson_id) AS l, max(toInt(e.properties.step_index)) AS mx, max(toInt(e.properties.step_count)) AS sc
       FROM ${EV} WHERE ${W} AND e.event = 'step_viewed' AND toString(e.properties.mode) = 'lesson' GROUP BY e.person_id, l)
     GROUP BY l HAVING count() >= 4 ORDER BY count() DESC LIMIT 100`);
@@ -159,14 +159,13 @@ const D = (x) => `toDate(${IL(x)})`;
     WHERE NOT done GROUP BY l, st, k ORDER BY count() DESC LIMIT 25`);
 
   // questions
-  await section('שאלות: נכון בניסיון הראשון (רק שאלות עם 4+ אנשים, הכי קשות קודם)', ['lesson', 'question', 'type', 'people', 'right first try %', 'most picked option (pos) when wrong'], `
-    SELECT l, q, t, n, round(100 * ok / n), wrongpos FROM (
+  await section('שאלות: נכון בניסיון הראשון (רק שאלות עם 3+ אנשים, הכי קשות קודם)', ['lesson', 'question', 'type', 'people', 'right first try %'], `
+    SELECT l, q, t, n, round(100 * ok / n) FROM (
       SELECT toString(e.properties.lesson_id) AS l, toString(e.properties.question_id) AS q, any(toString(e.properties.question_type)) AS t,
-        uniq(e.person_id) AS n, uniqIf(e.person_id, toString(e.properties.correct) = 'true') AS ok,
-        topKIf(1)(toString(e.properties.option_index), toString(e.properties.correct) != 'true') AS wrongpos
+        uniq(e.person_id) AS n, uniqIf(e.person_id, toString(e.properties.correct) = 'true') AS ok
       FROM ${EV} WHERE ${W} AND e.event = 'question_answered' AND toString(e.properties.retry) != 'true' AND toString(e.properties.review) != 'true'
         AND toString(e.properties.mode) = 'lesson' GROUP BY l, q)
-    WHERE n >= 4 ORDER BY ok / n ASC LIMIT 30`);
+    WHERE n >= 3 ORDER BY ok / n ASC LIMIT 30`);
   await section('שאלות: סיכום', ['answers (first try)', 'right %', 'questions with under 50% right'], `
     SELECT sum(n), round(100 * sum(ok) / sum(n)), countIf(ok / n < 0.5 AND n >= 4) FROM (
       SELECT toString(e.properties.question_id) AS q, uniq(e.person_id) AS n, uniqIf(e.person_id, toString(e.properties.correct) = 'true') AS ok
