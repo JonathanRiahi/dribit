@@ -22,7 +22,7 @@ var NOTIFY = true; // אימייל על כל נרשם חדש. false = בלי א�
 // עוד כתובות שיקבלו את האימייל על כל נרשם, מופרדות בפסיק. ריק במאגר הציבורי בכוונה: ממלאים רק בעותק שבגוגל.
 var NOTIFY_ALSO = '';
 var FEEDBACK_NOTIFY = true; // אימייל על כל משוב מהאפליקציה. false = רק שורה בגיליון "משובים"
-var SCRIPT_VERSION = 'sheet-5'; // מופיע בכתובת ?count=1, כך רואים איזו גרסה של הסקריפט באמת פרוסה
+var SCRIPT_VERSION = 'sheet-6'; // מופיע בכתובת ?count=1, כך רואים איזו גרסה של הסקריפט באמת פרוסה
 var HEADERS = ['תאריך', 'קוד', 'טלפון או אימייל', 'סוג', 'טלפון', 'סטטוס', 'מקור', 'הוזמן על ידי', 'הזמנות', 'אישור דיוור', 'תחנות בדף', 'גרסת דף', 'שם'];
 var FEEDBACK_NAME = 'משובים';
 var FB_HEADERS = ['תאריך', 'דירוג', 'משוב', 'איפה', 'שיעור', 'סטטוס', 'גרסה', 'מזהה'];
@@ -42,6 +42,11 @@ function doPost(e) {
   try {
     var d = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     if (d.kind === 'feedback') return feedback_(d);
+    // sheet-6 (security check, 21.11): at most 20 new signups in 10 minutes, like the feedback limit. The address of this
+    // script is public, so without it a script could fill the sheet and use up the daily email quota.
+    var suCache = CacheService.getScriptCache(), su = Number(suCache.get('su-count') || 0);
+    if (su >= 20) return json_({ ok: false, error: 'busy' });
+    suCache.put('su-count', String(su + 1), 600);
     var contact = cleanContact_(d.contact);
     if (!contact) return json_({ ok: false, error: 'contact' });
     if (d.consent !== true) return json_({ ok: false, error: 'consent' });
