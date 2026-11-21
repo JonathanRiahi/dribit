@@ -1502,6 +1502,8 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 .energy-done > span:last-child { display: flex; flex-direction: column; gap: 2px; }
 .energy-done b { font-size: 16px; display: flex; align-items: center; gap: 6px; }
 .energy-done b + span { color: var(--ink-2); font-size: 14.5px; }
+.en-note { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 12px; border-radius: var(--r-md); background: var(--ok-bg); color: var(--ok); font-weight: 700; font-size: 14.5px; }
+.en-note svg { flex: none; width: 22px; height: 22px; }
 .chip-new { font-style: normal; font-size: 12px; font-weight: 700; background: var(--brand); color: var(--on-brand); border-radius: 999px; padding: 1px 8px; }
 @media (max-width: 360px) {
   .stat.energy svg.batt { width: 20px; height: 20px; }
