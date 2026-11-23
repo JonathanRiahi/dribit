@@ -568,7 +568,14 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .src-list .q-src { margin-top: 0; }
 
 /* ---------- Lesson complete ---------- */
-.done-wrap { min-height: 100%; display: flex; flex-direction: column; padding-block: 24px calc(20px + env(safe-area-inset-bottom, 0px)); gap: 16px; }
+.done-wrap { min-height: 100%; display: flex; flex-direction: column; padding-block: 24px 0; gap: 16px; }
+/* 0.40: the buttons that leave the done screen stay at the bottom of the screen, over a fade of the page color */
+.done-foot {
+  position: sticky; bottom: 0; z-index: 3; display: flex; flex-direction: column; gap: 2px;
+  margin: 0 -8px; padding: 22px 8px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, var(--bg) calc(100% - 22px), transparent);
+}
+.done-foot .btn.text { padding-block: 8px; }
 .done-hero { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .done-hero h1 { font-size: 30px; color: var(--gold-ink); }
 .done-hero p { color: var(--ink-2); }
@@ -1544,6 +1551,11 @@ img { -webkit-user-drag: none; }
   -webkit-tap-highlight-color: transparent;
 }
 .term:active { background: color-mix(in srgb, var(--brand) 22%, transparent); }
+/* 0.40 (the fault check of 21.11: glossary words were 26 to 31 px high and the switches 30): the part that answers a
+   finger grows to about 44 px, and nothing changes to the eye */
+.term { position: relative; }
+.term::after { content: ''; position: absolute; inset: -8px -3px; }
+.switch::before { content: ''; position: absolute; inset: -7px -4px; }
 .term-sheet .term-eyebrow { display: inline-flex; align-items: center; gap: 5px; color: var(--brand); }
 .term-sheet .term-eyebrow svg { width: 15px; height: 15px; }
 .term-sheet .lead { font-size: 18px; line-height: 1.65; }
@@ -1645,10 +1657,19 @@ img { -webkit-user-drag: none; }
 .tt-dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--line); transition: width .3s ease, background .3s ease; }
 .tt-dots i.past { background: var(--brand-soft); }
 .tt-dots i.on { width: 20px; background: var(--brand); }
-.tt-skip { border: 0; background: none; padding: 6px 2px 6px 8px; font: inherit; font-size: 15px; font-weight: 600; color: var(--ink-3); cursor: pointer; }
+.tt-skip { border: 0; background: none; min-height: 44px; margin: -8px 0; padding: 6px 2px 6px 14px; font: inherit; font-size: 15px; font-weight: 600; color: var(--ink-3); cursor: pointer; }
 .tour-tip h3 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 1.25; color: var(--ink); }
 .tour-tip p { margin: 0; font-size: 16.5px; line-height: 1.5; color: var(--ink-2); }
 .tour-tip .tt-next { margin-top: 14px; }
+/* 0.40: the first open: the bubble's button starts the first lesson, and a small link under it lets them look around first */
+.tour-tip.tt-start .tt-next { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.tour-tip.tt-start .tt-next svg { width: 20px; height: 20px; flex: none; }
+.tt-later {
+  display: block; width: 100%; min-height: 44px; margin: 6px 0 -8px; padding: 8px; border: 0; background: none;
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--ink-3); cursor: pointer;
+}
+.tour-tip.tt-nudge .tt-next { animation: tour-nudge .5s ease both; }
+@keyframes tour-nudge { 0%, 100% { transform: none; } 30% { transform: scale(1.045); } 60% { transform: scale(.985); } }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) #tour { --tour-scrim: rgba(0, 0, 0, .72); }
   :root:not([data-theme="light"]) .tour-tip { background: var(--surface-2); }
@@ -1657,7 +1678,7 @@ img { -webkit-user-drag: none; }
 :root[data-theme="dark"] .tour-tip { background: var(--surface-2); }
 @media (prefers-reduced-motion: reduce) {
   #tour, .tour-hole, .tour-tip { transition: none; }
-  .tour-hole::after, .tour-tip.in > * { animation: none; }
+  .tour-hole::after, .tour-tip.in > *, .tour-tip.tt-nudge .tt-next { animation: none; }
 }
 
 /* ---------- 0.30: the offer teaser on the done screen of an investing lesson, and its sheet ---------- */

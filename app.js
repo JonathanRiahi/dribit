@@ -367,12 +367,14 @@
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) return migrate(JSON.parse(raw));
     } catch (e) { /* storage blocked: progress lives only for this visit */ }
+    FRESH_LOAD = true; // nothing was saved in this browser before this open
     return freshState();
   }
   function save() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ }
     carrySoon();
   }
+  var FRESH_LOAD = false;
   var S = load();
   applySkin(); // before the first render, so the page never flashes green
 
@@ -1977,8 +1979,12 @@
   // there progress is lost once the app closes, and neither the home-screen icon nor reminders work. A line on home and
   // the ask after a lesson open the same address in the phone's browser, with the progress (#x= / ?x=, taken in by boot).
   var IAB_NAME = { instagram: 'אינסטגרם', facebook: 'פייסבוק', tiktok: 'טיקטוק' }[IN_APP] || 'אפליקציה אחרת';
-  var inAppBarSeen = false, hiddenAt = 0, META_IAB = IN_APP === 'instagram' || IN_APP === 'facebook';
-  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') hiddenAt = Date.now(); });
+  // 0.40: wentOutAt is this part's own mark. It used to share the name hiddenAt with the app's away clock (further
+  // down), which is cleared when the page shows again, so someone who did move to Safari and later came back to
+  // Instagram was recorded as "stayed" (and, after a tap on the line, got the steps by hand).
+  var inAppBarSeen = false, wentOutAt = 0, META_IAB = IN_APP === 'instagram' || IN_APP === 'facebook';
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') wentOutAt = Date.now(); });
+  window.addEventListener('pagehide', function () { wentOutAt = Date.now(); });
   function inAppBar() {
     if (!IN_APP_BROWSER || IS_NATIVE || IN_FRAME) return '';
     if (!inAppBarSeen) { inAppBarSeen = true; track('inapp_prompt_shown', { placement: 'home', in_app: IN_APP, lessons_done: doneCount() }); }
@@ -1992,6 +1998,9 @@
     u.hash = ''; u.searchParams.delete('x'); u.searchParams.set('source', 'inapp_exit');
     var code = S.onboarded && hasProgress() ? exportCode() : '';
     if (code) { if (inQuery) u.searchParams.set('x', code); else u.hash = 'x=' + code; }
+    // 0.40 (the fault check of 21.11: 3 of 28 new people were counted twice, once inside Instagram and once in the
+    // browser): the anonymous id goes along, so the browser continues as the same person (see adoptUid)
+    if (S.share && /^[0-9a-f]{24}$/.test(S.uid)) u.searchParams.set('pu', S.uid);
     return u.href;
   }
   function openInBrowser(from) {
@@ -2010,7 +2019,7 @@
     // still here a moment later (the app blocked it, or an older phone): the steps by hand. The address already carries
     // the progress (carryProgress), so "open in the browser" from the app's menu brings it along too.
     setTimeout(function () {
-      var stayed = hiddenAt < t0 && document.visibilityState === 'visible';
+      var stayed = wentOutAt < t0 && document.visibilityState === 'visible';
       if (from === 'auto') { if (stayed) track('inapp_auto_stayed', { in_app: IN_APP }); return; } // the line on home stays
       if (stayed && !sheetOpen) { track('inapp_open_steps', { from: from, in_app: IN_APP }); pointerSheet(); }
     }, (IS_ANDROID && META_IAB) || IS_IOS ? 1500 : 0);
@@ -3071,15 +3080,19 @@
       html += '<button class="btn text invite-link" data-act="invite" data-from="' + (chal ? 'challenge' : 'done') + '" data-id="' + esc(l ? l.id : '') + '">' + ICON.share + (chal ? 'לאתגר חבר' : 'להזמין חבר') + '</button>';
     }
     // 0.33: up to config.chain.upTo lessons, the main button goes straight on to the next lesson (like Duolingo)
+    // 0.40 (the fault check of 21.11): the buttons sit in a foot that stays at the bottom of the screen. Before, the
+    // button started 885 px down, under the first screen of every iPhone but the largest, and of 9 people who were
+    // shown "לשיעור הבא" after lesson 1 only 4 tapped it.
+    html += '<div class="done-foot">';
     if (chainNext(s)) {
       if (!s.chainShown) { s.chainShown = true; track('done_next_shown', { lesson_id: l.id, lessons_done: doneCount(), status_set: !!S.status }); }
       html += '<button class="btn gold done-next" data-act="done-next">' + ICON.play + 'לשיעור הבא</button>' +
-        '<button class="btn text" data-act="done-home">חזרה למסלול</button></div>';
+        '<button class="btn text" data-act="done-home">חזרה למסלול</button>';
     } else if (s.mode === 'practice' && s.enGain && s.enBefore === 0 && enCanStart() && currentLesson() && shown(currentLesson())) {
       html += '<button class="btn gold done-next" data-act="done-lesson">' + ICON.play + 'לשיעור הבא</button>' +
-        '<button class="btn text" data-act="done-home">חזרה למסלול</button></div>';
-    } else html += '<button class="btn" data-act="done-home">המשך</button></div>';
-    return html;
+        '<button class="btn text" data-act="done-home">חזרה למסלול</button>';
+    } else html += '<button class="btn" data-act="done-home">המשך</button>';
+    return html + '</div></div>';
   }
   // ---------- 0.33: from the done screen straight to the next lesson ----------
   // The 17.11 data: of those who finished 3+ lessons 4 of 6 came back, of those who finished one, 1 of 9. So the first
@@ -3113,7 +3126,7 @@
     if (IN_APP_BROWSER && !IS_NATIVE) return 'browser';
     if (pushBusy || notifRefused()) return null;
     var st = pushState();
-    if (st === 'off') return 'off';
+    if (st === 'off') return notifAskRest() ? null : 'off';
     if (st === 'install' && canInstall() && !S.installHidden && !S.giftPending) return 'install';
     return null;
   }
@@ -3414,6 +3427,7 @@
     var goals = CFG.goals.map(function (g) {
       return '<button data-act="goal" data-xp="' + g.xp + '" aria-pressed="' + (S.goalXp === g.xp) + '">' + g.label + '<small>' + g.xp + ' נק׳ · ' + g.note + '</small></button>';
     }).join('');
+    var remTop = doneCount() > 0 && pushState() === 'off';
     var html = '<div class="page"><div class="page-head"><h1>ההתקדמות שלי</h1>' +
         (CT.enabled ? '<button class="help-btn" data-act="contact" data-from="profile_top" aria-label="צור קשר">' + ICON.help + '<span>עזרה</span></button>' : '') + '</div>' +
       '<button class="card rank-card" data-act="explain" data-what="points">' +
@@ -3421,6 +3435,9 @@
         '<span class="rank-txt"><span class="eyebrow">השלב שלך</span><b>' + esc(levelLabel(r)) + '</b>' +
         '<span class="bar gold"><i style="width:' + fillPct(r.pct) + '%"></i></span>' +
         '<span class="fine">' + nextLevelLine(r) + '</span></span></button>' +
+      // 0.40 (the fault check of 21.11: the reminder switch sat on the fourth screen of the profile): while the
+      // reminder is off, and after a first lesson, its card comes right under the level
+      (remTop ? reminderRow() : '') +
       skinsCard() +
       '<div class="stat-grid">' +
         statBox(ICON.flame, 'var(--flame)', currentStreak(), 'ימים ברצף') +
@@ -3436,7 +3453,7 @@
       '<div class="card status-card"><h2>המצב שלי</h2><p class="fine">קובע אילו שיעורים מופיעים במסלול.</p><div class="seg two">' + statusButtons('status', S.status) + '</div></div>' +
       '<div class="card"><h2>יעד יומי</h2><div class="seg">' + goals + '</div><p class="fine">ברירת המחדל: שיעור אחד ביום. אפשר להעלות מתי שרוצים.</p></div>' +
       '<div class="card"><div class="toggle-row"><h2 id="sound-l">צלילים ורטט</h2><button class="switch" role="switch" aria-labelledby="sound-l" aria-checked="' + S.sound + '" data-act="sound"></button></div></div>' +
-      reminderRow() +
+      (remTop ? '' : reminderRow()) +
       (canInstall() ? '<div class="card"><h2>התקנה בטלפון</h2><p>אייקון במסך הבית, מסך מלא, ועובד גם בלי קליטה.</p>' + playNote() + '<button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button></div>' : '') +
       contactCard() +
       (PILOT || CT.enabled ? '' : '<div class="card"><h2>משוב</h2><p>מה לא היה ברור? מה חסר? כל הערה עוזרת.</p><button class="btn ghost" data-act="feedback" data-ctx="profile">לכתוב משוב</button></div>') +
@@ -3732,12 +3749,12 @@
     if (pushBusy || pushState() === 'on' || pushState() === 'unsupported') { fin(); return; }
     pushBusy = true;
     clearTimeout(askTimer);
-    track('push_asked', { from: from, native: true });
+    track('push_asked', { from: from });
     nativeCall('notifications.request').then(function (r) {
       pushBusy = false;
       nativePerm = (r && r.permission) || 'denied';
       if (nativePerm !== 'granted') {
-        track('push_denied', { from: from, permission: nativePerm, native: true });
+        track('push_denied', { from: from, permission: nativePerm });
         render();
         toast(ICON.bell + '<b>ההתראות חסומות.</b> מאפשרים אותן בהגדרות האייפון', '', 2600);
         fin();
@@ -3757,7 +3774,7 @@
       fin();
     }).catch(function (e) {
       pushBusy = false;
-      track('push_failed', { from: from, native: true, error: String((e && e.message) || e).slice(0, 60) });
+      track('push_failed', { from: from, error: String((e && e.message) || e).slice(0, 60) });
       toast(ICON.bell + '<b>לא הצלחתי להפעיל תזכורת</b>', '', 2600);
       fin();
     });
@@ -3765,7 +3782,7 @@
   // a tap on a reminder brought the person in (asked once per tap: the phone hands it over and forgets it)
   function nativeReminderTapped() {
     nativeCall('launch.info').then(function (r) {
-      if (r && r.notification) track('push_clicked', { app_open: true, kind: r.notification.kind || 'daily', native: true });
+      if (r && r.notification) track('push_clicked', { app_open: true, kind: r.notification.kind || 'daily' });
     }).catch(function () { /* ignore */ });
   }
   // at every open and return: the permission may have changed in the phone's settings, and the plan moves a day on
@@ -3796,8 +3813,23 @@
     var c = {};
     try { c = JSON.parse(localStorage.getItem(ASKS_KEY) || '{}') || {}; } catch (e) { c = {}; }
     c[kind] = (+c[kind] || 0) + 1;
+    c[kind + 'Day'] = dayKey();
     try { localStorage.setItem(ASKS_KEY, JSON.stringify(c)); } catch (e) { /* ignore */ }
     return c[kind];
+  }
+  // 0.40 (the fault check of 21.11): of the App Store people who were asked for notifications once, 5 of 11 turned
+  // them on; of those asked three times or more, 0 of 6. So after config.reminders.maxAsks asks the popup rests, and
+  // comes back once every askAgainDays days. The card on home, the profile and the settings stay as they were.
+  function notifAskRest() {
+    var max = +RCFG.maxAsks || 0, gap = +RCFG.askAgainDays || 0;
+    if (!(max > 0)) return false;
+    try {
+      var c = JSON.parse(localStorage.getItem(ASKS_KEY) || '{}') || {};
+      if ((+c.notif || 0) < max) return false;
+      if (!(gap > 0)) return true;
+      if (!isDayKey(c.notifDay)) { c.notifDay = dayKey(); localStorage.setItem(ASKS_KEY, JSON.stringify(c)); return true; } // asked before 0.40: the rest starts today
+      return daysBetween(c.notifDay, dayKey()) < gap;
+    } catch (e) { return false; }
   }
   // a popup (or another sheet that owns this open) already showed. A reload the app makes for a new version is the
   // same open, so it keeps the flag (otherwise someone who just saw a popup would see one again right after it).
@@ -3824,7 +3856,7 @@
     // the App Store app asks after the first lesson, like a browser (a permission question on the first screen gets a "no")
     if (!RCFG.askEveryOpen || !S.onboarded || !S.status || (!doneCount() && (!isStandalone() || IS_NATIVE)) || pushBusy || notifRefused()) return null;
     var st = pushState();
-    if (st === 'off') return 'off';
+    if (st === 'off') return notifAskRest() ? null : 'off';
     return st === 'install' && !INSTALL.askEveryOpen ? 'install' : null; // iPhone in Safari: the install popup asks instead
   }
   // ---------- 0.28: the first-time walkthrough ----------
@@ -3835,7 +3867,8 @@
     var x2 = sbTiers()[0];
     if (id === 'home') return [
       { sel: '.node-wrap.current .node', area: '.node-wrap.current', shape: 'circle', title: 'השיעור הבא שלך',
-        text: 'כל עיגול במסלול הוא שיעור של כמה דקות. העיגול המסומן הוא הבא בתור, והשיעורים נפתחים אחד אחרי השני.' },
+        text: startTourSeen() ? 'העיגול המסומן הוא השיעור הבא בתור. השיעורים נפתחים אחד אחרי השני.'
+          : 'כל עיגול במסלול הוא שיעור של כמה דקות. העיגול המסומן הוא הבא בתור, והשיעורים נפתחים אחד אחרי השני.' },
       { sel: '.topbar .stat.flame', shape: 'pill', title: 'הרצף',
         text: 'כמה ימים ברצף למדת. שיעור אחד ביום שומר עליו' + (x2 ? ', ומ-' + x2.days + ' ימים ברצף כל נקודה שווה יותר.' : '.') },
       { sel: '.topbar .stat.xp', shape: 'pill', title: 'הנקודות',
@@ -3843,6 +3876,12 @@
       { sel: '.nav .nav-inner', title: 'עוד מסכים',
         text: 'תרגול, ' + (toolsTab() ? 'כלים ' : '') + 'ופרופיל מחכים כאן למטה. בכל מסך נסביר בקצרה, בפעם הראשונה שנכנסים אליו.' }
     ];
+    // 0.40: the first open (startTourDue): one step, and its button starts the first lesson
+    if (id === 'start') {
+      var fl = currentLesson();
+      return [{ sel: '.node-wrap.current .node', area: '.node-wrap.current', shape: 'circle', start: true, title: 'מתחילים כאן',
+        text: 'כל עיגול במסלול הוא שיעור קצר. הראשון לוקח בערך ' + (fl ? lessonMinutes(fl) : 3) + ' דקות, בלי הרשמה.' }];
+    }
     if (id === 'practice') return [
       { sel: '.practice-card', title: 'תרגול מהיר',
         text: 'שאלות חזרה מהשיעורים שסיימת. שאלות שטעית בהן חוזרות קודם, עד שהן יושבות בראש.' }
@@ -3877,23 +3916,36 @@
     return TOUR_IDS.indexOf(v) >= 0 && ready && !!S.tour && S.tour[v] === false &&
       (v !== 'tools' || toolsTab()) && !(v === 'home' && S.inProgress);
   }
+  // 0.40 (Jonathan, 23.11: "אותו דבר אני רוצה גם למסך של השיעורים"): the first open of a new person gets the same grey
+  // backdrop over the path, with the first lesson lit and a button that starts it. The fault check of 21.11: the first
+  // lesson needed two taps and had no start button, and 13 of 28 new people never started. One step only, since a tour
+  // of several steps before the first lesson is more to read before anything happens. It comes back at every open until
+  // the lesson was started from it or it was skipped. Kept on the device only, never in a transfer code.
+  var START_TOUR_KEY = 'dribit.startTour.v1';
+  function startTourSeen() { try { return !!localStorage.getItem(START_TOUR_KEY); } catch (e) { return true; } }
+  function startTourMark() { try { localStorage.setItem(START_TOUR_KEY, dayKey()); } catch (e) { /* ignore */ } }
+  function startTourDue() {
+    return view === 'home' && HOME_FIRST && !doneCount() && !S.inProgress && !JUMP && !IN_FRAME && !startTourSeen() && !!currentLesson();
+  }
   // called after each render of a main screen: a running tour follows the new page; a due one starts once the page is still
   function tourAfterRender() {
     if (tour) { if (tour.view === view) tourPlace(true); else tourEnd('left'); return; }
     clearTimeout(tourTimer);
-    if (!tourDue()) return;
+    var first = startTourDue();
+    if (!first && !tourDue()) return;
     var v = view;
     // home scrolls to the next lesson first (revealCurrent); the tour waits for it
     tourTimer = setTimeout(function () {
-      if (tour || view !== v || sheetOpen || !tourDue(v) || document.visibilityState === 'hidden') return;
-      tourStart(v);
-    }, v === 'home' ? 750 : 350);
+      if (tour || view !== v || sheetOpen || document.visibilityState === 'hidden') return;
+      if (first) { if (startTourDue()) tourStart('start'); return; }
+      if (tourDue(v)) tourStart(v);
+    }, first ? 450 : v === 'home' ? 750 : 350);
   }
   function tourStart(v) {
     var steps = tourSteps(v).filter(function (st) { return tourTarget(st); });
-    S.tour[v] = true; save();
+    if (v !== 'start') { S.tour[v] = true; save(); }
     if (!steps.length) return;
-    tour = { view: v, steps: steps, i: 0 };
+    tour = { id: v, view: v === 'start' ? 'home' : v, steps: steps, i: 0 };
     var el = document.createElement('div');
     el.id = 'tour';
     el.setAttribute('role', 'dialog');
@@ -3906,7 +3958,7 @@
     el.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
     el.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
     window.addEventListener('resize', tourResize);
-    track('tour_started', { screen: v, steps: steps.length, lessons_done: doneCount() });
+    track('tour_started', { screen: v, steps: steps.length, lessons_done: doneCount(), n: v === 'start' ? askCount('startTour') : undefined });
     requestAnimationFrame(function () { if (tour) { el.classList.add('on'); tourShow(); } });
   }
   function tourTarget(st) {
@@ -3918,7 +3970,11 @@
   function tourShow() {
     var st = tour.steps[tour.i], last = tour.i === tour.steps.length - 1, n = tour.steps.length;
     var tip = tour.el.querySelector('.tour-tip');
-    tip.innerHTML = (n > 1 ? '<div class="tt-top"><span class="tt-dots" aria-label="' + (tour.i + 1) + ' מתוך ' + n + '">' +
+    tip.classList.toggle('tt-start', !!st.start);
+    if (st.start) tip.innerHTML = '<h3>' + esc(st.title) + '</h3><p>' + esc(st.text) + '</p>' +
+      '<button class="btn gold tt-next" data-tour="go">' + ICON.play + 'להתחיל את השיעור</button>' +
+      '<button class="tt-later" data-tour="skip">קודם להסתכל מסביב</button>';
+    else tip.innerHTML = (n > 1 ? '<div class="tt-top"><span class="tt-dots" aria-label="' + (tour.i + 1) + ' מתוך ' + n + '">' +
         tour.steps.map(function (s, i) { return '<i' + (i === tour.i ? ' class="on"' : i < tour.i ? ' class="past"' : '') + '></i>'; }).join('') + '</span>' +
         (last ? '' : '<button class="tt-skip" data-tour="skip">דילוג</button>') + '</div>' : '') +
       '<h3>' + esc(st.title) + '</h3><p>' + esc(st.text) + '</p>' +
@@ -3983,9 +4039,26 @@
     e.stopPropagation();
     var b = e.target.closest('[data-tour]');
     if (b && b.getAttribute('data-tour') === 'skip') { sfx.tap(); tourEnd('skipped'); return; }
+    if (tour && tour.id === 'start') {
+      // the button and the lit circle start the lesson; a tap on the grey part points back at the button
+      var h = tour.el.querySelector('.tour-hole').getBoundingClientRect();
+      var onHole = e.clientX >= h.left && e.clientX <= h.right && e.clientY >= h.top && e.clientY <= h.bottom;
+      if ((b && b.getAttribute('data-tour') === 'go') || onHole) { tourGo(onHole && !b ? 'circle' : 'button'); return; }
+      if (e.target.closest('.tour-tip')) return;
+      var tip = tour.el.querySelector('.tour-tip');
+      tip.classList.remove('tt-nudge'); void tip.offsetWidth; tip.classList.add('tt-nudge');
+      tour.nudges = (tour.nudges || 0) + 1;
+      return;
+    }
     // a tap anywhere moves on: the walkthrough never blocks the app
     sfx.tap();
     tourNext();
+  }
+  function tourGo(by) {
+    if (!tour) return;
+    tour.by = by;
+    tourEnd('go');
+    beginFirst('tour');
   }
   function tourNext() {
     if (!tour) return;
@@ -3996,6 +4069,7 @@
   function tourKey(e) {
     if (!tour) return false;
     if (e.key === 'Escape') { tourEnd('skipped'); return true; }
+    if (tour.id === 'start') { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tourGo('key'); } return true; }
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowLeft') { e.preventDefault(); tourNext(); return true; }
     if (e.key === 'ArrowRight' && tour.i > 0) { e.preventDefault(); tour.i--; tourShow(); return true; }
     return true;
@@ -4006,9 +4080,10 @@
     var t = tour;
     tour = null;
     window.removeEventListener('resize', tourResize);
-    track('tour_finished', { screen: t.view, how: how, step: t.i + 1, steps: t.steps.length });
+    track('tour_finished', { screen: t.id, how: how, step: t.i + 1, steps: t.steps.length, by: t.by, nudges: t.nudges });
+    if (t.id === 'start' && (how === 'go' || how === 'skipped')) startTourMark();
     var el = t.el;
-    if (how === 'left' || how === 'sheet' || reducedMotion()) el.remove();
+    if (how === 'left' || how === 'sheet' || how === 'go' || reducedMotion()) el.remove();
     else { el.classList.remove('on'); el.classList.add('out'); setTimeout(function () { el.remove(); }, 260); }
     // the popups that waited for the tour (install, notifications) may come now
     if (t.view === 'home' && view === 'home' && how !== 'sheet') maybeAsk();
@@ -5917,7 +5992,9 @@
         sfx.tap();
         var dnId = session && session.lesson ? session.lesson.id : null;
         track('done_next_tapped', { lesson_id: dnId, lessons_done: doneCount(), status_set: !!S.status });
-        doneAsk(function () { chainGo('done_next'); });
+        // 0.40: right after lesson 1 nothing stands between the button and lesson 2 but the status question;
+        // the reminder ask waits for the next time a done screen is left
+        if (doneCount() <= 1) chainGo('done_next'); else doneAsk(function () { chainGo('done_next'); });
         break;
       }
       case 'done-lesson': sfx.tap(); doneAsk(function () { session = null; chainStart('practice_refill'); }); break;
@@ -6300,8 +6377,34 @@
       '<button class="btn" data-act="close-sheet">מעולה</button>');
   }
 
+  // 0.40: ?pu= is the anonymous id a person had inside Instagram's or TikTok's browser (browserUrl). A browser that
+  // opens for the first time continues with it, before its first event; anywhere else it only leaves the address.
+  function adoptUid() {
+    var m = /[?&]pu=([0-9a-f]{24})(?=&|$)/.exec(location.search || '');
+    if (!m) return;
+    try {
+      var rest = (location.search || '').replace(/^\?/, '').split('&').filter(function (x) { return x && !/^pu=/.test(x); }).join('&');
+      history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+    } catch (e) { /* ignore */ }
+    if (FRESH_LOAD && !IN_APP_BROWSER && !IS_NATIVE && !hasProgress() && OPEN_SOURCE === 'inapp_exit') { S.uid = m[1]; save(); }
+  }
+  // 0.40 (the fault check of 21.11: nothing reported a broken screen): a JavaScript error reaches the usage data with
+  // its message and place only, at most 5 in one open
+  var errSent = 0;
+  function reportError(kind, msg, file, line, col) {
+    if (errSent >= 5) return;
+    errSent++;
+    try {
+      track('app_error', { kind: kind, message: String(msg || '').slice(0, 160), file: String(file || '').split('/').pop().split('?')[0].slice(0, 40),
+        line: +line || null, col: +col || null, view: view, lessons_done: DATA ? doneCount() : null });
+    } catch (e) { /* never an error about an error */ }
+  }
+  window.addEventListener('error', function (e) { if (e && e.message) reportError('error', e.message, e.filename, e.lineno, e.colno); });
+  window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; reportError('promise', r && r.message ? r.message : r, r && r.fileName, r && r.lineNumber, r && r.columnNumber); });
+
   function boot(data) {
     DATA = data;
+    adoptUid();
     indexContent();
     migrateContent();
     root = document.getElementById('app');
