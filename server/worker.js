@@ -120,10 +120,12 @@ async function hit(env, key, max, ms) {
   await env.DB.prepare('INSERT INTO limits (k, n, until) VALUES (?, 1, ?) ON CONFLICT(k) DO UPDATE SET n = 1, until = excluded.until').bind(key, now + ms).run();
   return true;
 }
-async function netKey(req, what) {
+async function netKey(req, env, what) {
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
-  // a daily salt, so the stored key cannot be matched to an address later
-  return what + ':' + (await sha256(ip + '|' + new Date().toISOString().slice(0, 10) + '|dribit')).slice(0, 20);
+  // a daily salt, so the stored key cannot be matched to an address later. 0.39: plus the secret IP_SALT when it is set
+  // (Cloudflare > the Worker > Settings > Variables and Secrets): without it, anyone who reads this public code could
+  // try every address against a stored key.
+  return what + ':' + (await sha256(ip + '|' + new Date().toISOString().slice(0, 10) + '|' + (env.IP_SALT || 'dribit'))).slice(0, 20);
 }
 
 // ----- people -----
@@ -214,6 +216,7 @@ async function board(env, code, viewer) {
 
 async function readBody(req) {
   if (req.method !== 'POST') return {};
+  if (Number(req.headers.get('Content-Length') || 0) > 4000) throw new Fail(413, 'too_big'); // before reading it
   const t = await req.text();
   if (t.length > 4000) throw new Fail(413, 'too_big');
   if (!t) return {};
@@ -248,7 +251,7 @@ async function route(req, env) {
   const body = await readBody(req);
 
   if (path === '/v1/register' && req.method === 'POST') {
-    if (!(await hit(env, await netKey(req, 'reg'), LIMITS.registerPerDay, DAY))) throw new Fail(429, 'slow_down');
+    if (!(await hit(env, await netKey(req, env, 'reg'), LIMITS.registerPerDay, DAY))) throw new Fail(429, 'slow_down');
     const id = randomCode(10), secret = randomHex(24), ref = await newRef(env);
     const sc = scores(body, now);
     let inviter = null;
@@ -339,10 +342,25 @@ async function route(req, env) {
   throw new Fail(404, 'not_found');
 }
 
+// 0.39 (security check, 21.11): Cloudflare's own rate limiter (wrangler.toml [[ratelimits]], free, kept in Cloudflare's
+// memory, nothing written to the database). One network: 300 requests a minute (a whole base behind one address still
+// fits). One person (their token): 30 a minute. Past that: 429 'too_fast', before the database is touched, so a flood
+// cannot use up the free plan's database reads and writes. Without the binding (local tests) nothing is limited.
+async function tooFast(req, env) {
+  try {
+    const ip = req.headers.get('CF-Connecting-IP') || 'local';
+    if (env.RL_NET && !(await env.RL_NET.limit({ key: 'n:' + ip })).success) return true;
+    const h = req.headers.get('Authorization') || '';
+    if (env.RL_USER && h && !(await env.RL_USER.limit({ key: 'u:' + h.slice(0, 80) })).success) return true;
+  } catch (e) { /* the limiter failing never blocks anyone */ }
+  return false;
+}
+
 export default {
   async fetch(req, env, ctx) {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
+      if (await tooFast(req, env)) throw new Fail(429, 'too_fast'); // the app shows "נסו שוב עוד רגע"
       const res = await route(req, env);
       // now and then, old abuse counters go
       if (Math.random() < 0.02) ctx.waitUntil(env.DB.prepare('DELETE FROM limits WHERE until < ?').bind(Date.now()).run().catch(() => {}));

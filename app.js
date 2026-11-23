@@ -550,6 +550,25 @@
     track('energy_refill', { source: 'share', method: method, before: before });
     return true;
   }
+  // 0.39 (Jonathan 21.11: "אי אפשר להוסיף כסף כדי לקנות עוד סוללה, או אפילו לצפות בפרסומת... תשפר בכל מה שאתה יכול"):
+  // with nothing to buy, an empty battery was a dead end once the daily share was used. Now a finished practice gives a
+  // bar back (config.energy.practiceRefill bars, 0 = off), like practising for hearts in Duolingo: the way out is more
+  // learning. Only a real practice counts (enPracticeMin questions), never while lessons are free or the battery is full.
+  function enPracticeOn() { return enOn() && EN.practiceRefill > 0; }
+  function enPracticeMin() { return Math.min(5, CFG.practiceSize || 5); }
+  // worth offering now: the battery counts, is not full, and there is something to practise
+  function enPracticeReady() { return enPracticeOn() && !enFree() && enNow() < enMax() && doneCount() > 0; }
+  // called when a practice ends; returns the bars given (0 = none)
+  function enPracticeRefill(steps) {
+    if (!enPracticeOn() || enFree() || !(steps >= enPracticeMin())) return 0;
+    var n = enSync(), max = enMax();
+    if (n >= max) return 0;
+    var add = Math.max(1, Math.min(max - n, Math.floor(EN.practiceRefill)));
+    S.energy.n = n + add;
+    if (S.energy.n >= max) S.energy.at = Date.now(); // otherwise the time already charged toward the next bar is kept
+    track('energy_refill', { source: 'practice', before: n, added: add });
+    return add;
+  }
   // the battery's main button while it is empty or low: send to a friend, get a full battery
   function enShareBtn(from) {
     if (!enShareReady()) return '';
@@ -592,9 +611,13 @@
     return '<svg class="batt" viewBox="0 0 24 24" aria-hidden="true"><rect x="9.5" y="1.6" width="5" height="2.4" rx=".9" fill="currentColor" opacity=".7"/>' +
       '<rect x="5.6" y="4.2" width="12.8" height="18.6" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9" opacity="' + (n > 0 || inf ? '.6' : '.95') + '"/>' + segs + '</svg>';
   }
+  // 0.39: while lessons are free (the first day, the first freeLessons lessons) the battery says nothing: no ∞ in the
+  // top bar and no chip on the lesson card, so a new person sees one thing less. It shows up when it starts to count,
+  // with the one-time "חדש" note on the done screen. A team device keeps its ∞ (config.energy.hideWhileFree).
+  function enHidden() { return !!EN.hideWhileFree && !S.team && enFree(); }
   // the top bar's battery
   function energyStat() {
-    if (!enOn()) return '';
+    if (!enOn() || enHidden()) return '';
     var free = enFree(), n = enNow(), max = enMax();
     var label = free ? 'סוללה: בלי הגבלה כרגע' : 'סוללה: ' + n + ' מתוך ' + max;
     return '<button class="stat energy ' + (free ? 'free' : enLevel(n)) + '" data-act="explain" data-what="energy" aria-label="' + label + '">' +
@@ -603,7 +626,7 @@
   // what to do while the battery is empty: practice is free (and the daily check, if one is waiting)
   function enMeanwhile(from) {
     var b = enShareBtn(from);
-    if (doneCount()) b += '<button class="btn ' + (b ? 'ghost' : 'gold') + '" data-act="practice" data-from="' + from + '">' + ICON.dumbbell + 'לתרגל בינתיים (בלי סוללה)</button>';
+    if (doneCount()) b += '<button class="btn ' + (b ? 'ghost' : 'gold') + '" data-act="practice" data-from="' + from + '">' + ICON.dumbbell + (enPracticeReady() ? 'לתרגל ולקבל פס' : 'לתרגל בינתיים (בלי סוללה)') + '</button>';
     var t = checkToday();
     if (t && t.state === 'open') b += '<button class="btn ghost" data-act="dcheck" data-id="' + esc(t.check.id) + '" data-from="' + from + '">' + ICON.shieldCheck + 'הבדיקה של היום (' + checkMins(t.check) + ')</button>';
     return b;
@@ -614,7 +637,7 @@
       '<h3>הסוללה ריקה</h3>' +
       '<p class="lead">עבדת יפה. ככה בונים הרגל: קצת כל יום, והידע נשאר בראש יותר מאשר בחרישה של ערב אחד.</p>' +
       '<div class="card tight energy-next"><span>' + ICON.clock + 'פס חדש בעוד</span>' + enTimer('next') + '</div>' +
-      '<p class="fine center">סוללה מלאה בעוד ' + enWords(enFullMs()) + '. שיעור שכבר התחלת תמיד אפשר לסיים.</p>' +
+      '<p class="fine center">' + (enPracticeReady() ? 'לא רוצה לחכות? תרגול של ' + CFG.practiceSize + ' שאלות מחזיר פס עכשיו.' : 'סוללה מלאה בעוד ' + enWords(enFullMs()) + '. שיעור שכבר התחלת תמיד אפשר לסיים.') + '</p>' +
       enMeanwhile('energy_empty') +
       '<button class="btn text" data-act="close-sheet">סגירה</button>', 'energy-sheet');
   }
@@ -627,26 +650,30 @@
       : '<h3>סוללה: ' + n + ' מתוך ' + max + '</h3>' +
         (n < max ? '<div class="card tight energy-next"><span>' + ICON.clock + 'פס חדש בעוד</span>' + enTimer('next') + '</div>' +
           '<p class="fine center">סוללה מלאה בעוד ' + enWords(enFullMs()) + '.</p>' : '<p class="lead">הסוללה מלאה. יאללה לשיעור.</p>');
+    // 0.39: with an empty battery the ways out come first (they were under the rules, below the fold)
+    var empty = !free && n === 0, acts = empty ? enMeanwhile('energy_sheet') : enShareBtn('energy_sheet');
     openSheet('<div class="energy-hero ' + (free ? 'free' : enLevel(n)) + '">' + batteryIcon(n, max, free) + '</div>' + top +
+      (empty ? acts : '') +
       '<ul class="rules">' +
         '<li><span>כל שיעור שמסיימים, חדש או חוזר</span><b>פס אחד</b></li>' +
         '<li><span>פס חוזר לבד</span><b>כל ' + hrs + '</b></li>' +
-        '<li><span>טעויות</span><b>חינם</b></li>' +
-        '<li><span>תרגול, תיקון טעויות' + (MISSIONS_ON ? ', משימות' : '') + ' וכלים</span><b>חינם</b></li>' +
+        (enPracticeOn() ? '<li><span>מסיימים תרגול מהיר</span><b>פס אחד חוזר</b></li>' : '') +
+        '<li><span>טעויות, תיקון טעויות' + (MISSIONS_ON ? ', משימות' : '') + ' וכלים</span><b>חינם</b></li>' +
         (EN.shareRefill ? '<li><span>שולחים את ' + esc(CFG.appName) + ' לחבר</span><b>סוללה מלאה, פעם ביום</b></li>' : '') +
         (SOC.perFriend && SOC.perFriend.battery && socOn() ? '<li><span>חבר שמסיים שיעור ראשון מהקישור שלך</span><b>סוללה מלאה</b></li>' : '') +
       '</ul>' +
       '<p class="fine">למה סוללה? כי כסף לומדים כמו כושר: קצת כל יום עדיף על הכל ביום אחד. שיעור שכבר התחלת תמיד אפשר לסיים.</p>' +
-      (!free && n === 0 ? enMeanwhile('energy_sheet') : enShareBtn('energy_sheet')) +
-      '<button class="btn' + (!free && enShareReady() ? ' text' : '') + '" data-act="close-sheet">הבנתי</button>', 'energy-sheet');
+      (empty ? '' : acts) +
+      '<button class="btn' + (acts ? ' text' : '') + '" data-act="close-sheet">הבנתי</button>', 'energy-sheet');
   }
   // the home card while the battery is empty (only when a new lesson is waiting, never over a lesson to resume)
   function energyHomeCard() {
     if (!enOn() || enCanStart() || !currentLesson() && !doneCount()) return '';
     return '<div class="card energy-card"><div class="rc-head"><span class="rc-ic">' + batteryIcon(0, enMax()) + '</span><div>' +
-      '<b>הסוללה ריקה</b><span>' + (enShareReady() ? 'שולחים לחבר ומקבלים סוללה מלאה עכשיו, או מחכים: השיעור הבא בעוד ' + enTimer('next') + '.'
+      '<b>הסוללה ריקה</b><span>' + (enShareReady() ? 'שליחה לחבר ממלאת אותה עכשיו' + (enPracticeReady() ? ', ותרגול קצר מחזיר פס' : '') + '. או מחכים: השיעור הבא בעוד ' + enTimer('next') + '.'
+        : enPracticeReady() ? 'תרגול קצר מחזיר פס עכשיו. או מחכים: השיעור הבא בעוד ' + enTimer('next') + '.'
         : 'השיעור הבא בעוד ' + enTimer('next') + '. תרגול לא צורך סוללה.') + '</span></div></div>' + enShareBtn('energy_home') +
-      (doneCount() ? '<div class="row"><button class="btn ' + (enShareReady() ? 'ghost' : 'gold') + '" data-act="practice" data-from="energy_home">לתרגל בינתיים</button>' +
+      (doneCount() ? '<div class="row"><button class="btn ' + (enShareReady() ? 'ghost' : 'gold') + '" data-act="practice" data-from="energy_home">' + (enPracticeReady() ? 'לתרגל ולקבל פס' : 'לתרגל בינתיים') + '</button>' +
         '<button class="btn text" data-act="explain" data-what="energy">איך זה עובד</button></div>' : '') + '</div>';
   }
   // the done screen's battery line, and a one-time "new" note the first time the battery counts
@@ -665,10 +692,18 @@
     }
     if (!s.enIntro && n > 1) return ''; // 0.19: the top bar shows the bars; the card only when they run low
     return '<div class="card tight energy-done ' + enLevel(n) + '"><span class="ed-ic">' + batteryIcon(n, max) + '</span><span>' +
-      (s.enIntro ? '<b><i class="chip-new">חדש</i>סוללה: ' + n + ' מתוך ' + max + '</b><span>מעכשיו כל שיעור צורך פס אחד, ופס חוזר לבד כל ' + enWords(enRefillMs()) + '. תרגול וטעויות חינם.</span>'
-        : n === 0 ? '<b>הסוללה התרוקנה</b><span>פס חדש בעוד ' + enTimer('next') + '. בינתיים אפשר לתרגל בלי סוללה.</span>'
+      (s.enIntro ? '<b><i class="chip-new">חדש</i>סוללה: ' + n + ' מתוך ' + max + '</b><span>מעכשיו כל שיעור צורך פס אחד. פס חוזר לבד כל ' + enWords(enRefillMs()) + (enPracticeOn() ? ', או מיד אחרי תרגול' : '') + '. טעויות חינם.</span>'
+        : n === 0 ? '<b>הסוללה התרוקנה</b><span>' + (enPracticeReady() ? 'תרגול קצר מחזיר פס עכשיו. פס חוזר גם לבד בעוד ' + enTimer('next') + '.' : 'פס חדש בעוד ' + enTimer('next') + '. בינתיים אפשר לתרגל בלי סוללה.') + '</span>'
         : '<b>סוללה: ' + n + ' מתוך ' + max + '</b><span>' + (n < max ? 'פס חדש בעוד ' + enTimer('next') + '.' : 'מלאה.') + '</span>') +
-      '</span></div>' + (n <= 1 ? enShareBtn('energy_done') : '');
+      '</span></div>' + (n <= 1 ? enShareBtn('energy_done') : '') +
+      (n === 0 && enPracticeReady() ? '<button class="btn ghost" data-act="practice" data-from="energy_done">' + ICON.dumbbell + 'לתרגל ולקבל פס</button>' : '');
+  }
+  // 0.39: the done screen of a practice that gave a bar back
+  function energyGainCard(s) {
+    if (!s.enGain) return '';
+    var n = enNow(), max = enMax();
+    return '<div class="card tight energy-done ok gain"><span class="ed-ic">' + batteryIcon(n, max) + '</span><span>' +
+      '<b><i class="chip-new" dir="ltr">+' + s.enGain + '</i>התרגול החזיר לך פס</b><span>סוללה: ' + n + ' מתוך ' + max + '.' + (s.enBefore === 0 ? ' השיעור הבא פתוח.' : '') + '</span></span></div>';
   }
   // one ticker for every countdown on screen; when a bar comes back, the screen redraws (never inside a lesson)
   var enLast = null;
@@ -1438,7 +1473,7 @@
       // 0.23: with an empty battery a lesson can't start today, but practice keeps the streak too, so say that
       var noLesson = enOn() && !enCanStart() && !(S.inProgress && BY_ID[S.inProgress.lessonId]) && doneCount();
       html += '<p class="nudge warn">' + ICON.flame + '<span>הרצף של ' + plural(st, 'יום אחד', 'ימים') +
-        (noLesson ? ' מחכה לך. הסוללה ריקה, אבל כמה דקות תרגול שומרות עליו' : ' מחכה לשיעור של היום') +
+        (noLesson ? (enPracticeReady() ? ' מחכה לך. הסוללה ריקה, אבל תרגול קצר שומר עליו ומחזיר פס' : ' מחכה לך. הסוללה ריקה, אבל כמה דקות תרגול שומרות עליו') : ' מחכה לשיעור של היום') +
         (tx > 1 ? ', ששווה ' + timesText(tx) + ' נקודות.' : '.') + '</span></p>';
     } else if (cur && today > 0 && today < S.goalXp) {
       html += '<p class="nudge">' + ICON.target + '<span>עוד ' + fmt(S.goalXp - today) + ' נקודות ליעד היומי.</span></p>';
@@ -1527,7 +1562,7 @@
       : !enCanStart()
         ? '<div class="card tight energy-next">' + batteryIcon(0, enMax()) + '<span>הסוללה ריקה. השיעור נפתח בעוד</span>' + enTimer('next') + '</div>' + enMeanwhile('preview')
         : '<button class="btn' + (replay ? ' gold' : '') + '" data-act="start" data-id="' + esc(l.id) + '">' + (replay ? 'לעשות שוב' : 'התחל שיעור') + '</button>';
-    var enChip = !enOn() ? '' : enFree() ? '<span class="chip">' + batteryIcon(1, 1, true) + 'בלי סוללה ' + (EN.freeFirstDay && S.firstDay === dayKey() ? 'היום' : 'בינתיים') + '</span>'
+    var enChip = !enOn() || enHidden() ? '' : enFree() ? '<span class="chip">' + batteryIcon(1, 1, true) + 'בלי סוללה ' + (EN.freeFirstDay && S.firstDay === dayKey() ? 'היום' : 'בינתיים') + '</span>'
       : ip || !enNow() ? '' : '<span class="chip">' + batteryIcon(1, 1) + 'צורך פס אחד (יש לך ' + enNow() + ')</span>';
     openSheet('<div class="eyebrow">יחידה ' + l.unit.n + ' · שיעור ' + l.n + '</div>' +
       '<h3>' + esc(l.title) + '</h3>' +
@@ -2387,7 +2422,7 @@
     setView('lesson');
   }
 
-  function startPractice(onlyMistakes) {
+  function startPractice(onlyMistakes, from) {
     var pool = [];
     LESSONS.forEach(function (l) {
       if (isDone(l.id)) l.vQuestions.forEach(function (q) { if (scored(q) && (!onlyMistakes || S.mistakes[q.id] > 0)) pool.push(q); });
@@ -2396,7 +2431,8 @@
     pool = shuffle(pool).sort(function (a, b) { return (S.mistakes[b.id] || 0) - (S.mistakes[a.id] || 0); });
     var steps = shuffle(pool.slice(0, CFG.practiceSize)).map(function (q) { return buildQuestionStep(q, { review: true }); });
     session = newSession('practice', null, steps);
-    track('practice_started', { mistakes_only: !!onlyMistakes, questions: steps.length });
+    // 0.39: from = where it was started (energy_home / energy_empty / energy_sheet / energy_done / preview), bar_ready = this practice can give a bar back
+    track('practice_started', { mistakes_only: !!onlyMistakes, questions: steps.length, from: from || null, bar_ready: enPracticeReady() && steps.length >= enPracticeMin() });
     setView('lesson');
   }
 
@@ -2857,6 +2893,7 @@
         track('day_off_earned', { source: 'friend_gift', added: s.giftGiven, held: S.daysOff, at_cap: s.giftGiven < DO.friendGift });
       }
     }
+    if (s.mode === 'practice') { s.enBefore = enOn() && !enFree() ? enNow() : null; s.enGain = enPracticeRefill(stepCount()); }
     if (s.mode === 'repair') {
       s.passed = s.firstTryRight >= s.need;
       if (s.passed && S.lostStreak) {
@@ -2905,7 +2942,10 @@
     } else if (s.mode === 'repair') {
       props.passed = s.passed;
       track('repair_completed', props);
-    } else track('practice_completed', props);
+    } else {
+      if (enPracticeOn()) { props.energy_gain = s.enGain || 0; props.energy_left = enFree() ? null : enNow(); }
+      track('practice_completed', props);
+    }
     nativeReminderPlan();
     socQuiet(true); // 0.31: the group boards and refer-a-friend see the new points (the first lesson registers)
     sfx.done();
@@ -3011,7 +3051,7 @@
         '<details class="pts-details"><summary>פירוט הנקודות</summary><ul class="rules">' + rows + '</ul>' +
           '<p class="fine">היעד היומי: ' + fmt(todayXp()) + ' מתוך ' + fmt(S.goalXp) + '. <button class="link" data-act="explain" data-what="points">בשביל מה הנקודות?</button></p></details>' +
       '</div>' +
-      (s.mode === 'lesson' ? energyDoneCard(s) : '');
+      (s.mode === 'lesson' ? energyDoneCard(s) : s.mode === 'practice' ? energyGainCard(s) : '');
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
@@ -3034,6 +3074,9 @@
     if (chainNext(s)) {
       if (!s.chainShown) { s.chainShown = true; track('done_next_shown', { lesson_id: l.id, lessons_done: doneCount(), status_set: !!S.status }); }
       html += '<button class="btn gold done-next" data-act="done-next">' + ICON.play + 'לשיעור הבא</button>' +
+        '<button class="btn text" data-act="done-home">חזרה למסלול</button></div>';
+    } else if (s.mode === 'practice' && s.enGain && s.enBefore === 0 && enCanStart() && currentLesson() && shown(currentLesson())) {
+      html += '<button class="btn gold done-next" data-act="done-lesson">' + ICON.play + 'לשיעור הבא</button>' +
         '<button class="btn text" data-act="done-home">חזרה למסלול</button></div>';
     } else html += '<button class="btn" data-act="done-home">המשך</button></div>';
     return html;
@@ -3310,6 +3353,7 @@
       var rep = repairInfo();
       if (rep) html += '<div class="card repair-card"><h2>הצלת הרצף</h2><p>הרצף של ' + fmt(rep.value) + ' ימים נשבר. ' + CFG.streakRepair.questions + ' שאלות, ' + CFG.streakRepair.toPass + ' נכונות לפחות, והוא חוזר.</p><button class="btn gold" data-act="repair">להציל את הרצף</button></div>';
       html += '<div class="card practice-card"><h2>תרגול מהיר</h2><p>' + CFG.practiceSize + ' שאלות מהשיעורים שסיימת. שאלות שטעית בהן מגיעות קודם. ' + P.review + ' נקודות לכל תשובה נכונה.</p>' +
+        (enPracticeReady() ? '<p class="en-note">' + batteryIcon(enNow(), enMax()) + '<span>תרגול שמסיימים מחזיר פס לסוללה (יש לך ' + enNow() + ' מתוך ' + enMax() + ').</span></p>' : '') +
         '<button class="btn gold" data-act="practice">התחל תרגול</button></div>';
       html += '<div class="card"><h2>תיקון טעויות</h2>' + (mistakes.length
         ? '<p>' + plural(mistakes.length, 'שאלה אחת', 'שאלות') + ' שעוד לא תוקנו.</p><ul class="mistake-list">' + mistakes.slice(0, 4).map(function (k) { return '<li>' + esc(QUESTIONS[k].prompt) + '</li>'; }).join('') + '</ul>' +
@@ -5840,7 +5884,7 @@
       case 'restart': notesId = null; startLesson(id, true); break;
       case 'notes': notesId = id; setView('notes'); break;
       case 'notes-close': notesId = null; setView('home'); break;
-      case 'practice': startPractice(false); break;
+      case 'practice': startPractice(false, el.getAttribute('data-from')); break;
       case 'practice-mistakes': startPractice(true); break;
       case 'repair': session = null; startRepair(); break;
       case 'pick':
@@ -5876,6 +5920,7 @@
         doneAsk(function () { chainGo('done_next'); });
         break;
       }
+      case 'done-lesson': sfx.tap(); doneAsk(function () { session = null; chainStart('practice_refill'); }); break;
       case 'done-ask-on': {
         var dBtn = el; dBtn.disabled = true;
         enableReminder('done', true, function () { doneAskGo(); });
