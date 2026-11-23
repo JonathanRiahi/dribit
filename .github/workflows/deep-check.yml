@@ -1,0 +1,34 @@
+# Deep check: everything PostHog can tell about new people (lessons, steps, questions, retention, features). Counts only.
+# Runs on a push to its branch that touches these files, or Actions > Deep check > Run workflow once it is on main.
+name: Deep check
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'New people from (YYYY-MM-DD HH:MM, Israel). Empty: 2026-11-13 12:05'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches: ['claude/project-thread-c3o95e']
+    paths: ['tools/deep-check.js', '.github/workflows/deep-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/deep-check.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          TEAM_IDS: ${{ secrets.TEAM_IDS }}
+          FROM: ${{ inputs.from }}

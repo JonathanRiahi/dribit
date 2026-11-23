@@ -1,0 +1,46 @@
+# Fault check: looks for things that are broken or look wrong (tracking gaps, errors, old versions, stuck steps, reminders). Counts only.
+# Runs on a push to its branch that touches these files, or Actions > Fault check > Run workflow once it is on main.
+name: Fault check
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'Events from (YYYY-MM-DD, Israel). Empty: 2026-11-10'
+        type: string
+        required: false
+        default: ''
+      new_from:
+        description: 'New people from (YYYY-MM-DD HH:MM, Israel). Empty: 2026-11-19 00:00'
+        type: string
+        required: false
+        default: ''
+      only:
+        description: 'Only these section numbers, comma separated (empty: all)'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches: ['claude/project-thread-c3o95e']
+    paths: ['tools/fault-check.js', '.github/workflows/fault-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/fault-check.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          TEAM_IDS: ${{ secrets.TEAM_IDS }}
+          SINCE: ${{ inputs.since }}
+          NEW_FROM: ${{ inputs.new_from }}
+          ONLY: ${{ inputs.only }}
