@@ -302,6 +302,11 @@
     if (typeof s.sound !== 'boolean') s.sound = true;
     if (typeof s.share !== 'boolean') s.share = true;
     if (typeof s.team !== 'boolean') s.team = false;
+    // 0.41 usage-data counters (visits, days the app was open, lessons today)
+    ['opens', 'seenDays', 'lessonsDayN'].forEach(function (k) { s[k] = Math.floor(num0(s[k])); });
+    if (!isDayKey(s.seenLast)) s.seenLast = null;
+    if (!isDayKey(s.lessonsDay)) s.lessonsDay = null;
+    s.lessonStartedOnce = s.lessonStartedOnce === true;
     if (!isDayKey(s.firstDay)) s.firstDay = dayKey();
     if (s.lastDay != null && !isDayKey(s.lastDay)) { s.lastDay = null; s.streak = 0; }
     s.lostStreak = isRec(s.lostStreak) && isDayKey(s.lostStreak.lastDay) && num0(s.lostStreak.value) > 0
@@ -422,6 +427,13 @@
     return { value: L.value, daysLeft: CFG.streakRepair.withinDays - missed };
   }
   function todayXp() { return Number(S.days[dayKey()]) || 0; }
+  // 0.41: lessons finished today (counted on the device; the first one also sets S.lessonsDay)
+  function lessonsToday() {
+    var t = dayKey();
+    if (S.lessonsDay !== t) { S.lessonsDay = t; S.lessonsDayN = 0; }
+    S.lessonsDayN = (S.lessonsDayN || 0) + 1; save();
+    return S.lessonsDayN;
+  }
   function awardXp(n) {
     checkStreakBreak();
     var today = dayKey();
@@ -1030,6 +1042,7 @@
     };
     if (IS_NATIVE) { p.native = NATIVE.platform; p.native_version = NATIVE.appVersion; }
     if (S.team) p.team = true;
+    try { superProps(p); } catch (e) { /* the extra context never stops an event */ }
     for (var k in props || {}) p[k] = props[k];
     EQ.push({ uuid: uuid(), event: event, properties: p, timestamp: new Date().toISOString() });
     if (EQ.length > 600) EQ = EQ.slice(-600);
@@ -1056,6 +1069,158 @@
         if (EQ.length) setTimeout(flush, 500);
       }).catch(function () { /* offline: try again later */ }).then(function () { flushing = false; });
     } catch (e) { flushing = false; }
+  }
+
+  // ---------- More context on every event (0.41, Jonathan 24.11: "תוסיף לי עוד נתונים בפוסט הוג... כמה שאתה יכול") ----------
+  // Every event now says where the app runs (surface), which visit it belongs to (session), how old the person is in
+  // days (day_n), on how many different days they opened the app (active_days), how far they got, and the local hour.
+  // Also PostHog's own $os / $browser / $device_type / $screen_width, which its built-in breakdowns use. No texts,
+  // no names, no address with codes in it: only counts, ids of our own content and buckets.
+  var BOOT_AT = Date.now();
+  var REFERRER = (function () { try { return String(document.referrer || ''); } catch (e) { return ''; } })();
+  function refDomain(u) {
+    var m = /^[a-z-]+:\/\/([^\/?#:]+)/i.exec(u || '');
+    return m ? m[1].toLowerCase().replace(/^www\./, '') : null;
+  }
+  // the Android app from Google Play (a TWA) opens /dribit/?source=android, and Chrome gives it an android-app:// referrer
+  var IS_TWA = (function () {
+    var yes = /[?&]source=android(?=&|$)/.test(location.search || '') || /^android-app:\/\/com\.dribit\.app/i.test(REFERRER);
+    try { if (yes) sessionStorage.setItem('dribit.twa', '1'); else yes = sessionStorage.getItem('dribit.twa') === '1'; } catch (e) { /* ignore */ }
+    return yes;
+  })();
+  function surface() {
+    if (IS_NATIVE) return NATIVE.platform === 'ios' ? 'ios_app' : 'native_app';
+    if (IS_TWA) return 'android_app';
+    if (isStandalone()) return 'home_screen';
+    if (IN_APP !== 'none') return 'in_app_browser';
+    return 'browser';
+  }
+  var UA = (function (ua) {
+    var os = /iphone|ipad|ipod/i.test(ua) || IS_IOS ? 'iOS' : /android/i.test(ua) ? 'Android' : /windows/i.test(ua) ? 'Windows'
+      : /mac os x|macintosh/i.test(ua) ? 'Mac OS X' : /cros/i.test(ua) ? 'Chrome OS' : /linux/i.test(ua) ? 'Linux' : 'Other';
+    var ov = os === 'iOS' ? /OS (\d+)[_.](\d+)/.exec(ua) : os === 'Android' ? /Android (\d+)(?:\.(\d+))?/.exec(ua) : null;
+    var br = IN_APP !== 'none' ? IN_APP.charAt(0).toUpperCase() + IN_APP.slice(1) + ' in-app'
+      : /SamsungBrowser/i.test(ua) ? 'Samsung Internet' : /EdgA?\//i.test(ua) ? 'Microsoft Edge' : /OPR\/|Opera/i.test(ua) ? 'Opera'
+      : /Firefox|FxiOS/i.test(ua) ? 'Firefox' : /CriOS|Chrome/i.test(ua) ? (os === 'iOS' ? 'Chrome iOS' : 'Chrome')
+      : /Safari/i.test(ua) ? (os === 'iOS' ? 'Mobile Safari' : 'Safari') : IS_NATIVE ? 'Dribit app' : 'Other';
+    var tablet = /ipad|tablet/i.test(ua) || (os === 'iOS' && !/iphone|ipod/i.test(ua)) || (os === 'Android' && !/mobile/i.test(ua));
+    return { os: os, osv: ov ? ov[1] + (ov[2] ? '.' + ov[2] : '') : null, browser: br,
+      device: tablet ? 'Tablet' : os === 'iOS' || os === 'Android' || /mobile/i.test(ua) ? 'Mobile' : 'Desktop' };
+  })(navigator.userAgent || '');
+  // a session = one visit: a fresh load, or coming back after OPEN_AWAY_MS in the background. Its id is a UUIDv7, so
+  // PostHog also builds its own sessions from it ($session_id: session length and pages per session in its web analytics)
+  function uuid7() {
+    var t = Date.now().toString(16); while (t.length < 12) t = '0' + t;
+    var h = hex(10);
+    return t.slice(0, 8) + '-' + t.slice(8, 12) + '-7' + h.slice(0, 3) + '-' + ((parseInt(h[3], 16) & 3) | 8).toString(16) + h.slice(4, 7) + '-' + h.slice(7, 19);
+  }
+  var SESS = null;
+  function sessionNew(why) {
+    S.opens = (S.opens || 0) + 1;
+    SESS = { id: uuid7(), n: S.opens, at: Date.now(), why: why, visibleMs: 0, shownAt: Date.now(), screens: 0, lessons: 0, done: 0, answers: 0, wrong: 0, practice: 0 };
+    try { sessionStorage.setItem('dribit.sess', JSON.stringify({ id: SESS.id, n: SESS.n, at: SESS.at, last: Date.now() })); } catch (e) { /* ignore */ }
+    save();
+  }
+  // a reload in the same tab within 10 minutes (pull to refresh, the app updating itself) keeps the session
+  function sessionStart() {
+    try {
+      var o = JSON.parse(sessionStorage.getItem('dribit.sess') || 'null');
+      if (o && o.id && Date.now() - (o.last || 0) < OPEN_AWAY_MS) {
+        SESS = { id: o.id, n: o.n, at: o.at, why: 'reload', visibleMs: 0, shownAt: Date.now(), screens: 0, lessons: 0, done: 0, answers: 0, wrong: 0, practice: 0 };
+        return;
+      }
+    } catch (e) { /* ignore */ }
+    sessionNew('load');
+  }
+  function sessionTouch() {
+    if (!SESS) return;
+    try { sessionStorage.setItem('dribit.sess', JSON.stringify({ id: SESS.id, n: SESS.n, at: SESS.at, last: Date.now() })); } catch (e) { /* ignore */ }
+  }
+  function sessionSec() { return SESS ? Math.round((SESS.visibleMs + (SESS.shownAt ? Date.now() - SESS.shownAt : 0)) / 1000) : 0; }
+  function screenName() {
+    if (!HOME_FIRST && (!S.onboarded || !(DATA && doneCount()))) return 'start';
+    if (view === 'lesson' && session) return session.mode; // lesson, practice or repair
+    if (view === 'done' && session) return 'done_' + session.mode;
+    if (DATA && doneCount() && !S.status) return 'status_pick';
+    return view;
+  }
+  function bucketW(w) { return w < 360 ? '<360' : w < 400 ? '360-399' : w < 440 ? '400-439' : w < 768 ? '440-767' : w < 1200 ? '768-1199' : '1200+'; }
+  function superProps(p) {
+    var today = dayKey();
+    p.surface = surface();
+    if (SESS) { p.session_id = SESS.id; p.$session_id = SESS.id; p.session_n = SESS.n; p.session_sec = sessionSec(); }
+    p.day_n = isDayKey(S.firstDay) ? daysBetween(S.firstDay, today) : null; // 0 = the first day, 1 = the next day (D1)...
+    p.active_days = S.seenDays || 0;
+    if (DATA) { p.lessons_done = doneCount(); p.user_level = levelIndex(S.xp) + 1; }
+    p.xp_total = S.xp; p.streak = currentStreak();
+    var d = new Date(); p.local_hour = d.getHours(); p.weekday = d.getDay(); // 0 = Sunday
+    if (root) p.view = screenName();
+    p.$os = UA.os; if (UA.osv) p.$os_version = UA.osv; p.$browser = UA.browser; p.$device_type = UA.device;
+    p.$screen_width = screen.width; p.$screen_height = screen.height; p.$viewport_width = window.innerWidth;
+    p.$lib = 'dribit-web'; p.$lib_version = CFG.version;
+    // the address without ?query and #hash (those can carry a progress code or a friend's code)
+    p.$current_url = location.origin + location.pathname; p.$host = location.host; p.$pathname = location.pathname;
+  }
+  // a new calendar day with the app open: the plainest return signal (day_n 1 = came back the next day)
+  function markActiveDay(source) {
+    var today = dayKey();
+    if (S.seenLast === today) return;
+    var gap = isDayKey(S.seenLast) ? daysBetween(S.seenLast, today) : null, seeded = false;
+    // someone from before 0.41: start from the days they earned points on (a floor; days they only looked are unknown)
+    if (!S.seenDays && isDayKey(S.firstDay) && S.firstDay !== today) {
+      S.seenDays = Math.max(1, Object.keys(S.days || {}).filter(function (k) { return k !== today; }).length); seeded = true;
+    }
+    S.seenDays = (S.seenDays || 0) + 1; S.seenLast = today; save();
+    var dn = isDayKey(S.firstDay) ? daysBetween(S.firstDay, today) : null;
+    track('day_started', { source: source, gap_days: gap, returned: S.seenDays > 1, seeded: seeded, lessons_done_before: DATA ? doneCount() : null,
+      streak_alive: currentStreak() > 0, reminders: !!(S.reminder && S.reminder.on), has_lesson_in_progress: !!S.inProgress,
+      $set: { active_days: S.seenDays, last_active_day: today, last_day_n: dn } });
+  }
+  // since the address was opened (performance.now counts from the start of the page load)
+  function loadMs() { try { return Math.round(performance.now()); } catch (e) { return Date.now() - BOOT_AT; } }
+  function notifPermission() { try { return IS_NATIVE ? null : 'Notification' in window ? Notification.permission : 'unsupported'; } catch (e) { return null; } }
+  function darkMode() { try { return window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return null; } }
+  function timeZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } }
+  // what PostHog keeps on the person: where they are now (for cohorts like "finished 3+ lessons", "home screen users")
+  function personNow() {
+    var o = { lessons_done: DATA ? doneCount() : null, xp: S.xp, user_level: levelIndex(S.xp) + 1, streak: currentStreak(), best_streak: S.bestStreak || 0,
+      active_days: S.seenDays || 0, sessions: S.opens || 0, surface: surface(), app_version: CFG.version, push_permission: notifPermission(),
+      reminders: !!(S.reminder && S.reminder.on), days_off: S.daysOff || 0, mistakes_open: Object.keys(S.mistakes || {}).filter(function (k) { return S.mistakes[k] > 0; }).length,
+      answered_total: S.answered || 0, accuracy_total: S.answered ? Math.round(100 * (S.correct || 0) / S.answered) : null, sound: !!S.sound };
+    return o;
+  }
+  function openSet() {
+    var o = personNow();
+    o.status = S.status; o.goal_xp = S.goalXp; o.standalone = isStandalone(); o.start_unit_id = S.startUnit;
+    if (skinList().length) { o.skin = activeSkin(); o.skins_open = skinsOpenCount(); }
+    o.dark_mode = darkMode(); o.time_zone = timeZone();
+    return o;
+  }
+  // screens people move between: PostHog's Paths and "screen views" read $screen and $screen_name
+  var lastScreen = null, lastScreenAt = 0;
+  function trackScreen() {
+    var name = screenName();
+    if (name === lastScreen) return;
+    var now = Date.now(), prev = lastScreen;
+    lastScreen = name;
+    if (SESS) SESS.screens++;
+    track('$screen', { $screen_name: name, prev_screen: prev, prev_sec: prev ? Math.round((now - lastScreenAt) / 1000) : null,
+      lesson_id: session && session.lesson && (view === 'lesson' || view === 'done') ? session.lesson.id : null });
+    lastScreenAt = now;
+  }
+  // popups: which one (the button that opened it, or 'auto' for one the app opened by itself) and how long it stayed
+  var lastAct = null, lastActAt = 0, sheetInfo = null;
+  function sheetOpened(inner) {
+    var m = /class="([\w-]+)/.exec(inner || ''), kind = m ? m[1] : null;
+    if (kind === 'eyebrow') { var m2 = /class="eyebrow ([\w-]+)/.exec(inner || ''); kind = m2 ? m2[1] : (/<h3>/.test(inner) ? 'card' : kind); }
+    var by = Date.now() - lastActAt < 1200 ? lastAct : 'auto';
+    sheetInfo = { by: by, kind: kind, at: Date.now() };
+    track('sheet_opened', { sheet: by, kind: kind });
+  }
+  function sheetClosed() {
+    if (!sheetInfo) return;
+    var si = sheetInfo; sheetInfo = null;
+    track('sheet_closed', { sheet: si.by, kind: si.kind, sec: Math.round((Date.now() - si.at) / 1000), closed_by: Date.now() - lastActAt < 1200 ? lastAct : 'other' });
   }
 
   // ---------- Team devices (0.28.1) ----------
@@ -1247,8 +1412,11 @@
     if (!session) return;
     if (session.mode === 'lesson') {
       snapshot();
-      track('lesson_exited', { lesson_id: session.lesson.id, step_index: session.idx, step_count: stepCount(), step_kind: step().kind === 'screen' ? 'screen' : 'question', reason: reason });
-    } else track(session.mode + '_exited', { step_index: session.idx, step_count: stepCount(), reason: reason });
+      track('lesson_exited', { lesson_id: session.lesson.id, step_index: session.idx, step_count: stepCount(), step_kind: step().kind === 'screen' ? 'screen' : 'question', reason: reason,
+        question_id: step().q ? step().q.id : null, screen_id: step().kind === 'screen' && step().s ? (step().s.id || null) : null, lesson_sec: Math.round(elapsed() / 1000),
+        step_sec: session.stepAt != null ? Math.round((elapsed() - session.stepAt) / 1000) : null, wrong_so_far: session.wrong || 0,
+        pct: stepCount() ? Math.round(100 * session.idx / stepCount()) : null, first_time: !isDone(session.lesson.id) });
+    } else track(session.mode + '_exited', { step_index: session.idx, step_count: stepCount(), reason: reason, sec: Math.round(elapsed() / 1000), wrong_so_far: session.wrong || 0 });
     clockStop();
     session = null;
   }
@@ -1286,6 +1454,10 @@
   }
 
   function render() {
+    renderInner();
+    try { trackScreen(); } catch (e) { /* ignore */ }
+  }
+  function renderInner() {
     if (tour && TOUR_IDS.indexOf(view) < 0) tourEnd('left');
     if (S.onboarded && view === 'lesson' && session) { root.innerHTML = renderPlayer(); afterPlayerRender(); return; }
     if (S.onboarded && view === 'done' && session) { root.innerHTML = renderDone(); return; }
@@ -1519,6 +1691,7 @@
       (SKIN_IDS.indexOf(skin) >= 0 ? ' data-skin="' + skin + '"' : '') + ' role="dialog" aria-modal="true">' + inner + '</div>';
     document.body.appendChild(wrap);
     sheetOpen = true;
+    sheetOpened(inner);
     if (topIsSheet) histReplace({ view: view, sheet: true }); else histEnter({ view: view, sheet: true });
     // not the color preview's look-alike button, and never a partner's link
     var btn = Array.prototype.filter.call(wrap.querySelectorAll('button.btn, a.btn'), function (b) { return !b.closest('.offer'); })[0];
@@ -1530,6 +1703,7 @@
     if (s) s.remove();
     var was = sheetOpen;
     sheetOpen = false;
+    if (was) sheetClosed();
     if (was && !keepEntry && topIsSheet) { topIsSheet = false; histBack(1); }
     // 0.28: a screen whose walkthrough waited for this popup gets it now
     if (was && !tour) tourAfterRender();
@@ -2427,7 +2601,11 @@
     }
     session = newSession('lesson', l, steps);
     cameIn(l);
-    track('lesson_started', { lesson_id: l.id, unit_id: l.unit.id, lesson_title: l.title, replay: isDone(l.id), restart: !!restart, from: startFrom });
+    if (SESS) SESS.lessons++;
+    track('lesson_started', { lesson_id: l.id, unit_id: l.unit.id, lesson_title: l.title, replay: isDone(l.id), restart: !!restart, from: startFrom,
+      lesson_order: LESSONS.indexOf(l) + 1, steps: steps.length, questions: steps.filter(function (x) { return x.kind !== 'screen'; }).length,
+      first_ever: !doneCount() && !S.lessonStartedOnce, $set_once: { first_lesson_started_day: dayKey(), first_lesson_started_id: l.id } });
+    if (!S.lessonStartedOnce) { S.lessonStartedOnce = true; save(); }
     setView('lesson');
   }
 
@@ -2441,6 +2619,7 @@
     var steps = shuffle(pool.slice(0, CFG.practiceSize)).map(function (q) { return buildQuestionStep(q, { review: true }); });
     session = newSession('practice', null, steps);
     // 0.39: from = where it was started (energy_home / energy_empty / energy_sheet / energy_done / preview), bar_ready = this practice can give a bar back
+    if (SESS) SESS.practice++;
     track('practice_started', { mistakes_only: !!onlyMistakes, questions: steps.length, from: from || null, bar_ready: enPracticeReady() && steps.length >= enPracticeMin() });
     setView('lesson');
   }
@@ -2471,6 +2650,7 @@
   function clockStart() { if (session && !session.tick) session.tick = Date.now(); }
   function clockStop() { if (session && session.tick) { session.activeMs += Date.now() - session.tick; session.tick = null; } }
   function elapsed() { return session ? session.activeMs + (session.tick ? Date.now() - session.tick : 0) : 0; }
+  function answerSec() { return session && session.stepAt != null ? Math.round((elapsed() - session.stepAt) / 10) / 100 : null; }
 
   // the open lesson is saved after every step, so the app reopens exactly there
   function snapshot() {
@@ -2596,10 +2776,16 @@
     if (session.trackedIdx !== session.idx) {
       session.trackedIdx = session.idx;
       var st = step();
+      // 0.41: prev_sec = the time on the step before this one (a card's reading time; a question's thinking time)
+      var stepNow = elapsed(), prevSec = session.stepAt != null ? Math.round((stepNow - session.stepAt) / 1000) : null;
+      session.stepAt = stepNow;
       track('step_viewed', {
         mode: session.mode, lesson_id: session.lesson ? session.lesson.id : null,
         step_index: session.idx, step_count: stepCount(), step_kind: st.kind === 'screen' ? 'screen' : 'question',
-        question_id: st.q ? st.q.id : null
+        question_id: st.q ? st.q.id : null,
+        screen_id: st.kind === 'screen' && st.s ? (st.s.id || null) : null, screen_type: st.kind === 'screen' && st.s ? (st.s.type || 'card') : null,
+        retry: !!st.retry, review: !!st.review, prev_sec: prevSec, lesson_sec: Math.round(stepNow / 1000),
+        pct: stepCount() ? Math.round(100 * session.idx / stepCount()) : null
       });
       if (st.kind === 'screen' && st.s.type === 'calculator') track('calculator_opened', { from: 'lesson', lesson_id: session.lesson ? session.lesson.id : null, has_estimate: !!(S.calc && S.calc.type) });
     }
@@ -2755,12 +2941,15 @@
       st.gain = 0;
       track('question_answered', { mode: session.mode, lesson_id: session.lesson ? session.lesson.id : st.q.lessonId, question_id: st.q.id,
         question_type: st.q.type, correct: right, retry: false, review: false, guess: true, is_first_try: !(session.lesson && isDone(session.lesson.id)),
-        option_index: st.sel, option_pos: st.order ? st.order.indexOf(st.sel) : st.sel, option_count: st.q.options.length });
+        option_index: st.sel, option_pos: st.order ? st.order.indexOf(st.sel) : st.sel, option_count: st.q.options.length,
+        time_sec: answerSec(), step_index: session.idx });
       sfx.pair();
       save();
       return;
     }
     S.answered++;
+    if (SESS) { SESS.answers++; if (!right) SESS.wrong++; }
+    if (!right) session.wrong = (session.wrong || 0) + 1;
     if (!st.retry) {
       session.firstTry++;
       if (right) session.firstTryRight++;
@@ -2788,7 +2977,10 @@
     var props = {
       mode: session.mode, lesson_id: session.lesson ? session.lesson.id : st.q.lessonId, question_id: st.q.id,
       question_type: st.q.type, correct: right, retry: st.retry, review: st.review,
-      is_first_try: !st.retry && !st.review && !(session.lesson && isDone(session.lesson.id))
+      is_first_try: !st.retry && !st.review && !(session.lesson && isDone(session.lesson.id)),
+      // 0.41: how long the answer took (active time on this question), where in the lesson, and the combo so far
+      time_sec: answerSec(), step_index: session.idx, step_count: stepCount(), combo: session.combo,
+      mistakes_before: Math.max(0, (S.mistakes[st.q.id] || 0) - (right ? 0 : 1))
     };
     if (st.q.type === 'order') {
       var fw = -1;
@@ -2933,7 +3125,11 @@
     s.goalHit = !goalBefore && todayXp() >= S.goalXp;
     s.streakUp = currentStreak() > streakBefore;
     save();
-    var props = { mode: s.mode, duration_sec: Math.round(s.time / 1000), accuracy: acc, points: s.xp, max_combo: s.maxCombo };
+    // 0.41: the streak grew today, and the daily goal was reached (both once a day at most)
+    if (s.streakUp) track('streak_extended', { streak: currentStreak(), best_streak: S.bestStreak, from_mode: s.mode, first_day: currentStreak() === 1, $set: { streak: currentStreak(), best_streak: S.bestStreak } });
+    if (s.goalHit) track('daily_goal_reached', { goal_xp: S.goalXp, today_xp: todayXp(), from_mode: s.mode });
+    var props = { mode: s.mode, duration_sec: Math.round(s.time / 1000), accuracy: acc, points: s.xp, max_combo: s.maxCombo,
+      wrong_answers: session.wrong || 0, steps: stepCount(), today_xp: todayXp() };
     if (s.mode !== 'repair' && sbTiers().length) { props.streak_times = s.streakTimes; props.streak_bonus = s.streakBonus; }
     if (s.mode === 'lesson') {
       props.lesson_id = l.id; props.unit_id = l.unit.id; props.perfect = perfect;
@@ -2942,6 +3138,11 @@
       var ntl = nextTool();
       if (toolList().length) { props.next_tool = ntl ? ntl.id : null; props.to_next_band = ntl ? pointsBand(toolPointsTo(ntl)) : null; }
       if (skinList().length) { var nsl = nextSkin(); props.next_skin = nsl ? nsl.id : null; }
+      if (SESS) SESS.done++;
+      props.lesson_order = LESSONS.indexOf(l) + 1; props.lessons_done_after = doneCount(); props.plays = (S.lessons[l.id] || {}).plays || 1;
+      props.lessons_today = lessonsToday(); props.lessons_in_session = SESS ? SESS.done : null;
+      props.$set = personNow();
+      if (s.firstTime && doneCount() === 1) props.$set_once = { first_lesson_done_day: dayKey(), first_lesson_done_id: l.id, first_lesson_done_day_n: daysBetween(S.firstDay, dayKey()) };
       track('lesson_completed', props);
       if (IS_NATIVE && s.firstTime && (doneCount() === 3 || doneCount() === 12)) {
         // the App Store's own "rate this app" question, at a good moment (iOS decides whether to show it, at most 3 a year)
@@ -5824,10 +6025,17 @@
   function onClick(e) {
     // the notifications popup ignores taps in its first moment (a tap meant for home that landed as it slid up)
     if (Date.now() - askOpenedAt < 450 && e.target.closest('#sheet') && document.querySelector('#sheet .ask-ic, #sheet .ask-welcome, #sheet .tools-intro, #sheet .skins-intro')) return;
-    if (e.target.closest('a[target="_blank"]')) markStepOut(); // a link out (the official calculator, WhatsApp)
+    var aOut = e.target.closest('a[target="_blank"]');
+    if (aOut) {
+      markStepOut(); // a link out (the official calculator, WhatsApp)
+      // 0.41: every link out, by site only (never the full address)
+      track('link_out', { domain: refDomain(aOut.href) || (/^(\w+):/.exec(aOut.getAttribute('href') || '') || [])[1] || null, act: aOut.getAttribute('data-act') || null,
+        in_sheet: !!aOut.closest('#sheet'), lesson_id: session && session.lesson && view === 'lesson' ? session.lesson.id : null });
+    }
     var el = e.target.closest('[data-act]');
     if (!el) return;
     var act = el.getAttribute('data-act'), id = el.getAttribute('data-id');
+    lastAct = act; lastActAt = Date.now();
     switch (act) {
       case 'nav': {
         var navTo = el.getAttribute('data-to');
@@ -6293,13 +6501,27 @@
     outByApp = !!stepOutAt && hiddenAt - stepOutAt < 60 * 1000;
     stepOutAt = 0;
   }
+  // 0.41: each time the app goes to the background: how long this stretch and the whole visit were, and what was done
+  function sessionHidden(how) {
+    if (!SESS || !SESS.shownAt) return;
+    var stretch = Date.now() - SESS.shownAt;
+    SESS.visibleMs += stretch; SESS.shownAt = 0;
+    sessionTouch();
+    var inLesson = view === 'lesson' && session;
+    track('app_hidden', { how: how, visible_sec: Math.round(stretch / 1000), session_sec: sessionSec(), screens_in_session: SESS.screens,
+      lessons_started_in_session: SESS.lessons, lessons_done_in_session: SESS.done, answers_in_session: SESS.answers, wrong_in_session: SESS.wrong,
+      practice_in_session: SESS.practice, in_lesson: !!inLesson, lesson_id: inLesson && session.lesson ? session.lesson.id : null,
+      step_index: inLesson ? session.idx : null, step_count: inLesson ? stepCount() : null, sheet: sheetInfo ? sheetInfo.by : null });
+  }
   function onHidden() {
     markHidden();
+    sessionHidden('hidden');
     startLeft('hidden');
     if (view === 'lesson' && session) {
       clockStop();
       snapshot();
-      if (session.mode === 'lesson') track('lesson_paused', { lesson_id: session.lesson.id, step_index: session.idx, step_count: stepCount() });
+      if (session.mode === 'lesson') track('lesson_paused', { lesson_id: session.lesson.id, step_index: session.idx, step_count: stepCount(),
+        question_id: step() && step().q ? step().q.id : null, lesson_sec: Math.round(elapsed() / 1000), wrong_so_far: session.wrong || 0 });
     }
     flush();
   }
@@ -6313,11 +6535,16 @@
     if (startEnded && startAt && view !== 'lesson' && (!S.onboarded || !doneCount())) { startEnded = false; startAt = 0; startShown(); }
     var away = hiddenAt ? Date.now() - hiddenAt : 0, byApp = outByApp;
     hiddenAt = 0; outByApp = false;
+    if (SESS && !SESS.shownAt) { SESS.shownAt = Date.now(); sessionTouch(); }
     if (away >= OPEN_AWAY_MS) {
       newOpen();
+      sessionNew('resume');
+      lastScreen = null; // the first screen of the new visit counts as a screen view
       // 0.19.3: an app kept in memory (an iPhone home-screen app, a tab left open) never reloads, so coming back to it
       // the next day sent nothing and the return was missing from Retention. Back after 10 minutes is a new open.
-      track('app_opened', { returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: 'resume', away_min: Math.round(away / 60000) });
+      track('app_opened', { returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: 'resume', away_min: Math.round(away / 60000),
+        push_permission: notifPermission(), has_lesson_in_progress: !!S.inProgress, $set: openSet() });
+      markActiveDay('resume');
       socQuiet(false);
     }
     checkForUpdate();
@@ -6405,6 +6632,7 @@
   function boot(data) {
     DATA = data;
     adoptUid();
+    sessionStart();
     indexContent();
     migrateContent();
     root = document.getElementById('app');
@@ -6430,7 +6658,7 @@
       histReplace({ view: 'home' });
       window.addEventListener('popstate', onPop);
     }
-    window.addEventListener('pagehide', function () { markHidden(); startLeft('pagehide'); if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
+    window.addEventListener('pagehide', function () { markHidden(); sessionHidden('pagehide'); startLeft('pagehide'); if (view === 'lesson') { clockStop(); snapshot(); } flush(); });
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('online', flush);
     setInterval(enTick, 1000); // 0.14: battery countdowns
@@ -6485,10 +6713,20 @@
       returning: S.onboarded, lessons_done: doneCount(), xp: S.xp, streak: currentStreak(), source: OPEN_SOURCE, ref: OPEN_REF, kind: OPEN_KIND, landing_id: OPEN.lp, go: GO,
       friend_link: !!OPEN.r, group_link: !!OPEN.g,
       reminders: !!(S.reminder && S.reminder.on), days_off: S.daysOff, learned_days_7: learned7(),
-      $set: skinList().length ? { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff, skin: activeSkin(), skins_open: skinsOpenCount() }
-        : { status: S.status, goal_xp: S.goalXp, standalone: isStandalone(), start_unit_id: S.startUnit, days_off: S.daysOff },
-      $set_once: { first_day: S.firstDay, first_ref: S.ref || 'none' }
+      // 0.41: how long the app took to show (slow loads lose people), where the visit came from, the phone's settings
+      load_ms: loadMs(), $referrer: refDomain(REFERRER) ? REFERRER.split(/[?#]/)[0].split('/').slice(0, 3).join('/') : '$direct',
+      $referring_domain: refDomain(REFERRER) || '$direct', fresh_device: FRESH_LOAD, dark_mode: darkMode(), time_zone: timeZone(), lang: navigator.language || null,
+      push_permission: notifPermission(), has_lesson_in_progress: !!S.inProgress,
+      $set: openSet(),
+      $set_once: { first_day: S.firstDay, first_ref: S.ref || 'none', first_surface: surface(), first_app_version: CFG.version, first_source: OPEN_SOURCE,
+        first_in_app: IN_APP, first_referring_domain: refDomain(REFERRER) || '$direct', first_os: UA.os, first_go: GO || 'none' }
     });
+    if (FRESH_LOAD && !hasProgress()) {
+      // 0.41: a device that never had the app before (moving out of TikTok's or Instagram's browser keeps the same person)
+      track('first_open', { source: OPEN_SOURCE, ref: OPEN_REF, landing_id: OPEN.lp, go: GO, friend_link: !!OPEN.r, group_link: !!OPEN.g,
+        referring_domain: refDomain(REFERRER) || '$direct', moved_from_in_app: OPEN_SOURCE === 'inapp_exit' });
+    }
+    markActiveDay(OPEN_SOURCE);
     if (OPEN_SOURCE === 'push') track('push_clicked', { app_open: false, kind: OPEN_KIND });
     // the app always opens on home; an unfinished lesson waits in the "להמשיך" card at the top (Jonathan, 18.10)
     if (S.inProgress && !(S.onboarded && restoreSession(S.inProgress))) { S.inProgress = null; save(); }
