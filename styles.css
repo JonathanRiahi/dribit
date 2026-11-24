@@ -1841,3 +1841,124 @@ details.faq p { padding: 0 14px 12px; color: var(--ink-2); font-size: 15px; line
 .ct-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding-top: 4px; }
 .ct-ok { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-bg); color: var(--ok); }
 .ct-ok svg { width: 34px; height: 34px; }
+
+/* ---------- 0.42: motion (Jonathan's playtest, 24.11: swipe, animations) and the skip test ---------- */
+/* a step slides in once, when it changes (app.js stepEnter); before, the card and the question replayed a slide on every tap */
+.player .explain-card, .player .q-prompt, .player[class*="qt"] .scenario { animation: none; }
+.player .stage { touch-action: pan-y; }
+.stage.in-l { animation: step-in-l .34s cubic-bezier(.2, .85, .25, 1) backwards; }
+.stage.in-r { animation: step-in-r .34s cubic-bezier(.2, .85, .25, 1) backwards; }
+@keyframes step-in-l { from { transform: translateX(-56px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes step-in-r { from { transform: translateX(56px); opacity: 0; } to { transform: none; opacity: 1; } }
+.stage.in-l .opt, .stage.in-r .opt { animation: opt-in .32s cubic-bezier(.2, .9, .3, 1.15) backwards; animation-delay: calc(110ms + var(--i, 0) * 55ms); }
+@keyframes opt-in { from { transform: translateY(14px) scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+.stage.dragging { transition: none; }
+.stage.fly { transition: transform .17s ease-in, opacity .17s ease-in; }
+.player .stage:not(.dragging):not(.fly) { transition: transform .25s cubic-bezier(.2, 1.3, .4, 1), opacity .2s ease; }
+.nudge-x { animation: nudge-x .45s ease; }
+@keyframes nudge-x { 0%, 100% { transform: none; } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }
+.swipe-hint { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--ink-3); font-size: 13px; font-weight: 700; margin-top: -6px; }
+.swipe-hint i { display: grid; place-items: center; animation: swipe-hint 1.6s ease-in-out infinite; }
+.swipe-hint svg { width: 20px; height: 20px; }
+@keyframes swipe-hint { 0%, 100% { transform: translateX(-5px); } 50% { transform: translateX(5px); } }
+
+/* the answer: a hop for right, the verdict badge spins in, the panel rises (once, the render after "בדיקה") */
+.player.just.got .opt.right, .player.just .num-wrap.right { animation: hop .5s cubic-bezier(.3, 1.6, .5, 1); }
+.player.just .num-wrap.wrong { animation: shake .38s; }
+@keyframes hop { 0% { transform: none; } 35% { transform: translateY(-6px) scale(1.04); } 65% { transform: translateY(1px) scale(.99); } 100% { transform: none; } }
+.player.just .player-foot.ok, .player.just .player-foot.bad { animation: foot-up .28s cubic-bezier(.2, .9, .3, 1) backwards; }
+@keyframes foot-up { from { transform: translateY(45%); opacity: .3; } to { transform: none; opacity: 1; } }
+.player.just .verdict .badge { animation: badge-pop .5s cubic-bezier(.2, 1.7, .4, 1) .08s backwards; }
+@keyframes badge-pop { from { transform: scale(.2) rotate(-40deg); } to { transform: none; } }
+.player.just.got .progress > i { animation: bar-glow .7s ease; }
+@keyframes bar-glow { 40% { filter: brightness(1.25) saturate(1.3); } }
+
+/* the done screen comes in piece by piece (only when it opens, not when a rating redraws it) */
+@keyframes rise { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+#app.view-in .done-wrap > :not(.done-foot):not(.done-hero) { animation: rise .42s cubic-bezier(.2, .9, .3, 1) backwards; animation-delay: .5s; }
+#app.view-in .done-wrap > .tiles { animation: none; }
+#app.view-in .done-wrap > .tiles .tile { animation: pop .45s cubic-bezier(.2, 1.6, .4, 1) backwards; }
+#app.view-in .done-wrap > .tiles .tile:nth-child(1) { animation-delay: .25s; }
+#app.view-in .done-wrap > .tiles .tile:nth-child(2) { animation-delay: .33s; }
+#app.view-in .done-wrap > .tiles .tile:nth-child(3) { animation-delay: .41s; }
+#app.view-in .done-wrap > .done-foot { animation: rise .35s cubic-bezier(.2, .9, .3, 1) .55s backwards; }
+#app.view-in > main.screen { animation: fade .22s ease backwards; }
+.stat.xp.bump { animation: stat-bump .4s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes stat-bump { 45% { transform: scale(1.2); } }
+
+/* the path after a lesson: the finished circle turns gold, then the next one unlocks (delays match app.js homeAnims) */
+.node-wrap.just-done .node { animation: node-done .6s cubic-bezier(.2, 1.5, .4, 1) backwards; animation-delay: calc(380ms + var(--k, 0) * 130ms); }
+.node-wrap.just-done.from-lock .node { animation-name: node-done-lock; }
+@keyframes node-done {
+  0% { background: var(--u, var(--brand)); color: #fff; box-shadow: 0 7px 0 var(--u-deep, var(--brand-deep)); transform: none; }
+  40% { transform: scale(.82); }
+  70% { transform: scale(1.14) rotate(-6deg); }
+  100% { transform: none; }
+}
+@keyframes node-done-lock {
+  0% { background: var(--lock); color: var(--ink-3); box-shadow: 0 7px 0 var(--lock-deep); transform: none; }
+  40% { transform: scale(.82); }
+  70% { transform: scale(1.14) rotate(-6deg); }
+  100% { transform: none; }
+}
+.node-wrap.just-open .node { animation: node-open .75s cubic-bezier(.2, 1.3, .4, 1) backwards; animation-delay: calc(380ms + var(--k, 0) * 130ms); }
+.node-wrap.just-open .node > svg { animation: icon-in .4s cubic-bezier(.2, 1.6, .4, 1) backwards; animation-delay: calc(380ms + var(--k, 0) * 130ms + 330ms); }
+.node-wrap.just-open .node::after {
+  content: ''; position: absolute; inset: 0; margin: auto; width: 30px; height: 30px; pointer-events: none; background: var(--ink-3);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10V7a5 5 0 0110 0v3h1a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2zm2 0h6V7a3 3 0 00-6 0z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10V7a5 5 0 0110 0v3h1a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2zm2 0h6V7a3 3 0 00-6 0z'/%3E%3C/svg%3E") center / contain no-repeat;
+  opacity: 0; animation: lock-off .6s ease backwards; animation-delay: calc(380ms + var(--k, 0) * 130ms);
+}
+@keyframes node-open {
+  0%, 30% { background: var(--lock); color: var(--ink-3); box-shadow: 0 7px 0 var(--lock-deep); transform: none; }
+  12% { transform: rotate(-10deg); }
+  22% { transform: rotate(9deg); }
+  55% { transform: scale(.86); }
+  80% { transform: scale(1.15); }
+  100% { transform: none; }
+}
+@keyframes lock-off { 0%, 35% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-26px) scale(.6) rotate(-20deg); } }
+@keyframes icon-in { from { transform: scale(0) rotate(-90deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.node-wrap.just-open .start-tip {
+  animation: tip-in .4s cubic-bezier(.2, 1.5, .4, 1) backwards, bob 2s ease-in-out infinite;
+  animation-delay: calc(380ms + var(--k, 0) * 130ms + 600ms), calc(380ms + var(--k, 0) * 130ms + 1000ms);
+}
+@keyframes tip-in { from { opacity: 0; transform: translate(-50%, 10px) scale(.8); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* the skip test */
+.unit-skip {
+  display: flex; align-items: center; gap: 6px; width: fit-content; margin: 12px auto 0;
+  border: 2px solid var(--line); background: var(--surface); color: var(--u, var(--brand)); border-radius: 999px;
+  padding: 6px 14px; min-height: 40px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 3px 0 var(--line); transition: transform .06s, box-shadow .06s;
+}
+.unit-skip svg { width: 18px; height: 18px; flex: none; }
+.unit-skip:active { transform: translateY(3px); box-shadow: none; }
+.skip-btn svg { width: 20px; height: 20px; }
+.sheet .center, .skip-done .center { text-align: center; }
+.chips.center { justify-content: center; }
+.skip-hero {
+  width: 72px; height: 72px; border-radius: 50%; margin: 2px auto 4px; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #FFE08A, var(--gold) 55%, var(--gold-deep)); color: #5A3D00;
+  box-shadow: 0 5px 0 var(--gold-deep); animation: pop .5s cubic-bezier(.2, 1.6, .4, 1);
+}
+.skip-hero svg { width: 36px; height: 36px; }
+.skip-hero.big { width: 96px; height: 96px; }
+.skip-hero.big svg { width: 46px; height: 46px; }
+.skip-done.lost .skip-hero { background: var(--surface-2); color: var(--ink-2); box-shadow: 0 5px 0 var(--line); }
+.skip-done.lost .done-hero h1 { color: var(--ink); }
+.skip-fail { display: flex; flex-direction: column; gap: 4px; }
+.skip-fail span { color: var(--ink-2); line-height: 1.55; }
+.skip-list ul { list-style: none; display: flex; flex-direction: column; gap: 9px; margin: 10px 0 4px; padding: 0; }
+.skip-list li { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.skip-list li i { margin-inline-start: auto; font-style: normal; font-size: 12.5px; color: var(--ink-3); font-weight: 600; white-space: nowrap; }
+.skip-list .dot { width: 28px; height: 28px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--gold); color: #5A3D00; box-shadow: 0 3px 0 var(--gold-deep); }
+.skip-list .dot svg { width: 16px; height: 16px; }
+#app.view-in .skip-list .dot { animation: pop .45s cubic-bezier(.2, 1.6, .4, 1) backwards; animation-delay: calc(750ms + var(--k, 0) * 140ms); }
+.lives { display: flex; align-items: center; justify-content: center; gap: 1px; min-width: 40px; }
+.lives i { display: grid; color: var(--line); }
+.lives i.on { color: var(--bad); }
+.lives svg { width: 20px; height: 20px; }
+.lives i.lost { animation: heart-lost .6s ease; }
+@keyframes heart-lost { 0% { color: var(--bad); transform: none; } 30% { color: var(--bad); transform: scale(1.35); } 100% { transform: none; } }
+.node-wrap.just-open .node { position: relative; }

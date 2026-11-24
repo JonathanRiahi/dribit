@@ -72,6 +72,10 @@
     addHome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg>',
     phone: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 1.5h8A2.5 2.5 0 0118.5 4v16a2.5 2.5 0 01-2.5 2.5H8A2.5 2.5 0 015.5 20V4A2.5 2.5 0 018 1.5zm0 3V18h8V4.5zm4 15a1.1 1.1 0 100 2.2 1.1 1.1 0 000-2.2z"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>',
+    // 0.42: the skip test (fast forward; in RTL forward points left) and its lives
+    swipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M3 12h18"/></svg>',
+    ff: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 5.2v13.6L2.8 12zM21.5 5.2v13.6L11.8 12z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.2l-1.4-1.3C5.4 15.3 2 12.2 2 8.4 2 5.3 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.3 22 8.4c0 3.8-3.4 6.9-8.6 11.5z"/></svg>',
     rescue: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6"/></svg>',
     bell: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1.5 1.5 0 011.5 1.5v.9A6 6 0 0118 10v4.2l1.7 2.3a1 1 0 01-.8 1.6H5.1a1 1 0 01-.8-1.6L6 14.2V10a6 6 0 014.5-5.6v-.9A1.5 1.5 0 0112 2zm-2.5 17.5h5a2.5 2.5 0 01-5 0z"/></svg>',
     dots: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
@@ -188,7 +192,7 @@
       xp: 0, streak: 0, bestStreak: 0, lastDay: null,
       lostStreak: null,  // { value, lastDay } when a long streak broke and can still be rescued
       days: {},          // 'YYYY-MM-DD' -> points that day
-      lessons: {},       // lessonId -> { done, best, plays, fastest }
+      lessons: {},       // lessonId -> { done, best, plays, fastest, skipped (0.42: opened by a skip test) }
       missions: {},      // lessonId -> { steps: [bool], done: bool }
       mistakes: {},      // questionId -> times answered wrong (goes down when answered right)
       answered: 0, correct: 0,
@@ -317,7 +321,10 @@
       trainingEdited: s.calc.trainingEdited === true, lone: s.calc.lone === true, at: num0(s.calc.at) } : null;
     s.days = cleanMap(s.days, function (v) { return num0(v); }, isDayKey);
     s.lessons = cleanMap(s.lessons, function (r) {
-      return isRec(r) ? { done: r.done === true, best: num0(r.best), plays: num0(r.plays), fastest: num0(r.fastest) || null } : null;
+      if (!isRec(r)) return null;
+      var c = { done: r.done === true, best: num0(r.best), plays: num0(r.plays), fastest: num0(r.fastest) || null };
+      if (r.skipped === true && c.done) c.skipped = true; // 0.42: opened by a skip test, not learned here
+      return c;
     });
     s.missions = cleanMap(s.missions, function (m) {
       return isRec(m) ? { steps: Array.isArray(m.steps) ? m.steps.slice(0, 20).map(function (x) { return x === true; }) : [], done: m.done === true } : null;
@@ -991,7 +998,7 @@
   }
   function doneCount() { return LESSONS.filter(function (l) { return isDone(l.id); }).length; }
   function missionState(id) { return S.missions[id] || { steps: [], done: false }; }
-  function openMissions() { return MISSIONS_ON ? LESSONS.filter(function (l) { return isDone(l.id) && !missionState(l.id).done; }) : []; }
+  function openMissions() { return MISSIONS_ON ? LESSONS.filter(function (l) { return isDone(l.id) && !S.lessons[l.id].skipped && !missionState(l.id).done; }) : []; }
   function maxLessonPoints(l) {
     return l.vQuestions.filter(scored).length * P.correct + (hasReviewQuestion(l) ? P.review : 0) + P.lessonDone + P.perfect + P.speed;
   }
@@ -1416,7 +1423,8 @@
         question_id: step().q ? step().q.id : null, screen_id: step().kind === 'screen' && step().s ? (step().s.id || null) : null, lesson_sec: Math.round(elapsed() / 1000),
         step_sec: session.stepAt != null ? Math.round((elapsed() - session.stepAt) / 1000) : null, wrong_so_far: session.wrong || 0,
         pct: stepCount() ? Math.round(100 * session.idx / stepCount()) : null, first_time: !isDone(session.lesson.id) });
-    } else track(session.mode + '_exited', { step_index: session.idx, step_count: stepCount(), reason: reason, sec: Math.round(elapsed() / 1000), wrong_so_far: session.wrong || 0 });
+    } else track(session.mode === 'skip' ? 'skip_test_exited' : session.mode + '_exited', { step_index: session.idx, step_count: stepCount(), reason: reason, sec: Math.round(elapsed() / 1000), wrong_so_far: session.wrong || 0,
+      unit_id: session.unit ? session.unit.id : undefined });
     clockStop();
     session = null;
   }
@@ -1438,6 +1446,7 @@
     if (v === view) return; // only a sheet was closed
     if (view === 'lesson' && session) leaveSession('back');
     if (view === 'done') session = null;
+    viewIn = true;
     view = v;
     if (pendingReload && !pushBusy && v !== 'lesson' && v !== 'done') { reloadForUpdate(); return; }
     render();
@@ -1445,6 +1454,7 @@
   }
 
   function setView(v) {
+    if (v !== view) viewIn = true;
     view = v;
     closeSheet(true);
     if (v === 'home') { topIsSheet = false; histBack(histDepth); } else histEnter({ view: v });
@@ -1453,8 +1463,17 @@
     if (v !== 'home') window.scrollTo(0, 0); else maybeAsk();
   }
 
+  // 0.42: a new screen fades in (styles.css #app.view-in); set by setView and the back button, not by taps inside a screen
+  var viewIn = false, viewInT = null;
   function render() {
+    var vin = viewIn;
+    viewIn = false;
     renderInner();
+    if (vin && root && !reducedMotion()) {
+      root.classList.remove('view-in'); void root.offsetWidth; root.classList.add('view-in');
+      clearTimeout(viewInT);
+      viewInT = setTimeout(function () { root.classList.remove('view-in'); }, 1500);
+    }
     try { trackScreen(); } catch (e) { /* ignore */ }
   }
   function renderInner() {
@@ -1472,10 +1491,41 @@
       : view === 'friends' && socTab() ? renderFriends() : view === 'group' && socTab() && socGroup ? renderGroup() : renderPath();
     root.innerHTML = renderTopbar() + '<main class="screen gutter">' + body + '</main>' + renderLegalBar() + renderNav();
     if (view === 'home') revealCurrent();
+    homeAnims();
     if (view === 'home' && offToast && !sheetOpen) showOffToast();
     tourAfterRender();
     if (socReward && !sheetOpen) socShowSoon(); // a friend's reward that arrived during a lesson
     if (fresh) startShown(); // the first screen of a new person: how long until a lesson starts
+  }
+  // 0.42: after a lesson or a passed skip test, the path plays what changed (styles.css .just-done / .just-open), and
+  // the points in the top bar count up to the new total
+  var mapAnimUntil = 0;
+  function homeAnims() {
+    if (justMap && view === 'home') {
+      var n = justMap.done.length;
+      justMap = null;
+      var open = root.querySelector('.node-wrap.just-open .node');
+      if (root.querySelector('.node-wrap.just-done, .node-wrap.just-open') && !reducedMotion()) {
+        var at = 380 + Math.min(n, 9) * 130; // matches the delays in styles.css
+        mapAnimUntil = Date.now() + at + 700;
+        if (open) setTimeout(function () { if (view === 'home' && open.isConnected) { burst(open); sfx.pair(); } }, at + 260);
+      }
+    }
+    var xs = xpFrom != null && root.querySelector('.topbar .stat.xp');
+    if (xs) countStat(xs, xpFrom, S.xp);
+    if (xs || view === 'home') xpFrom = null;
+  }
+  function countStat(el, from, to) {
+    if (reducedMotion() || from >= to) return;
+    var t0 = performance.now() + 250, dur = Math.min(1100, 450 + (to - from) * 4);
+    el.innerHTML = ICON.coin + fmt(from);
+    (function frame(t) {
+      if (!el.isConnected) return;
+      var p = Math.max(0, Math.min(1, (t - t0) / dur));
+      el.innerHTML = ICON.coin + fmt(Math.round(from + (to - from) * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(frame);
+      else { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+    })(performance.now());
   }
   function showOffToast() {
     var o = offToast;
@@ -1660,13 +1710,14 @@
         '<h2>' + esc(u.title) + '</h2><span class="meta">' + done + ' מתוך ' + u.vis.length + ' שיעורים</span>' +
         '<span class="ubar"><i style="width:' + (done || (cur && cur.unit === u) ? fillPct(done / u.vis.length) : 0) + '%"></i></span></span>' +
         '<span class="art' + (img ? ' pic' : '') + '">' + (img ? '<img src="' + esc(img) + '" alt="">' : u.n) + '</span></button>' +
-        '<div class="path">';
+        skipChip(u) + '<div class="path">';
       u.vis.forEach(function (l, i) {
         var state = isDone(l.id) ? 'done' : (cur && cur.id === l.id ? 'current' : allOpen() || JUMP === l.id ? 'open' : 'locked');
         var dx = Math.round(Math.sin(i * 1.1) * 70);
         var icon = state === 'done' ? ICON.check : state === 'current' ? ICON.star : state === 'open' ? ICON.play : ICON.lock;
         var tip = S.inProgress && S.inProgress.lessonId === l.id ? 'להמשיך' : !enCanStart() ? batteryIcon(0, enMax()) + enTimer('next') : doneCount() ? 'המשך כאן' : 'מתחילים';
-        html += '<div class="node-wrap ' + state + (state === 'current' && fresh ? ' first' : '') + '" style="--dx:' + dx + 'px">' +
+        var jm = mapAnim(l, state);
+        html += '<div class="node-wrap ' + state + (state === 'current' && fresh ? ' first' : '') + (jm ? ' ' + jm.cls : '') + '" style="--dx:' + dx + 'px' + (jm ? ';--k:' + jm.k : '') + '">' +
           (state === 'current' ? '<div class="start-tip' + (tip.indexOf('etimer') >= 0 ? ' wait' : '') + '">' + tip + '</div>' : '') +
           '<button class="node ' + state + '" data-act="preview" data-id="' + esc(l.id) + '" aria-label="' + esc(l.title) + '">' + icon + '</button>' +
           '<div class="node-label">' + esc(l.title) + '</div></div>';
@@ -1727,7 +1778,8 @@
         '<h3>' + esc(l.title) + '</h3>' +
         '<p class="lead">' + esc(l.what) + '</p>' +
         '<p class="lock-note">' + ICON.lock + '<span>נפתח אחרי "' + esc(cur ? cur.title : '') + '".</span></p>' +
-        '<button class="btn ghost" data-act="close-sheet">הבנתי</button>');
+        (skipReady(l.unit) ? '<button class="btn gold skip-btn" data-act="skip-unit" data-id="' + esc(l.unit.id) + '" data-from="locked_lesson">' + ICON.ff + 'כבר יודעים? מבחן קפיצה ליחידה ' + l.unit.n + '</button>' +
+          '<button class="btn text" data-act="close-sheet">הבנתי</button>' : '<button class="btn ghost" data-act="close-sheet">הבנתי</button>'));
       return;
     }
     var replay = isDone(l.id), rec = S.lessons[l.id], bx = streakTimes(streakIfLearnToday());
@@ -1737,7 +1789,7 @@
         '<button class="btn ghost" data-act="restart" data-id="' + esc(l.id) + '">להתחיל מההתחלה</button>'
       : !enCanStart()
         ? '<div class="card tight energy-next">' + batteryIcon(0, enMax()) + '<span>הסוללה ריקה. השיעור נפתח בעוד</span>' + enTimer('next') + '</div>' + enMeanwhile('preview')
-        : '<button class="btn' + (replay ? ' gold' : '') + '" data-act="start" data-id="' + esc(l.id) + '">' + (replay ? 'לעשות שוב' : 'התחל שיעור') + '</button>';
+        : '<button class="btn' + (replay ? ' gold' : '') + '" data-act="start" data-id="' + esc(l.id) + '">' + (replay ? (rec && rec.skipped ? 'ללמוד את השיעור' : 'לעשות שוב') : 'התחל שיעור') + '</button>';
     var enChip = !enOn() || enHidden() ? '' : enFree() ? '<span class="chip">' + batteryIcon(1, 1, true) + 'בלי סוללה ' + (EN.freeFirstDay && S.firstDay === dayKey() ? 'היום' : 'בינתיים') + '</span>'
       : ip || !enNow() ? '' : '<span class="chip">' + batteryIcon(1, 1) + 'צורך פס אחד (יש לך ' + enNow() + ')</span>';
     openSheet('<div class="eyebrow">יחידה ' + l.unit.n + ' · שיעור ' + l.n + '</div>' +
@@ -1747,7 +1799,7 @@
       '<span class="chip">' + l.vQuestions.filter(scored).length + ' שאלות</span>' +
       // 0.29: before the first finished lesson the card speaks only of the lesson; points and the battery are met inside it
       (doneCount() ? '<span class="chip pts">' + ICON.coin + 'עד ' + Math.round(maxLessonPoints(l) * bx) + ' נקודות</span>' : '') +
-      (rec && rec.done ? '<span class="chip ok">' + ICON.check + 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות</span>' : '') + (doneCount() ? enChip : '') + '</div>' +
+      (rec && rec.done ? '<span class="chip ok">' + ICON.check + (rec.skipped ? 'נפתח במבחן קפיצה' : 'השיא שלך: ' + (Number(rec.best) || 0) + '% נכונות') + '</span>' : '') + (doneCount() ? enChip : '') + '</div>' +
       main +
       (replay ? '<button class="btn text" data-act="notes" data-id="' + esc(l.id) + '">לקרוא שוב את ההסברים</button>' : ''), 'tall');
   }
@@ -1762,7 +1814,8 @@
         '<span class="dot">' + (st === 'done' ? ICON.check : st === 'current' ? ICON.star : st === 'open' ? ICON.play : ICON.lock) + '</span>' +
         '<span class="t"><b>' + esc(l.title) + '</b><span>' + esc(l.what) + '</span></span>' + ICON.chevron + '</button></li>';
     }).join('');
-    openSheet('<div class="eyebrow">יחידה ' + u.n + '</div><h3>' + esc(u.title) + '</h3><ul class="lesson-list">' + rows + '</ul>' + compareCard(u), 'tall');
+    var sk = skipReady(u) ? '<button class="btn ghost skip-btn" data-act="skip-unit" data-id="' + esc(u.id) + '" data-from="unit_sheet">' + ICON.ff + 'כבר יודעים את היחידה? מבחן קפיצה</button>' : '';
+    openSheet('<div class="eyebrow">יחידה ' + u.n + '</div><h3>' + esc(u.title) + '</h3><ul class="lesson-list">' + rows + '</ul>' + sk + compareCard(u), 'tall');
   }
 
   function explainSheet(what) {
@@ -2572,6 +2625,16 @@
   function step() { return session.steps[session.idx]; }
 
   var startFrom = null; // where a lesson was started from, when it was not the path (0.10: 'tool_locked')
+  // 0.42: what the path animates the next time it is drawn: the lessons just finished (or opened by a skip test) turn
+  // gold one after the other, then the lesson that opened unlocks. xpFrom: the points before, for the top bar count-up.
+  var justMap = null, xpFrom = null;
+  function mapAnim(l, state) {
+    if (!justMap || view !== 'home') return null;
+    var k = justMap.done.indexOf(l.id);
+    if (k >= 0 && state === 'done') return { cls: 'just-done' + (justMap.fromLock ? ' from-lock' : ''), k: Math.min(k, 8) };
+    if (l.id === justMap.next && state === 'current') return { cls: 'just-open', k: Math.min(justMap.done.length, 9) };
+    return null;
+  }
   function startLesson(id, restart) {
     var l = BY_ID[id];
     if (!shown(l)) return;
@@ -2590,6 +2653,7 @@
     // 0.14: a new lesson needs a bar in the battery (the lesson in progress never does, restarted or not)
     if (!(S.inProgress && S.inProgress.lessonId === id) && !enCanStart()) { energyEmptySheet(startFrom || 'lesson', id); return; }
     var steps = lessonSteps(l);
+    justMap = null;
     // one review question from an earlier finished lesson, for spaced repetition
     var pool = [];
     LESSONS.forEach(function (x) {
@@ -2636,6 +2700,81 @@
     session.need = Math.ceil(n * R.toPass / R.questions);
     track('repair_started', { lost_streak: S.lostStreak.value, questions: n });
     setView('lesson');
+  }
+
+  // ---------- 0.42: the skip test ("אני כבר יודע את זה") ----------
+  // Jonathan's playtest (24.11): "אם מישהו יודע חלק מהנושאים ואין לו כוח לטפס את כל השלבים". Like Duolingo's jump test:
+  // 6 real questions from the unit's lessons (one lesson after another, so the whole unit is asked about); 5 right
+  // marks every lesson of the unit as done (skipped: true), so the path goes on after it. A second mistake ends the
+  // test there. Failing costs nothing (no battery bar, no lost points) and the test can be taken again.
+  var SKIP = { questions: 6, need: 5 };
+  function unitById(uid) { return UNITS.filter(function (x) { return String(x.id) === String(uid); })[0] || null; }
+  function unitLeft(u) { return u ? u.vis.filter(function (l) { return !isDone(l.id); }) : []; }
+  function skipPool(u) {
+    // multiple choice before true/false (a coin toss passes too many of those), each lesson's questions shuffled
+    var per = u.vis.map(function (l) {
+      var qs = shuffle(l.vQuestions.filter(reviewable));
+      return qs.filter(function (q) { return q.type !== 'trueFalse'; }).concat(qs.filter(function (q) { return q.type === 'trueFalse'; }));
+    });
+    // undone lessons first, so the questions are about what the test opens
+    var order = u.vis.map(function (l, i) { return i; }).sort(function (a, b) { return (isDone(u.vis[a].id) ? 1 : 0) - (isDone(u.vis[b].id) ? 1 : 0); });
+    var out = [];
+    for (var round = 0; out.length < SKIP.questions && round < 8; round++) {
+      order.forEach(function (i) { if (out.length < SKIP.questions && per[i][round]) out.push(per[i][round]); });
+    }
+    return out;
+  }
+  function skipReady(u) { return !!u && unitLeft(u).length > 0 && skipPool(u).length >= 4; }
+  // the small button under a unit's banner. Not on the unit of a new person's first lesson: that first screen keeps one
+  // button (0.29), and someone who already knows it finds the test on the locked lessons' cards
+  function skipChip(u) {
+    if (!skipReady(u)) return '';
+    var cur = currentLesson();
+    if (!doneCount() && cur && cur.unit === u) return '';
+    return '<button class="unit-skip" data-act="skip-unit" data-id="' + esc(u.id) + '" data-from="path">' + ICON.ff + '<span>כבר יודעים את זה? מבחן קפיצה</span></button>';
+  }
+  function skipSheet(uid, from) {
+    var u = unitById(uid);
+    if (!skipReady(u)) return;
+    var left = unitLeft(u), n = skipPool(u).length, need = Math.min(SKIP.need, n - 1);
+    track('skip_test_offered', { unit_id: u.id, unit_n: u.n, from: from || null, lessons_left: left.length, lessons_done: doneCount() });
+    openSheet('<div class="skip-hero">' + ICON.ff + '</div>' +
+      '<div class="eyebrow center">יחידה ' + u.n + ' · ' + esc(u.title) + '</div>' +
+      '<h3 class="center">כבר יודעים את זה?</h3>' +
+      '<p class="lead center">' + n + ' שאלות מכל היחידה. ' + need + ' נכונות פותחות את ' +
+        (left.length === 1 ? 'השיעור שנשאר' : 'כל ' + left.length + ' השיעורים') + ' בבת אחת, בלי לטפס שלב אחרי שלב.</p>' +
+      '<div class="chips center"><span class="chip">' + ICON.clock + 'כ-2 דקות</span><span class="chip">' + ICON.heart + 'מותרת טעות ' + (n - need === 1 ? 'אחת' : n - need) + '</span>' +
+        (enOn() && !enHidden() ? '<span class="chip">' + batteryIcon(1, 1, true) + 'בלי סוללה</span>' : '') + '</div>' +
+      '<p class="fine center">לא עברתם? אין עונש. ממשיכים רגיל, ואפשר לנסות שוב.</p>' +
+      '<button class="btn gold" data-act="skip-start" data-id="' + esc(u.id) + '" data-from="' + esc(from || '') + '">' + ICON.play + 'להתחיל מבחן</button>' +
+      '<button class="btn text" data-act="close-sheet">לא עכשיו</button>', 'skip-sheet');
+  }
+  function startSkip(uid, from) {
+    var u = unitById(uid);
+    if (!skipReady(u)) return;
+    var qs = skipPool(u);
+    var steps = shuffle(qs).map(function (q) { return buildQuestionStep(q); });
+    session = newSession('skip', null, steps);
+    session.unit = u;
+    session.need = Math.min(SKIP.need, steps.length - 1);
+    session.allowed = steps.length - session.need; // mistakes allowed; one more ends the test
+    session.from = from || null;
+    justMap = null;
+    if (onStartScreen()) { startEnded = true; track('start_screen_tapped', { seconds: startSecs(), taps: startTaps, from: 'skip_test', screen: startScreenName() }); }
+    if (!S.onboarded) { // a new person whose first step is the test (the lesson player needs onboarded, like cameIn)
+      S.onboarded = true; save();
+      track('onboarding_done', { flow: HOME_FIRST ? 'home_first' : 'lesson_first', from: 'skip_test', go: GO, goal_xp: S.goalXp, goal_default: true, start_unit_id: S.startUnit, first_lesson_id: null, $set: { goal_xp: S.goalXp } });
+    }
+    if (SESS) SESS.practice++;
+    track('skip_test_started', { unit_id: u.id, unit_n: u.n, from: session.from, questions: steps.length, need: session.need,
+      lessons_left: unitLeft(u).length, lessons_done: doneCount(), first_ever: !doneCount() });
+    setView('lesson');
+  }
+  // the lives left in a skip test, drawn where the combo is in a lesson
+  function skipLives() {
+    var left = Math.max(0, session.allowed + 1 - (session.wrong || 0)), out = '', st = step(), lost = st && st.justChecked && !st.right ? left : -1;
+    for (var i = 0; i < session.allowed + 1; i++) out += '<i class="' + (i < left ? 'on' : i === lost ? 'lost' : '') + '">' + ICON.heart + '</i>';
+    return '<span class="lives" aria-label="' + left + ' ניסיונות נשארו">' + out + '</span>';
   }
 
   // a resumed lesson says where it picks up, so answers from an earlier visit are not a surprise
@@ -2723,8 +2862,9 @@
     return '<div class="player-top gutter">' +
       '<button class="icon-btn" data-act="quit" aria-label="יציאה">' + ICON.x + '</button>' +
       '<button class="icon-btn" data-act="back" aria-label="אחורה"' + (session.idx === 0 ? ' disabled' : '') + '>' + ICON.back + '</button>' +
-      '<div class="progress' + (session.combo >= 3 ? ' hot' : '') + '" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + fillPct(session.idx / stepCount()) + '%"></i></div>' +
-      '<div class="combo">' + (session.combo >= 3 ? ICON.flame + session.combo : '') + '</div></div>';
+      '<div class="progress' + (session.combo >= 3 ? ' hot' : '') + '" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"><i data-w="' + fillPct(session.idx / stepCount()) + '" style="width:' +
+        (session.barW != null ? session.barW : fillPct(session.idx / stepCount())) + '%"></i></div>' +
+      (session.mode === 'skip' ? skipLives() : '<div class="combo">' + (session.combo >= 3 ? ICON.flame + session.combo : '') + '</div>') + '</div>';
   }
 
   function unitOfStep(st) {
@@ -2749,30 +2889,48 @@
     return s.example ? '<div class="example"><span class="eyebrow">' + esc(s.exampleLabel || 'דוגמה') + '</span><p>' + gl(s.example, seen) + '</p></div>' : '';
   }
 
+  // 0.42: a new step slides in from the side the last one left to (a tap on "המשך" = forward, from the left in RTL; "אחורה"
+  // = from the right; a swipe = against the swipe). Only when the step changes, not on every tap inside it.
+  function stepEnter() {
+    if (session.shownIdx === session.idx) return '';
+    var back = session.shownIdx != null && session.idx < session.shownIdx;
+    return ' in-' + (session.swipeSide || (back ? 'r' : 'l'));
+  }
   function renderPlayer() {
     var st = step();
-    var cls = 'player u' + unitOfStep(st);
-    var seen = glossSeen();
+    var cls = 'player u' + unitOfStep(st) + (st.justChecked ? ' just' + (st.right ? ' got' : ' miss') : '') + (session.mode === 'skip' ? ' skip-mode' : '');
+    var seen = glossSeen(), enter = stepEnter();
     if (st.kind === 'screen') {
       var dots = '';
       for (var i = 0; i < st.of; i++) dots += '<i class="' + (i === st.n ? 'on' : '') + '"></i>';
       return '<div class="' + cls + '">' + playerTop() +
-        '<div class="stage gutter">' +
+        '<div class="stage gutter' + enter + '">' +
           '<div class="kicker">' + esc(session.lesson.title) + ' · הסבר ' + (st.n + 1) + ' מתוך ' + st.of + '</div>' +
           '<article class="explain-card' + (st.s.type === 'calculator' ? ' calc-screen' : '') + (st.s.pic ? ' has-pic' : '') + '">' + picHtml(st.s) + '<h2>' + esc(st.s.title) + '</h2>' + screenText(st.s, seen) +
             (st.s.type === 'calculator' ? calcWidget('lesson') : screenBox(st.s, seen)) +
           '</article>' +
-          '<div class="dots" aria-hidden="true">' + dots + '</div>' +
+          '<div class="dots" aria-hidden="true">' + dots + '</div>' + swipeHint() +
           legalLine(false) +
         '</div>' +
         '<div class="player-foot gutter"><button class="btn" data-act="next">' + (st.n + 1 === st.of && !session.lesson.flow ? 'לשאלות' : 'המשך') + '</button></div></div>';
     }
     return '<div class="' + cls + ' qt' + (session.idx % 4) + '">' + playerTop() +
-      '<div class="stage gutter">' + questionHead(st, seen) + questionBody(st) + legalLine(true) + '</div>' + questionFoot(st) + '</div>';
+      '<div class="stage gutter' + enter + '">' + questionHead(st, seen) + questionBody(st) + legalLine(true) + '</div>' + questionFoot(st) + '</div>';
   }
 
   function afterPlayerRender() {
     snapshot();
+    // 0.42: the bar moves from its last width (a new element each render, so the CSS transition needs this nudge)
+    var bar = root.querySelector('.player-top .progress > i');
+    if (bar) {
+      var w = bar.getAttribute('data-w');
+      if (String(session.barW) !== w) { void bar.offsetWidth; bar.style.width = w + '%'; }
+      session.barW = +w;
+    }
+    session.shownIdx = session.idx;
+    session.swipeSide = null;
+    var stj = step();
+    if (stj && stj.justChecked) stj.justChecked = false;
     if (session.trackedIdx !== session.idx) {
       session.trackedIdx = session.idx;
       var st = step();
@@ -2785,8 +2943,10 @@
         question_id: st.q ? st.q.id : null,
         screen_id: st.kind === 'screen' && st.s ? (st.s.id || null) : null, screen_type: st.kind === 'screen' && st.s ? (st.s.type || 'card') : null,
         retry: !!st.retry, review: !!st.review, prev_sec: prevSec, lesson_sec: Math.round(stepNow / 1000),
+        via: session.idx > 0 ? (session.via || 'button') : null, // 0.42: how this step was reached (button / swipe / key / back)
         pct: stepCount() ? Math.round(100 * session.idx / stepCount()) : null
       });
+      session.via = null;
       if (st.kind === 'screen' && st.s.type === 'calculator') track('calculator_opened', { from: 'lesson', lesson_id: session.lesson ? session.lesson.id : null, has_estimate: !!(S.calc && S.calc.type) });
     }
     clockStart();
@@ -2796,6 +2956,7 @@
   function questionHead(st, seen) {
     var q = st.q;
     var label = session.mode === 'repair' ? 'הצלת רצף · ' + (session.idx + 1) + ' מתוך ' + stepCount()
+      : session.mode === 'skip' ? 'מבחן קפיצה · ' + (session.idx + 1) + ' מתוך ' + stepCount()
       : q.guess ? 'ניחוש · אין כאן טעויות'
       : st.retry ? 'עוד ניסיון'
       : q.label && !st.review ? esc(q.label)
@@ -2857,7 +3018,7 @@
         if (oi === q.correctIndex) c += ' right';
         else if (oi === st.sel) c += q.guess ? ' sel' : ' wrong'; // a guess is never marked wrong
       } else if (oi === st.sel) c += ' sel';
-      return '<button class="' + c + '" data-act="pick" data-i="' + oi + '"' + (st.checked ? ' disabled' : '') + '>' +
+      return '<button class="' + c + '" data-act="pick" data-i="' + oi + '" style="--i:' + pos + '"' + (st.checked ? ' disabled' : '') + '>' +
         (tf ? '' : '<span class="key">' + HEB_LETTERS[pos] + '</span>') + '<span>' + esc(q.options[oi]) + '</span></button>';
     }).join('');
     return '<div class="options' + (tf ? ' tf' : '') + '">' + opts + '</div>';
@@ -2937,6 +3098,7 @@
   function resolve(st, right) {
     st.checked = true;
     st.right = right;
+    st.justChecked = true; // 0.42: the next render plays the answer's bounce or shake once
     if (st.q.guess) { // no points, no mistake, no combo change, not part of the lesson's accuracy
       st.gain = 0;
       track('question_answered', { mode: session.mode, lesson_id: session.lesson ? session.lesson.id : st.q.lessonId, question_id: st.q.id,
@@ -2970,7 +3132,7 @@
       st.oops = oops();
       S.mistakes[st.q.id] = (S.mistakes[st.q.id] || 0) + 1;
       // a wrong answer comes back once at the end (not matching, and not in the streak rescue test)
-      if (!st.retry && st.q.type !== 'match' && session.mode !== 'repair') session.steps.push(buildQuestionStep(st.q, { retry: true }));
+      if (!st.retry && st.q.type !== 'match' && session.mode !== 'repair' && session.mode !== 'skip') session.steps.push(buildQuestionStep(st.q, { retry: true }));
       sfx.wrong();
     }
     // what was picked, so a popular wrong answer shows up in the data (positions and indexes only, no texts)
@@ -3049,13 +3211,15 @@
   }
 
   function next() {
+    // a skip test ends at the mistake that makes passing impossible
+    if (session.mode === 'skip' && (session.wrong || 0) > session.allowed) { session.endedEarly = session.idx + 1 < stepCount(); return finish(); }
     session.idx++;
     if (session.idx >= stepCount()) return finish();
     render();
     window.scrollTo(0, 0);
   }
   function back() {
-    if (session.idx > 0) { session.idx--; render(); window.scrollTo(0, 0); }
+    if (session.idx > 0) { session.idx--; session.via = 'back'; render(); window.scrollTo(0, 0); }
   }
 
   function finish() {
@@ -3077,11 +3241,12 @@
       s.energy = enSpend();
       var rec = S.lessons[l.id] || { done: false, best: 0, plays: 0 };
       s.firstTime = !rec.done;
-      rec.done = true; rec.plays++;
+      rec.done = true; rec.plays++; delete rec.skipped; // 0.42: learned for real after a skip test
       rec.best = Math.max(rec.best, acc);
       rec.fastest = rec.fastest ? Math.min(rec.fastest, s.time) : s.time;
       S.lessons[l.id] = rec;
       S.inProgress = null;
+      if (s.firstTime) { var nxl = currentLesson(); justMap = { done: [l.id], next: nxl ? nxl.id : null }; } // 0.42: the path shows it
       if (checksOn() && !S.checks.start && doneCount() === 1 && !Object.keys(S.checks.done).length) S.checks.start = dayKey();
       // a friend's gift: the first lesson of someone who opened the app from an invite link (before the points, so a
       // level-up on lesson 1 reports the right count)
@@ -3095,6 +3260,24 @@
       }
     }
     if (s.mode === 'practice') { s.enBefore = enOn() && !enFree() ? enNow() : null; s.enGain = enPracticeRefill(stepCount()); }
+    if (s.mode === 'skip') {
+      s.passed = (s.wrong || 0) <= s.allowed && s.firstTryRight >= s.need;
+      s.skippedIds = [];
+      if (s.passed) {
+        unitLeft(s.unit).forEach(function (x) {
+          var r0 = S.lessons[x.id] || { done: false, best: 0, plays: 0, fastest: null };
+          r0.done = true; r0.skipped = true;
+          S.lessons[x.id] = r0;
+          s.skippedIds.push(x.id);
+        });
+        if (S.inProgress && s.skippedIds.indexOf(S.inProgress.lessonId) >= 0) S.inProgress = null;
+        s.bonus = P.lessonDone * s.skippedIds.length;
+        s.xp += s.bonus;
+        // the path shows the unit filling in, then the lesson that opened (renderPath, mapAnim)
+        var nx = currentLesson();
+        justMap = { done: s.skippedIds.slice(), next: nx ? nx.id : null, fromLock: true };
+      }
+    }
     if (s.mode === 'repair') {
       s.passed = s.firstTryRight >= s.need;
       if (s.passed && S.lostStreak) {
@@ -3114,6 +3297,7 @@
       s.streakTimes = streakTimes(s.streakDays);
       if (s.streakTimes > 1) { s.streakBonus = Math.round(s.xp * (s.streakTimes - 1)); s.xp += s.streakBonus; }
     }
+    xpFrom = S.xp; // 0.42: the points in the top bar count up to the new total on the next main screen
     s.levelGrant = awardXp(s.xp);
     s.perfect = perfect;
     s.levelUp = levelIndex(S.xp) > before.i;
@@ -3152,15 +3336,23 @@
     } else if (s.mode === 'repair') {
       props.passed = s.passed;
       track('repair_completed', props);
+    } else if (s.mode === 'skip') {
+      props.unit_id = s.unit.id; props.unit_n = s.unit.n; props.from = s.from; props.passed = s.passed; props.correct = s.firstTryRight;
+      props.questions = stepCount(); props.answered = s.firstTry; props.need = s.need; props.ended_early = !!s.endedEarly;
+      props.lessons_skipped = (s.skippedIds || []).length; props.lessons_done_after = doneCount();
+      props.question_ids = s.steps.slice(0, s.firstTry).map(function (x) { return x.q.id; }).join(',');
+      if (s.passed) props.$set = personNow();
+      track(s.passed ? 'skip_test_passed' : 'skip_test_failed', props);
     } else {
       if (enPracticeOn()) { props.energy_gain = s.enGain || 0; props.energy_left = enFree() ? null : enNow(); }
       track('practice_completed', props);
     }
     nativeReminderPlan();
     socQuiet(true); // 0.31: the group boards and refer-a-friend see the new points (the first lesson registers)
-    sfx.done();
+    var lost = s.mode === 'skip' && !s.passed;
+    if (!lost) sfx.done();
     setView('done');
-    confetti(s.perfect || s.levelUp);
+    if (!lost) confetti(s.perfect || s.levelUp || s.mode === 'skip');
     countUp();
     if (s.streakUp) setTimeout(sfx.streak, 900);
     if (s.levelUp) setTimeout(function () { if (view === 'done' && !sheetOpen) levelUpSheet(s.levelGrant, s.levelFrom); }, 1500);
@@ -3214,8 +3406,44 @@
       '</div><button class="link skip" data-act="amount" data-v="skip" data-id="' + esc(l.id) + '">מעדיפים לא לענות</button></div>';
   }
 
+  // 0.42: the end of a skip test. Passed: the unit's lessons tick off one by one. Not passed: no penalty, the path as before.
+  function renderSkipDone() {
+    var s = session, u = s.unit, ids = s.skippedIds || [];
+    var html = '<div class="done-wrap gutter skip-done u' + u.id + (s.passed ? ' won' : ' lost') + '">';
+    if (s.passed) {
+      var correctPts = s.xp - s.bonus;
+      html += '<div class="done-hero"><div class="coin" dir="ltr" data-count="' + s.xp + '">+0</div>' +
+        '<h1>קפצת קדימה!</h1><p>' + (ids.length === 1 ? 'השיעור שנשאר ביחידה ' + u.n + ' סומן כגמור.' : 'כל ' + ids.length + ' השיעורים ביחידה ' + u.n + ' סומנו כגמורים.') + '</p></div>' +
+        '<div class="tiles">' +
+          '<div class="tile xp"><div class="t-label">נקודות</div><div class="t-val">' + s.xp + '</div></div>' +
+          '<div class="tile acc"><div class="t-label">נכונות</div><div class="t-val">' + s.firstTryRight + '/' + stepCount() + '</div></div>' +
+          '<div class="tile time"><div class="t-label">זמן</div><div class="t-val">' + ltr(clock(s.time)) + '</div></div>' +
+        '</div>' +
+        '<div class="card tight skip-list"><div class="eyebrow">יחידה ' + u.n + ' · ' + esc(u.title) + '</div><ul>' +
+          u.vis.map(function (l, i) {
+            return '<li style="--k:' + i + '"><span class="dot">' + ICON.check + '</span><span>' + esc(l.title) + '</span>' + (ids.indexOf(l.id) >= 0 ? '' : '<i>כבר עשית</i>') + '</li>';
+          }).join('') + '</ul>' +
+          '<details class="pts-details"><summary>פירוט הנקודות</summary><ul class="rules">' +
+            '<li><span>תשובות נכונות</span><b>' + plus(correctPts) + '</b></li>' +
+            '<li><span>' + plural(ids.length, 'שיעור שנפתח', 'שיעורים שנפתחו') + '</span><b>' + plus(s.bonus) + '</b></li></ul></details>' +
+        '</div>' +
+        '<p class="fine center">השיעורים פתוחים לקריאה בכל זמן, ושאלות מהם יחזרו בתרגול.</p>';
+    } else {
+      html += '<div class="done-hero"><div class="skip-hero big">' + ICON.ff + '</div>' +
+        '<h1>הפעם זה לא הספיק</h1><p>' + s.firstTryRight + ' נכונות מתוך ' + s.firstTry + (s.endedEarly ? '. בטעות השנייה המבחן נעצר.' : '.') + ' צריך ' + s.need + ' מתוך ' + stepCount() + '.</p></div>' +
+        '<div class="card tight skip-fail"><b>אין עונש</b><span>הנקודות והרצף נשארים, וממשיכים מהשיעור הבא במסלול. ' +
+          (s.xp ? 'קיבלת ' + plus(s.xp) + ' נקודות על התשובות הנכונות. ' : '') + 'אפשר לנסות שוב מתי שרוצים.</span></div>';
+    }
+    html += legalLine(false) + '<div class="spacer"></div><div class="done-foot">';
+    if (s.passed) html += '<button class="btn gold" data-act="done-home">' + ICON.play + 'להמשיך במסלול</button>';
+    else html += '<button class="btn" data-act="done-home">חזרה למסלול</button>' +
+      '<button class="btn text" data-act="skip-retry" data-id="' + esc(u.id) + '">לנסות שוב</button>';
+    return html + '</div></div>';
+  }
+
   function renderDone() {
     var s = session, l = s.lesson;
+    if (s.mode === 'skip') return renderSkipDone();
     var r = levelInfo(S.xp);
     var title = s.levelUp ? 'עלית לשלב ' + r.n + '!'
       : s.mode === 'practice' ? 'התרגול הושלם'
@@ -3542,7 +3770,7 @@
   function quitSheet() {
     var lesson = session.mode === 'lesson';
     openSheet('<h3>' + (lesson ? 'לצאת מהשיעור?' : 'לצאת?') + '</h3><p class="lead">' +
-      (lesson ? 'ההתקדמות נשמרת. בפעם הבאה ממשיכים מאותו מסך.' : session.mode === 'repair' ? 'המבחן לא יישמר, ואפשר להתחיל אותו שוב.' : 'התרגול הזה לא יישמר.') + '</p>' +
+      (lesson ? 'ההתקדמות נשמרת. בפעם הבאה ממשיכים מאותו מסך.' : session.mode === 'repair' || session.mode === 'skip' ? 'המבחן לא יישמר, ואפשר להתחיל אותו שוב.' : 'התרגול הזה לא יישמר.') + '</p>' +
       '<div class="row"><button class="btn" data-act="close-sheet">להמשיך ללמוד</button>' +
       '<button class="btn ghost" data-act="quit-confirm">לצאת</button></div>');
   }
@@ -3740,7 +3968,7 @@
   // one tap: the status picks the next lessons (config.startUnit, audience in lessons.json) and the app goes home
   function renderStatusPick() {
     return '<div class="welcome gutter status-pick">' +
-      (doneCount() ? '<div class="eyebrow">' + ICON.check + 'השיעור הראשון מאחוריך</div>' : '') +
+      (doneCount() ? '<div class="eyebrow">' + ICON.check + (LESSONS.some(function (l) { return isDone(l.id) && !S.lessons[l.id].skipped; }) ? 'השיעור הראשון מאחוריך' : 'עברת את מבחן הקפיצה') + '</div>' : '') +
       '<h1 class="q-prompt">מה המצב שלך?</h1>' +
       '<p class="lead">ככה נדע אילו שיעורים להראות לך עכשיו. אפשר לשנות בפרופיל.</p>' +
       '<div class="goal-pick">' + CFG.statuses.map(function (s) {
@@ -4140,7 +4368,7 @@
       if (tour || view !== v || sheetOpen || document.visibilityState === 'hidden') return;
       if (first) { if (startTourDue()) tourStart('start'); return; }
       if (tourDue(v)) tourStart(v);
-    }, first ? 450 : v === 'home' ? 750 : 350);
+    }, first ? 450 : v === 'home' ? 750 + Math.max(0, mapAnimUntil - Date.now()) : 350);
   }
   function tourStart(v) {
     var steps = tourSteps(v).filter(function (st) { return tourTarget(st); });
@@ -6170,6 +6398,9 @@
       case 'practice': startPractice(false, el.getAttribute('data-from')); break;
       case 'practice-mistakes': startPractice(true); break;
       case 'repair': session = null; startRepair(); break;
+      case 'skip-unit': skipSheet(id, el.getAttribute('data-from')); break;
+      case 'skip-start': startSkip(id, el.getAttribute('data-from')); break;
+      case 'skip-retry': session = null; startSkip(id, 'retry'); break;
       case 'pick':
         if (session && !step().checked) { step().sel = +el.getAttribute('data-i'); sfx.tap(); render(); }
         break;
@@ -6488,8 +6719,84 @@
       if (pos < st.order.length) { st.sel = st.order[pos]; render(); }
     } else if (e.key === 'Enter' && (typing || !e.target.closest('button, a'))) {
       e.preventDefault();
-      if (st.kind === 'screen' || st.checked) next(); else check();
+      if (st.kind === 'screen' || st.checked) { session.via = 'key'; next(); } else check();
     }
+  }
+
+  // ---------- 0.42: swipe to the next step ----------
+  // Jonathan's playtest (24.11): people who live in TikTok and Instagram swipe. A sideways swipe on a card, or on a question
+  // after its answer was checked, goes on to the next step, either way (no guessing which side is "forward" in RTL);
+  // the card follows the finger and flies out to that side. "אחורה" stays a button. Before an answer was checked the card
+  // only stretches a little and springs back, and the check button nudges.
+  var SWIPED_KEY = 'dribit.swiped.v1', SWIPE_HINT_KEY = 'dribit.swipeHint.v1';
+  var sw = null;
+  function swiped() { try { return !!localStorage.getItem(SWIPED_KEY); } catch (e) { return true; } }
+  function swipeHint() {
+    if (swiped()) return '';
+    var n = 0;
+    try { n = +localStorage.getItem(SWIPE_HINT_KEY) || 0; } catch (e) { return ''; }
+    if (session.shownIdx !== session.idx) { n++; try { localStorage.setItem(SWIPE_HINT_KEY, String(n)); } catch (e) { /* ignore */ } }
+    if (n > 6) return ''; // the first 6 cards ever
+    return '<div class="swipe-hint" aria-hidden="true"><i>' + ICON.swipe + '</i><span>אפשר גם להחליק הצידה</span></div>';
+  }
+  function swipeCan() {
+    var st = session && step();
+    return !!st && (st.kind === 'screen' || st.checked);
+  }
+  function swipeStart(e) {
+    sw = null;
+    if (view !== 'lesson' || !session || sheetOpen || tour || !e.touches || e.touches.length !== 1) return;
+    var t = e.target;
+    if (t.closest && (t.closest('input, textarea, select, .calc-screen, .match, .order-pool, .order-slots') || !t.closest('.player'))) return;
+    var stage = root.querySelector('.player .stage');
+    if (!stage) return;
+    sw = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), dx: 0, axis: null, stage: stage, can: swipeCan(), idx: session.idx };
+  }
+  function swipeMove(e) {
+    if (!sw || !e.touches || !e.touches.length) return;
+    var dx = e.touches[0].clientX - sw.x, dy = e.touches[0].clientY - sw.y;
+    if (!sw.axis) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      sw.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (sw.axis === 'x') sw.stage.classList.add('dragging');
+    }
+    if (sw.axis !== 'x') return;
+    if (e.cancelable) e.preventDefault(); // no page scroll while the card moves
+    sw.dx = dx;
+    var shown = sw.can ? dx : dx * 0.22 / (1 + Math.abs(dx) / 300); // not yet: a short, stiff stretch
+    if (!reducedMotion()) {
+      sw.stage.style.transform = 'translateX(' + shown + 'px) rotate(' + (shown / 60) + 'deg)';
+      sw.stage.style.opacity = sw.can ? String(Math.max(0.35, 1 - Math.abs(dx) / 500)) : '';
+    }
+  }
+  function swipeEnd() {
+    var g = sw;
+    sw = null;
+    if (!g || g.axis !== 'x') return;
+    var dx = g.dx, v = Math.abs(dx) / Math.max(1, Date.now() - g.t), far = Math.abs(dx) > 70 || (Math.abs(dx) > 35 && v > 0.45);
+    var stage = g.stage;
+    stage.classList.remove('dragging');
+    if (!far || !g.can || !session || session.idx !== g.idx) {
+      stage.style.transform = ''; stage.style.opacity = '';
+      if (far && !g.can) { // the answer is not checked yet: show where to go
+        var btn = root.querySelector('.player-foot .btn, .player-foot .hint');
+        if (btn) { btn.classList.remove('nudge-x'); void btn.offsetWidth; btn.classList.add('nudge-x'); }
+      }
+      return;
+    }
+    try { localStorage.setItem(SWIPED_KEY, dayKey()); } catch (e) { /* ignore */ }
+    session.via = 'swipe';
+    sfx.tap();
+    var go = function () {
+      if (!session || view !== 'lesson' || session.idx !== g.idx) return;
+      session.swipeSide = dx > 0 ? 'l' : 'r'; // flew out to the right: the next one comes in from the left
+      next();
+    };
+    if (reducedMotion()) { go(); return; }
+    stage.classList.add('fly');
+    stage.style.transform = 'translateX(' + (dx > 0 ? 1 : -1) * (window.innerWidth * 0.9) + 'px) rotate(' + (dx > 0 ? 8 : -8) + 'deg)';
+    stage.style.opacity = '0';
+    setTimeout(go, 170);
   }
 
   var hiddenAt = 0, swCheckedAt = 0, stepOutAt = 0, outByApp = false;
@@ -6647,6 +6954,10 @@
       document.addEventListener(ev, function (e) { if (!typingBox(e.target)) e.preventDefault(); });
     });
     document.addEventListener('keydown', onKey);
+    document.addEventListener('touchstart', swipeStart, { passive: true });
+    document.addEventListener('touchmove', swipeMove, { passive: false });
+    document.addEventListener('touchend', swipeEnd, { passive: true });
+    document.addEventListener('touchcancel', swipeEnd, { passive: true });
     document.addEventListener('visibilitychange', onVisibility);
     document.addEventListener('pointerdown', function () { lastTouchAt = Date.now(); if (onStartScreen()) startTaps++; }, { capture: true, passive: true });
     // no pinch zoom (Jonathan, 18.10): iPhone ignores user-scalable=no in the viewport, so the gesture is stopped here
