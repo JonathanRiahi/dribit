@@ -1,0 +1,28 @@
+# Promo check (25.11.2026): what the TikTok paid promotion brought (dribit.app visits by platform, new people, lessons). Counts only.
+name: Promo check
+on:
+  workflow_dispatch:
+    inputs:
+      from: { description: 'Promo days from (YYYY-MM-DD)', type: string, required: false, default: '' }
+      base: { description: 'Baseline from (YYYY-MM-DD)', type: string, required: false, default: '' }
+  push:
+    branches: ['claude/project-thread-odzu3g']
+    paths: ['tools/promo-check.js', '.github/workflows/promo-check.yml']
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tools/promo-check.js
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          TEAM_IDS: ${{ secrets.TEAM_IDS }}
+          FROM: ${{ inputs.from }}
+          BASE: ${{ inputs.base }}
