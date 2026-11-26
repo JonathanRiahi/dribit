@@ -997,6 +997,10 @@
     return isDone(l.id) || (cur && cur.id === l.id);
   }
   function doneCount() { return LESSONS.filter(function (l) { return isDone(l.id); }).length; }
+  // 0.43 (the plan of 26.11): on the first day the goal is config.firstDayGoal.lessons lessons, not points. Everything
+  // finished so far was finished today, so the count is the finished lessons.
+  var FDG = CFG.firstDayGoal || {};
+  function firstDayGoal() { return FDG.enabled && FDG.lessons > 0 && S.firstDay === dayKey() ? +FDG.lessons : 0; }
   function missionState(id) { return S.missions[id] || { steps: [], done: false }; }
   function openMissions() { return MISSIONS_ON ? LESSONS.filter(function (l) { return isDone(l.id) && !S.lessons[l.id].skipped && !missionState(l.id).done; }) : []; }
   function maxLessonPoints(l) {
@@ -1650,7 +1654,7 @@
       var rs = reminderCardState();
       if (rs) {
         html += '<div class="card reminder-card"><div class="rc-head"><span class="rc-ic">' + ICON.bell + '</span><div>' +
-          '<b>תזכורת יומית בערב</b><span>' + (rs === 'install'
+          '<b>' + (HOURS.length > 1 ? 'תזכורת יומית, בשעה שבוחרים' : 'תזכורת יומית בערב') + '</b><span>' + (rs === 'install'
             ? 'באייפון תזכורות עובדות רק מהאפליקציה המותקנת במסך הבית.'
             : 'הודעה קצרה רק בימים שעוד לא עשית שיעור. אפשר לכבות בפרופיל.') + '</span></div></div>' +
           '<div class="row"><button class="btn" data-act="' + (rs === 'install' ? 'install' : 'reminder-on') + '" data-from="home" data-placement="home">' +
@@ -1699,6 +1703,10 @@
       html += '<p class="nudge warn">' + ICON.flame + '<span>הרצף של ' + plural(st, 'יום אחד', 'ימים') +
         (noLesson ? (enPracticeReady() ? ' מחכה לך. הסוללה ריקה, אבל תרגול קצר שומר עליו ומחזיר פס' : ' מחכה לך. הסוללה ריקה, אבל כמה דקות תרגול שומרות עליו') : ' מחכה לשיעור של היום') +
         (tx > 1 ? ', ששווה ' + timesText(tx) + ' נקודות.' : '.') + '</span></p>';
+    } else if (cur && firstDayGoal() && doneCount() > 0) {
+      // 0.43: on the first day the goal is lessons
+      var fg = firstDayGoal(), fl = fg - doneCount();
+      if (fl > 0) html += '<p class="nudge">' + ICON.target + '<span>' + (fl === 1 ? 'עוד שיעור אחד' : 'עוד ' + fl + ' שיעורים') + ' ליעד של היום הראשון (' + fg + ' שיעורים).</span></p>';
     } else if (cur && today > 0 && today < S.goalXp) {
       html += '<p class="nudge">' + ICON.target + '<span>עוד ' + fmt(S.goalXp - today) + ' נקודות ליעד היומי.</span></p>';
     }
@@ -2094,9 +2102,17 @@
     if (teaserSeen[l.id] !== s) { teaserSeen[l.id] = s; track('partner_teaser_viewed', { lesson_id: l.id, place: 'done_teaser', partners: t.ps.length, lessons_done: doneCount() }); }
     var names = t.ps.map(function (p) { return p.name; });
     var who = heAnd(names);
-    return '<div class="card done-teaser"><div class="eyebrow">' + esc(t.C.eyebrow || CFG.partner.doneEyebrow) + '</div>' +
-      '<b>' + esc(t.C.title) + '</b><p>' + fillIn(t.C.text, { partners: who }) + '</p>' +
-      '<button class="btn ghost" data-act="teaser" data-id="' + esc(l.id) + '">' + ICON.coins + '<span>' + esc(t.C.cta) + '</span></button></div>';
+    // 0.43: the highest benefit in big type, three short lines and a full button (11 saw the old card, 2 tapped it)
+    var max = 0;
+    t.ps.forEach(function (p) { var v = +String(p.offer.bonus || '').replace(/[^0-9]/g, ''); if (v > max) max = v; });
+    var big = t.C.big && max ? '<div class="dt-big"><span class="dt-sum">' + fillIn(t.C.big, { max: fmt(max) + ' ₪' }) + '</span>' +
+      (t.C.bigNote ? '<span class="dt-note">' + esc(t.C.bigNote) + '</span>' : '') + '</div>' : '';
+    var pts = (t.C.points || []).length
+      ? '<ul class="dt-points">' + t.C.points.map(function (x) { return '<li>' + ICON.check + '<span>' + fillIn(x, { partners: who }) + '</span></li>'; }).join('') + '</ul>'
+      : '<p>' + fillIn(t.C.text, { partners: who }) + '</p>';
+    return '<div class="card done-teaser' + (big ? ' has-big' : '') + '"><div class="eyebrow">' + esc(t.C.eyebrow || CFG.partner.doneEyebrow) + '</div>' +
+      '<b>' + esc(t.C.title) + '</b>' + big + pts +
+      '<button class="btn' + (big ? '' : ' ghost') + '" data-act="teaser" data-id="' + esc(l.id) + '">' + ICON.coins + '<span>' + esc(t.C.cta) + '</span></button></div>';
   }
   function teaserSheet(id) {
     var l = BY_ID[id], t = teaserInfo(l), P = CFG.partner;
@@ -3441,6 +3457,20 @@
     return html + '</div></div>';
   }
 
+  // 0.43: "lesson 2 of 3" on the first day, three dots that fill up
+  function firstDayCard(s, goal, n) {
+    if (!s.fdgShown) {
+      s.fdgShown = true;
+      track('first_day_goal_shown', { n: n, goal: goal, lesson_id: s.lesson ? s.lesson.id : null });
+      if (n >= goal) track('first_day_goal_reached', { goal: goal, lesson_id: s.lesson ? s.lesson.id : null });
+    }
+    var dots = '';
+    for (var i = 1; i <= goal; i++) dots += '<i class="' + (i <= n ? 'on' : '') + (i === n ? ' now' : '') + '">' + (i <= n ? ICON.check : '') + '</i>';
+    var left = goal - n;
+    return '<div class="card tight fdg' + (left ? '' : ' met') + '"><span class="fdg-dots" aria-hidden="true">' + dots + '</span><span class="fdg-txt">' +
+      '<b>' + (left ? 'היעד של היום הראשון: ' + goal + ' שיעורים' : 'עמדת ביעד של היום הראשון') + '</b>' +
+      '<span>' + (left ? (left === 1 ? 'עוד שיעור אחד קצר, ועמדת ביעד.' : 'עוד ' + left + ' שיעורים קצרים, ועמדת ביעד.') : goal + ' שיעורים ביום אחד. מחר ממשיכים מכאן.') + '</span></span></div>';
+  }
   function renderDone() {
     var s = session, l = s.lesson;
     if (s.mode === 'skip') return renderSkipDone();
@@ -3452,6 +3482,8 @@
     var sub = s.mode === 'repair'
       ? (s.passed ? 'רצף של ' + plural(currentStreak(), 'יום אחד', 'ימים') + '. ממשיכים מחר.' : s.firstTryRight + ' נכונות מתוך ' + stepCount() + '. צריך ' + s.need + '. אפשר לנסות שוב.')
       : s.goalHit ? 'עמדת ביעד היומי.' : s.streakUp ? 'רצף של ' + plural(currentStreak(), 'יום אחד', 'ימים') + '.' : 'עוד צעד בדרך.';
+    var fdg = s.mode === 'lesson' && s.firstTime ? firstDayGoal() : 0, fdgN = fdg ? Math.min(doneCount(), fdg) : 0;
+    if (fdg) sub = fdgN >= fdg ? 'עמדת ביעד של היום הראשון.' : 'שיעור ' + fdgN + ' מתוך ' + fdg + ' של היום הראשון.';
     var art = CFG.images && CFG.images.done;
     var correctPts = s.xp - s.bonus - s.perfectBonus - s.speedBonus - (s.streakBonus || 0);
     var nextAt = r.last ? null : toolsAtLevel(r.n + 1)[0] || null, nextSk = r.last ? null : skinsAtLevel(r.n + 1)[0] || null;
@@ -3480,6 +3512,9 @@
         '<div class="tile acc"><div class="t-label">נכונות</div><div class="t-val">' + s.acc + '%</div></div>' +
         '<div class="tile time"><div class="t-label">זמן</div><div class="t-val">' + ltr(clock(s.time)) + '</div></div>' +
       '</div>' +
+      (fdg ? firstDayCard(s, fdg, fdgN) : '') +
+      // 0.43: the offer card sits right under the tiles (before, it came after five other cards, under the fold)
+      (l ? doneTeaser(s, l) : '') +
       // 0.19 (Daniel: "המסך מבולגן"): the level bar and one line; where the points came from opens on a tap
       '<div class="card tight done-level">' +
         '<div class="progress-row"><span>שלב ' + r.n + '</span><span class="bar gold"><i data-w="' + fillPct(r.pct) + '" style="width:' + fillPct(s.pctBefore) + '%"></i></span><span>' + (r.last ? '' : 'שלב ' + (r.n + 1)) +
@@ -3493,7 +3528,7 @@
     if (s.mode === 'repair' && !s.passed && repairInfo()) html += '<button class="btn gold" data-act="repair">לנסות שוב</button>';
     if (l) {
       html += '<div class="takeaway remember"><div class="eyebrow">משפט לזכור</div><p>' + esc(l.remember) + '</p></div>' +
-        ratingRow(l) + intentCard(l) + amountCard(l) + (MISSIONS_ON ? missionCard(l, true) : '') + offerCard(l) + doneTeaser(s, l);
+        ratingRow(l) + intentCard(l) + amountCard(l) + (MISSIONS_ON ? missionCard(l, true) : '') + offerCard(l);
     }
     // iPhone: the install ask comes right after the first lesson, while the win is fresh (Android keeps the home card)
     if (s.mode === 'lesson' && s.firstTime && INSTALL.showOnDone && IS_IOS && doneCount() === INSTALL.afterLessons) {
@@ -3553,7 +3588,7 @@
     if (!session || session.mode !== 'lesson' || IN_FRAME) return null;
     try { if (localStorage.getItem(DONE_ASK_KEY) === dayKey()) return null; } catch (e) { return null; }
     if (IN_APP_BROWSER && !IS_NATIVE) return 'browser';
-    if (pushBusy || notifRefused()) return null;
+    if (pushBusy || notifRefused() || !remAskReady()) return null;
     var st = pushState();
     if (st === 'off') return notifAskRest() ? null : 'off';
     if (st === 'install' && canInstall() && !S.installHidden && !S.giftPending) return 'install';
@@ -3578,11 +3613,19 @@
     openSheet('<div class="ask-ic">' + ICON.bell + '</div>' + (st === 'install'
       ? '<h3>תזכורת יומית באייפון</h3><p class="lead">באייפון התראות עובדות רק מהאפליקציה שבמסך הבית. מוסיפים אותה פעם אחת, וההתקדמות עוברת לשם לבד.</p>' +
         '<button class="btn gold" data-act="install" data-placement="done_ask">' + ICON.addHome + 'איך מוסיפים</button>'
-      : '<h3>להדליק תזכורת יומית?</h3><p class="lead">הודעה קצרה אחת בערב, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר.</p>' +
-        (S.share || IS_NATIVE ? '' : '<p class="fine">התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.</p>') +
-        '<button class="btn gold" data-act="done-ask-on">' + ICON.bell + 'להדליק תזכורת</button>') + skip);
+      : remAskBody('done-ask-on')) + skip);
   }
   function doneAskGo() { var t = doneThen; doneThen = null; if (t) t(); }
+  // 0.43: the reminder question. In the iPhone app it asks for the hour first (4 buttons), and the main button names it
+  function remAskBody(act) {
+    askHour = RCFG.hour;
+    var pick = hourChips('ask-hour', askHour);
+    return (pick ? '<h3>מתי להזכיר לך?</h3><p class="lead">הודעה קצרה אחת ביום, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר.</p>' + pick
+        : '<h3>להדליק תזכורת יומית?</h3><p class="lead">הודעה קצרה אחת בערב, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר.</p>') +
+      (S.share || IS_NATIVE ? '' : '<p class="fine">התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.</p>') +
+      '<button class="btn gold" data-act="' + act + '">' + ICON.bell + '<span class="rem-go">' + remGoText() + '</span></button>';
+  }
+  function remGoText() { return HOURS.length > 1 ? 'להזכיר לי כל יום ב-' + ltr(hourText(askHour)) : 'להדליק תזכורת'; }
   // 0.17 (30.10, "קודם כל ליצור הוק"): the done screen names the next lesson, so there is something to come back for.
   // Only when a next lesson exists and it is not the one just finished.
   function nextUpCard(l) {
@@ -4023,7 +4066,24 @@
   // tools/send-reminders.js (run every day by GitHub Actions) reads those events and pushes a short message to
   // everyone who has not finished a lesson today. iPhones get notifications only from the installed app.
   var RCFG = CFG.reminders || {};
-  function hourLabel() { return (RCFG.hour < 10 ? '0' : '') + RCFG.hour + ':00'; }
+  function hourText(h) { return (h < 10 ? '0' : '') + h + ':00'; }
+  // 0.43: in the iPhone app the person picks the hour (config.reminders.hours); the browser reminder stays in the evening
+  function remHour() { return IS_NATIVE && S.reminder && S.reminder.on && S.reminder.hour >= 0 && S.reminder.hour < 24 ? +S.reminder.hour : RCFG.hour; }
+  function hourLabel() { return hourText(remHour()); }
+  var HOURS = IS_NATIVE ? (RCFG.hours || []).filter(function (h) { return h >= 0 && h < 24; }) : [];
+  var askHour = RCFG.hour;
+  function hourWord(h) { return h < 12 ? 'בבוקר' : h < 17 ? 'בצהריים' : h < 20 ? 'בערב' : 'בלילה'; }
+  function hourChips(act, cur) {
+    if (HOURS.length < 2) return '';
+    return '<div class="hour-pick" role="group" aria-label="שעת התזכורת">' + HOURS.map(function (h) {
+      return '<button class="hp" data-act="' + act + '" data-h="' + h + '" aria-pressed="' + (h === cur) + '"><b>' + ltr(hourText(h)) + '</b><small>' + hourWord(h) + '</small></button>';
+    }).join('') + '</div>';
+  }
+  // ask after config.reminders.askAfterLessons lessons on the first day; on a later day after one
+  function remAskReady() {
+    var n = +RCFG.askAfterLessons || 0, d = doneCount();
+    return d >= Math.max(1, n) || (d > 0 && S.firstDay !== dayKey());
+  }
   function pushSupported() {
     return !!(RCFG.enabled && RCFG.vapidPublicKey && !IN_FRAME && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
   }
@@ -4163,7 +4223,7 @@
   function nativeReminderItems() {
     var out = [], now = Date.now(), d0 = new Date(), msgs = RCFG.messages || [], doneToday = S.lastDay === dayKey();
     for (var i = 0; i < 14 && msgs.length; i++) {
-      var d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + i, RCFG.hour, 0, 0, 0);
+      var d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + i, remHour(), 0, 0, 0);
       if (d.getTime() < now + 60000 || (i === 0 && doneToday)) continue;
       out.push({ id: 'daily-' + dayKey(d), kind: 'daily', at: d.getTime(), title: CFG.appName, body: msgs[d.getDay() % msgs.length] });
     }
@@ -4189,17 +4249,18 @@
         fin();
         return;
       }
-      S.reminder = { on: true, native: true, hour: RCFG.hour, since: dayKey() };
+      var hr = HOURS.indexOf(askHour) >= 0 ? askHour : RCFG.hour;
+      S.reminder = { on: true, native: true, hour: hr, since: dayKey() };
       S.reminderNo = null;
       save();
       notifNo(null);
-      track('native_reminder_on', { hour: RCFG.hour, from: from, $set: { reminders: true } });
+      track('native_reminder_on', { hour: hr, hour_picked: hr !== RCFG.hour, from: from, $set: { reminders: true, reminder_hour: hr } });
       flush();
       nativeReminderPlan();
       render();
       var nb = document.querySelector('#sheet [data-act="popup-reminder-on"]');
       if (nb) nb.outerHTML = '<p class="nudge">' + ICON.check + '<span>התראות דלוקות</span></p>';
-      toast(ICON.bell + '<b>סגור.</b> תזכורת כל ערב, החל מ-' + hourLabel(), 'info', 2600);
+      toast(ICON.bell + '<b>סגור.</b> תזכורת כל יום ב-' + ltr(hourLabel()), 'info', 2600);
       fin();
     }).catch(function (e) {
       pushBusy = false;
@@ -4284,6 +4345,7 @@
   function notifAskState() {
     // the App Store app asks after the first lesson, like a browser (a permission question on the first screen gets a "no")
     if (!RCFG.askEveryOpen || !S.onboarded || !S.status || (!doneCount() && (!isStandalone() || IS_NATIVE)) || pushBusy || notifRefused()) return null;
+    if (doneCount() && !remAskReady()) return null; // 0.43: not before lesson 3 on the first day
     var st = pushState();
     if (st === 'off') return notifAskRest() ? null : 'off';
     return st === 'install' && !INSTALL.askEveryOpen ? 'install' : null; // iPhone in Safari: the install popup asks instead
@@ -4566,15 +4628,13 @@
     openSheet('<div class="ask-ic">' + ICON.bell + '</div>' + (st === 'install'
       ? '<h3>תזכורת יומית באייפון</h3><p class="lead">באייפון התראות עובדות רק מהאפליקציה שבמסך הבית. מוסיפים אותה פעם אחת, ושם מדליקים תזכורת.</p>' +
         '<button class="btn gold" data-act="install" data-placement="popup">איך מתקינים</button>'
-      : '<h3>להדליק התראות?</h3><p class="lead">הודעה קצרה אחת בערב, רק בימים שעוד לא עשית שיעור. ככה הרצף לא נשבר.</p>' +
-        (S.share || IS_NATIVE ? '' : '<p class="fine">התזכורת עובדת דרך נתוני השימוש, ולכן הדלקה שלה מדליקה גם את שיתוף נתוני השימוש האנונימיים.</p>') +
-        '<button class="btn gold" data-act="popup-reminder-on">' + ICON.bell + 'להדליק התראות</button>') +
+      : remAskBody('popup-reminder-on')) +
       '<button class="btn text" data-act="popup-later">לא עכשיו</button>');
   }
 
   // the home card: after the first finished lesson, until it is turned on or declined twice (a week apart)
   function reminderCardState() {
-    if (!doneCount() || (!S.share && !IS_NATIVE)) return null;
+    if (!doneCount() || !remAskReady() || (!S.share && !IS_NATIVE)) return null;
     var st = pushState();
     if (st !== 'off' && !(st === 'install' && S.installHidden)) return null;
     var no = S.reminderNo;
@@ -4591,7 +4651,9 @@
       : daily;
     var ctrl = (st === 'on' || st === 'off')
       ? '<button class="switch" role="switch" aria-labelledby="rem-l" aria-checked="' + (st === 'on') + '" data-act="reminder-toggle"></button>' : '';
+    if (st === 'on' && HOURS.length > 1) note = 'הודעה אחת ב-' + ltr(hourLabel()) + ', רק אם עוד לא עשית שיעור באותו יום.';
     return '<div class="card"><div class="toggle-row"><h2 id="rem-l">תזכורת יומית</h2>' + ctrl + '</div><p class="fine">' + note + '</p>' +
+      (st === 'on' ? hourChips('rem-hour', remHour()) : '') +
       (st === 'install' ? '<button class="btn ghost" data-act="install" data-placement="profile">איך מתקינים</button>' : '') +
       (st === 'denied' && IS_NATIVE ? '<button class="btn ghost" data-act="native-settings">לפתוח את ההגדרות</button>' : '') + '</div>';
   }
@@ -6437,6 +6499,26 @@
         break;
       }
       case 'done-lesson': sfx.tap(); doneAsk(function () { session = null; chainStart('practice_refill'); }); break;
+      case 'ask-hour': {
+        var ah = +el.getAttribute('data-h');
+        if (HOURS.indexOf(ah) < 0) break;
+        askHour = ah;
+        var hps = el.parentNode.querySelectorAll('.hp');
+        for (var hpi = 0; hpi < hps.length; hpi++) hps[hpi].setAttribute('aria-pressed', String(hps[hpi] === el));
+        var rgo = document.querySelector('#sheet .rem-go');
+        if (rgo) rgo.innerHTML = remGoText();
+        break;
+      }
+      case 'rem-hour': {
+        var rh = +el.getAttribute('data-h');
+        if (HOURS.indexOf(rh) < 0 || !S.reminder || !S.reminder.on) break;
+        var rhWas = remHour();
+        S.reminder.hour = rh; save();
+        track('reminder_hour_changed', { hour: rh, was: rhWas, $set: { reminder_hour: rh } });
+        nativeReminderPlan(); render();
+        toast(ICON.bell + '<b>סגור.</b> תזכורת כל יום ב-' + ltr(hourText(rh)), 'info', 2000);
+        break;
+      }
       case 'done-ask-on': {
         var dBtn = el; dBtn.disabled = true;
         enableReminder('done', true, function () { doneAskGo(); });
