@@ -1688,6 +1688,35 @@ img { -webkit-user-drag: none; }
 .done-teaser p { margin: 0; color: var(--ink-2); font-size: 15px; line-height: 1.45; }
 .done-teaser .btn { margin-top: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .done-teaser .btn svg { width: 20px; height: 20px; flex: none; }
+/* 0.43: the offer card with the benefit in big type and three short lines */
+.done-teaser.has-big { gap: 10px; padding: 16px; }
+.done-teaser .dt-big { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; padding: 10px 14px; border-radius: var(--r-sm); background: var(--gold-soft); }
+.done-teaser .dt-sum { font-family: var(--font-display); font-weight: 800; font-size: 28px; line-height: 1.1; color: var(--ink); }
+.done-teaser .dt-note { font-size: 15px; font-weight: 600; color: var(--ink-2); }
+.done-teaser .dt-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.done-teaser .dt-points li { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+.done-teaser .dt-points li svg { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--brand); }
+.done-teaser.has-big .btn { margin-top: 2px; width: 100%; }
+/* 0.43: the first-day goal on the done screen: three dots that fill up */
+.fdg { display: flex; align-items: center; gap: 14px; }
+.fdg-dots { display: flex; gap: 6px; flex: none; }
+.fdg-dots i { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line, #d9d9d9); display: grid; place-items: center; }
+.fdg-dots i.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand, #fff); }
+.fdg-dots i svg { width: 15px; height: 15px; }
+.fdg-dots i.now { animation: fdg-pop .5s ease-out both; }
+.fdg-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fdg-txt b { font-size: 16px; color: var(--ink); }
+.fdg-txt span { font-size: 14px; color: var(--ink-2); line-height: 1.4; }
+.fdg.met .fdg-dots i.on { background: var(--gold, var(--brand)); border-color: var(--gold, var(--brand)); }
+@keyframes fdg-pop { 0% { transform: scale(.4); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .fdg-dots i.now { animation: none; } }
+/* 0.43: the reminder hour (iPhone app) */
+.hour-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 4px 0 12px; }
+.hour-pick .hp { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border-radius: var(--r-sm); border: 2px solid var(--line, #d9d9d9); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.hour-pick .hp b { font-size: 16px; }
+.hour-pick .hp small { font-size: 12px; color: var(--ink-2); }
+.hour-pick .hp[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft, var(--gold-soft)); }
+.card .hour-pick { margin: 10px 0 0; }
 .teaser-sheet h3 { margin: 0; }
 .teaser-sheet > .btn.text { align-self: center; }
 .teaser-sheet > .offer-caution { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; border-radius: var(--r-sm); background: var(--gold-soft); color: var(--ink); font-size: 15px; font-weight: 600; line-height: 1.45; }
